@@ -1,0 +1,237 @@
+import { useState } from "react";
+import { Pill, Meter, Avatar, En } from "@/components/common";
+import {
+  AXES, STATUS_META, TRUST_META, ME_ID,
+  type Candidate, type Mission,
+} from "@/data/mock";
+import { useSlis } from "@/store";
+import { matchTone, textTone, type Tone } from "@/lib/tone";
+import { cn } from "@/lib/utils";
+import {
+  ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
+  CheckCircle2, CircleUser, Trophy,
+} from "lucide-react";
+
+function WeightBar({ m }: { m: Mission }) {
+  return (
+    <div className="flex overflow-hidden rounded-lg border">
+      {AXES.map((a, i) => (
+        <div key={a.key}
+          className={cn("py-1.5 text-center text-[11px] font-semibold text-white", i % 2 ? "bg-brand-soft" : "bg-brand")}
+          style={{ width: `${m.weights[a.key]}%` }} title={`${a.label}: ${m.weights[a.key]}%`}>
+          {m.weights[a.key] >= 15 ? `${a.short} ${m.weights[a.key]}%` : m.weights[a.key]}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CandidateRow({ c, rank, mission, assigned, onAssign, onOpenStudent }:
+  { c: Candidate; rank: number; mission: Mission; assigned: boolean;
+    onAssign: () => void; onOpenStudent: () => void }) {
+  const [open, setOpen] = useState(rank === 1);
+  const trust = TRUST_META[c.trust];
+  const isSeat = rank <= mission.seats;
+
+  return (
+    <div className={cn("rounded-xl border bg-card transition-colors",
+      isSeat ? "border-success/40" : "")}>
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 p-3 text-right">
+        {/* الترتيب */}
+        <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg font-display text-lg font-extrabold",
+          rank === 1 ? "bg-gold text-white" : "bg-muted text-foreground/70")}>
+          {rank === 1 ? <Crown className="h-5 w-5" /> : rank}
+        </div>
+        <Avatar name={c.name} color={c.avatarColor} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-semibold">{c.name}</span>
+            {c.id === ME_ID && <Pill tone="gold" className="hidden sm:inline-flex">متقدّم جديد</Pill>}
+            {isSeat && <Pill tone="success" className="hidden sm:inline-flex"><CheckCircle2 className="h-3 w-3" /> ضمن المقاعد</Pill>}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {c.grade} · {c.className}
+            {c.wishRank && <> · رغبة الطالب: <En>#{c.wishRank}</En></>}
+          </div>
+        </div>
+
+        {/* المواءمة */}
+        <div className="hidden md:flex flex-col items-center w-24">
+          <span className={cn("font-display text-xl font-extrabold", textTone[matchTone(c.match)])}>
+            <En>{c.match}%</En>
+          </span>
+          <span className="text-[10px] text-muted-foreground">المواءمة</span>
+        </div>
+        <div className="w-28 hidden md:block">
+          <Meter value={c.match} tone={matchTone(c.match)} />
+        </div>
+
+        <Pill tone={trust.tone as Tone} className="hidden lg:inline-flex">{trust.label}</Pill>
+        <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {/* شارة المواءمة للجوال */}
+      <div className="flex items-center gap-2 px-3 pb-2 md:hidden">
+        <Meter value={c.match} tone={matchTone(c.match)} />
+        <span className="text-sm font-bold"><En>{c.match}%</En></span>
+        <Pill tone={trust.tone as Tone}>{trust.label}</Pill>
+      </div>
+
+      {open && (
+        <div className="border-t p-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* المحاور الخمسة */}
+            <div>
+              <div className="mb-2 text-xs font-semibold text-muted-foreground">الكفايات القيادية (محاور هيرمان)</div>
+              <div className="space-y-2">
+                {AXES.map((a) => (
+                  <div key={a.key} className="grid grid-cols-[90px_1fr_38px] items-center gap-2">
+                    <span className="text-[13px] text-foreground/80">{a.label}</span>
+                    <Meter value={c.axes[a.key]}
+                      tone={c.axes[a.key] >= 82 ? "success" : c.axes[a.key] >= 72 ? "brand" : "warning"} />
+                    <span className="text-left text-xs font-bold tabular-nums"><En>{c.axes[a.key]}</En></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ملخص التقييم */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="text-[11px] text-muted-foreground">الكفايات (٧٠٪)</div>
+                  <div className="font-display text-xl font-extrabold text-brand"><En>{c.competency}%</En></div>
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="text-[11px] text-muted-foreground">السلوك (٣٠٪)</div>
+                  <div className="font-display text-xl font-extrabold text-brand"><En>{c.behavior}%</En></div>
+                </div>
+              </div>
+
+              {/* مؤشرات النزاهة */}
+              <div className="rounded-lg border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[13px] font-semibold">مؤشرات الموثوقية</span>
+                  <Pill tone={trust.tone as Tone}>{trust.label}</Pill>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>درجة التناقض</span><span><En>{c.contradiction}/10</En></span>
+                    </div>
+                    <Meter value={c.contradiction * 10} tone={c.contradiction >= 6 ? "danger" : c.contradiction >= 3 ? "warning" : "success"} className="mt-1" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>الكمال الاجتماعي</span><span><En>{c.socialDesirability}/5</En></span>
+                    </div>
+                    <Meter value={c.socialDesirability * 20} tone={c.socialDesirability >= 4 ? "danger" : c.socialDesirability >= 2 ? "warning" : "success"} className="mt-1" />
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">{trust.desc}.</p>
+              </div>
+
+              {c.note && (
+                <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-[12px] text-warning">
+                  ملاحظة: {c.note}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button onClick={onAssign} disabled={assigned}
+                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 h-9 text-sm font-semibold text-white",
+                    assigned ? "bg-success cursor-default" : "bg-brand hover:bg-brand/90")}>
+                  {assigned ? <><CheckCircle2 className="h-4 w-4" /> مُعتمَد للتكليف</> : "اعتماد للتكليف التجريبي"}
+                </button>
+                <button onClick={onOpenStudent} className="rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
+                  عرض الملف
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MissionDetail({ missionId, onBack, onOpenStudent }:
+  { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
+  const { missions, assigned, assignCandidate, rankMission } = useSlis();
+  const m = missions.find((x) => x.id === missionId)!;
+  const ranked = rankMission(m);
+  const st = STATUS_META[m.status];
+  const assignedIds = assigned[m.id] || [];
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+        <ArrowRight className="h-4 w-4" /> رجوع إلى المهام
+      </button>
+
+      {/* بطاقة المهمة */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="grid h-12 w-12 place-items-center rounded-xl bg-brand text-white">
+              <Target className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="font-display text-xl font-extrabold">{m.title}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{m.scopeLabel}</span>
+                <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{m.supervisor}</span>
+                <span>أُنشئت <En>{m.createdAt}</En></span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Pill tone={st.tone as Tone}>{st.label}</Pill>
+            <Pill tone="brand">الوضع {m.mode === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"}</Pill>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto]">
+          <div>
+            <div className="mb-1.5 text-xs font-semibold text-muted-foreground">أوزان المحاور لهذه المهمة (تُحدّد المواءمة)</div>
+            <WeightBar m={m} />
+          </div>
+          <div className="flex gap-2">
+            <div className="grid place-items-center rounded-lg border px-4">
+              <span className="font-display text-2xl font-extrabold text-brand"><En>{ranked.length}</En></span>
+              <span className="text-[11px] text-muted-foreground">مرشّح</span>
+            </div>
+            <div className="grid place-items-center rounded-lg border px-4">
+              <span className="font-display text-2xl font-extrabold text-gold"><En>{m.seats}</En></span>
+              <span className="text-[11px] text-muted-foreground">مقعد</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* قائمة المرشّحين */}
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <Trophy className="h-[18px] w-[18px] text-gold" />
+          <h2 className="font-display text-lg font-bold">قائمة المرشّحين مرتّبة حسب المواءمة</h2>
+          <Pill tone="muted" className="mr-auto">
+            <CircleUser className="h-3 w-3" /> المقارنة داخل النطاق فقط
+          </Pill>
+        </div>
+        <div className="space-y-2.5">
+          {ranked.length === 0 && (
+            <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
+              لا مرشّحون بعد لهذه المهمة — في الوضع (ب) تظهر القائمة بعد أداء الطلاب للمقياس.
+            </div>
+          )}
+          {ranked.map((c, i) => (
+            <CandidateRow key={c.id} c={c} rank={i + 1} mission={m}
+              assigned={assignedIds.includes(c.id)}
+              onAssign={() => assignCandidate(m.id, c.id, c.name)}
+              onOpenStudent={() => onOpenStudent(c.id)} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
