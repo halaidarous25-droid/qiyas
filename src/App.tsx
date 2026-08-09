@@ -16,7 +16,9 @@ import { Login } from "@/pages/Login";
 import { SlisProvider, type StoreSeed } from "@/store";
 import { Toaster } from "@/components/Toaster";
 import { AuthProvider, useAuth, type LiveRole } from "@/lib/auth";
-import { fetchSchoolSeed } from "@/lib/live";
+import { fetchSchoolSeed, fetchCentralSeed, type CentralSeed } from "@/lib/live";
+import { dbResolveAppeal, dbReviewAppeal } from "@/lib/api";
+import { useSlis } from "@/store";
 import { Loader2, LogOut, AlertCircle } from "lucide-react";
 
 const CRUMBS: Record<PageKey, string> = {
@@ -24,6 +26,51 @@ const CRUMBS: Record<PageKey, string> = {
   school: "إدارة المدرسة", reports: "التقارير", quota: "الحصص",
   governance: "الحوكمة", settings: "الإعدادات",
 };
+
+// ===== لوحة الإدارة المركزية الحيّة (كل المدارس) =====
+function LiveCentral({ userName }: { userName?: string }) {
+  const { toast } = useSlis();
+  const [data, setData] = useState<CentralSeed | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = async () => {
+    try { setData(await fetchCentralSeed()); setErr(null); }
+    catch (e: any) { setErr(e?.message || "تعذّر تحميل بيانات المنصة"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const decider = userName || "مدير النظام المركزي";
+  const onResolveAppeal = async (id: string) => {
+    try { await dbResolveAppeal(id, decider); await load(); toast("حُسم التظلّم وسُجّل المُقرِّر"); }
+    catch (e: any) { toast(`تعذّر حسم التظلّم: ${e.message || e}`, "danger"); }
+  };
+  const onReviewAppeal = async (id: string) => {
+    try { await dbReviewAppeal(id, decider); await load(); toast("استُلم التظلّم للمراجعة", "info"); }
+    catch (e: any) { toast(`تعذّرت المعالجة: ${e.message || e}`, "danger"); }
+  };
+
+  if (loading) return (
+    <div className="grid min-h-screen place-items-center bg-background">
+      <div className="text-center text-muted-foreground">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-brand" />
+        <div className="mt-3 text-sm">جارٍ تحميل بيانات المنصة…</div>
+      </div>
+    </div>
+  );
+  if (err) return (
+    <div className="grid min-h-screen place-items-center bg-background p-6">
+      <div className="max-w-sm text-center">
+        <AlertCircle className="mx-auto h-10 w-10 text-danger" />
+        <div className="mt-3 font-semibold">تعذّر تحميل بيانات المنصة</div>
+        <div className="mt-1 text-sm text-muted-foreground">{err}</div>
+      </div>
+    </div>
+  );
+
+  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} />;
+}
 
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
 function Shell({ initialRole, locked, onSignOut, userName }:
@@ -46,7 +93,9 @@ function Shell({ initialRole, locked, onSignOut, userName }:
             ? <button onClick={onSignOut} className="flex items-center gap-1.5 rounded-lg border bg-card/90 px-3 h-9 text-xs font-semibold shadow-sm backdrop-blur hover:bg-accent"><LogOut className="h-3.5 w-3.5" /> خروج</button>
             : <button onClick={() => setRole("supervisor")} className="rounded-lg border bg-card/90 px-3 h-9 text-xs font-semibold shadow-sm backdrop-blur hover:bg-accent">← العودة لعرض المشرف</button>}
         </div>
-        {role === "student" ? <StudentApp /> : <CentralApp />}
+        {role === "student"
+          ? <StudentApp />
+          : (locked ? <LiveCentral userName={userName} /> : <CentralApp />)}
         <Toaster />
       </div>
     );
