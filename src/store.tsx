@@ -5,7 +5,7 @@ import {
   type Mission, type OperatingMode, type ScopeLevel, type IndReq, type AxisKey,
   type Candidate, type Teacher, type SchoolClass,
 } from "@/data/mock";
-import { fetchSchoolSeed, type LiveSubscription } from "@/lib/live";
+import { fetchSchoolSeed, type LiveSubscription, type DevPlan } from "@/lib/live";
 import * as api from "@/lib/api";
 import { scoreAssessment } from "@/lib/scoring";
 
@@ -42,6 +42,8 @@ interface Store {
     title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
   }) => void;
   assignCandidate: (missionId: string, candId: string, name: string) => void;
+  devPlans: Record<string, DevPlan>;
+  saveDevPlan: (missionId: string, studentId: string, plan: DevPlan) => void;
   resolveIndReq: (id: string, approved: boolean, name: string) => void;
   saveSettings: (s: { mode: OperatingMode; hybrid: boolean; settings: AppSettings }) => void;
   // دورة الطالب المُسجَّل (me)
@@ -55,6 +57,7 @@ interface Store {
   teachers: Teacher[];
   classes: SchoolClass[];
   addStudent: (s: { name: string; grade: string; className: string }) => void;
+  bulkAddStudents: (rows: { name: string; grade: string; className: string }[]) => Promise<number>;
   addTeacher: (t: { name: string; role: string }) => void;
   addClass: (c: { name: string; grade: string; homeroom: string }) => void;
   rankMission: (m: Mission) => Candidate[];
@@ -80,6 +83,7 @@ export interface StoreSeed {
   subscription?: LiveSubscription | null;
   missions?: Mission[];
   assigned?: Record<string, string[]>;
+  devPlans?: Record<string, DevPlan>;
   indReqs?: IndReq[];
   students?: Candidate[];
   teachers?: Teacher[];
@@ -101,6 +105,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
   const [subscription, setSubscription] = useState<LiveSubscription | null>(seed?.subscription ?? null);
   const [missions, setMissions] = useState<Mission[]>(seed?.missions ?? MISSIONS);
   const [assigned, setAssigned] = useState<Record<string, string[]>>(seed?.assigned ?? {});
+  const [devPlans, setDevPlans] = useState<Record<string, DevPlan>>(seed?.devPlans ?? {});
   const [indReqs, setIndReqs] = useState<IndReq[]>(seed?.indReqs ?? IND_REQUESTS);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [meAssessed, setMeAssessed] = useState(false);
@@ -123,6 +128,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     setSettings({ ...DEFAULT_SETTINGS, ...((s.settings as Partial<AppSettings>) ?? {}) });
     setSubscription(s.subscription);
     setMissions(s.missions); setAssigned(s.assigned); setIndReqs(s.indReqs);
+    setDevPlans(s.devPlans);
     setStudents(s.students); setTeachers(s.teachers); setClasses(s.classes);
   }, [isLive, schoolId]);
 
@@ -161,6 +167,19 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     });
     setMissions((list) => list.map((m) => m.id === missionId ? { ...m, status: "trial" } : m));
     toast(`اعتُمد ${name} للتكليف التجريبي`);
+  };
+
+  const saveDevPlan: Store["saveDevPlan"] = (missionId, studentId, plan) => {
+    const key = `${missionId}:${studentId}`;
+    if (isLive && schoolId) {
+      api.dbSaveDevelopmentPlan(missionId, studentId, plan)
+        .then(() => setDevPlans((d) => ({ ...d, [key]: plan })))
+        .then(() => toast("حُفظت خطة التطوير"))
+        .catch((e) => toast(`تعذّر الحفظ: ${e.message || e}`, "danger"));
+      return;
+    }
+    setDevPlans((d) => ({ ...d, [key]: plan }));
+    toast("حُفظت خطة التطوير");
   };
 
   const resolveIndReq: Store["resolveIndReq"] = (id, approved, name) => {
@@ -269,6 +288,23 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     setStudents((list) => [s, ...list]);
     toast(`أُضيف الطالب ${name} — بانتظار أداء المقياس`);
   };
+  const bulkAddStudents: Store["bulkAddStudents"] = async (rows) => {
+    if (!rows.length) return 0;
+    if (isLive && schoolId) {
+      try {
+        await api.dbBulkAddStudents(schoolId, rows);
+        await resync();
+        toast(`استُورد ${rows.length} طالبًا بنجاح`);
+        return rows.length;
+      } catch (e: any) { toast(`تعذّر الاستيراد: ${e.message || e}`, "danger"); return 0; }
+    }
+    let base = students.length;
+    const added = rows.map((r) => newStudent(`ns${base++}`, r.name, r.grade, r.className));
+    setStudents((list) => [...added, ...list]);
+    toast(`استُورد ${rows.length} طالبًا بنجاح`);
+    return rows.length;
+  };
+
   const addTeacher: Store["addTeacher"] = ({ name, role }) => {
     if (isLive && schoolId) {
       api.dbAddTeacher(schoolId, { name, role })
@@ -314,9 +350,9 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     <Ctx.Provider value={{
       live: isLive, schoolId,
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
-      toast, dismissToast, addMission, assignCandidate, resolveIndReq, saveSettings,
+      toast, dismissToast, addMission, assignCandidate, devPlans, saveDevPlan, resolveIndReq, saveSettings,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, addTeacher, addClass, rankMission, studentMissionsFor,
+      students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,
     }}>
       {children}
     </Ctx.Provider>

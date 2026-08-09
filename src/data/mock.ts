@@ -37,6 +37,7 @@ export interface Candidate {
   trust: Trust;
   interviewDone: boolean;
   assessed: boolean;   // هل أدّى المقياس؟ (المضافون حديثًا: false)
+  hasAccount?: boolean; // هل يملك حساب دخول مرتبط؟
   note?: string;
 }
 

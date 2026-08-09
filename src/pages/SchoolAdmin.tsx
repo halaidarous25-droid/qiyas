@@ -1,19 +1,22 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Pill, Avatar, En } from "@/components/common";
 import { useSlis } from "@/store";
 import { SCHOOL, TEACHER_ROLES, type SchoolClass } from "@/data/mock";
+import { parseStudentsCsv, STUDENTS_CSV_TEMPLATE } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
-  MapPin, Clock, UploadCloud, Check,
+  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2,
 } from "lucide-react";
+import { createStudentAccount, inviteMember } from "@/lib/api";
 
-type Tab = "info" | "classes" | "teachers" | "students";
+type Tab = "info" | "classes" | "teachers" | "students" | "accounts";
 const TABS: { k: Tab; l: string; icon: any }[] = [
   { k: "info", l: "بيانات المدرسة", icon: Building2 },
   { k: "classes", l: "الفصول", icon: Layers },
   { k: "teachers", l: "المعلمون", icon: Users2 },
   { k: "students", l: "الطلاب", icon: GraduationCap },
+  { k: "accounts", l: "الحسابات والصلاحيات", icon: KeyRound },
 ];
 
 const GRADES = ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"];
@@ -29,7 +32,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full rounded-lg border bg-background px-3 h-10 text-sm outline-none focus:border-brand";
 
 export function SchoolAdmin() {
-  const { students, teachers, classes, addStudent, addTeacher, addClass, mode } = useSlis();
+  const { students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, mode, live, schoolId } = useSlis();
   const [tab, setTab] = useState<Tab>("info");
 
   return (
@@ -53,7 +56,8 @@ export function SchoolAdmin() {
       {tab === "info" && <SchoolInfo studentsN={students.length} classesN={classes.length} teachersN={teachers.length} mode={mode} />}
       {tab === "classes" && <ClassesTab classes={classes} teachers={teachers} onAdd={addClass} />}
       {tab === "teachers" && <TeachersTab teachers={teachers} onAdd={addTeacher} />}
-      {tab === "students" && <StudentsTab students={students} classes={classes} onAdd={addStudent} />}
+      {tab === "students" && <StudentsTab students={students} classes={classes} onAdd={addStudent} onBulk={bulkAddStudents} />}
+      {tab === "accounts" && <AccountsTab students={students} live={live} schoolId={schoolId} />}
     </div>
   );
 }
@@ -165,17 +169,50 @@ function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => 
   );
 }
 
-function StudentsTab({ students, classes, onAdd }:
-  { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void }) {
+function StudentsTab({ students, classes, onAdd, onBulk }:
+  { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
   const [name, setName] = useState(""); const [grade, setGrade] = useState(GRADES[0]);
   const [className, setClassName] = useState(classes[0]?.name || "");
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const submit = () => { if (name.trim().length < 2) return; onAdd({ name: name.trim(), grade, className }); setName(""); };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImporting(true);
+    try {
+      const text = await f.text();
+      const { rows } = parseStudentsCsv(text);
+      if (!rows.length) { alert("لم يُعثر على صفوف صالحة. تأكد من وجود عمود «الاسم»."); return; }
+      await onBulk(rows);
+    } finally { setImporting(false); if (fileRef.current) fileRef.current.value = ""; }
+  };
+
+  const downloadTemplate = () => {
+    const blob = new Blob(["﻿" + STUDENTS_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "students_template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
-        <div className="flex items-center justify-between border-b px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
           <span className="font-display font-bold">الطلاب (<En>{students.length}</En>)</span>
-          <span className="text-xs text-muted-foreground"><En>{students.filter((s) => s.assessed).length}</En> أدّوا المقياس</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground"><En>{students.filter((s) => s.assessed).length}</En> أدّوا المقياس</span>
+            <button onClick={downloadTemplate} className="inline-flex items-center gap-1 rounded-md border px-2.5 h-8 text-xs font-semibold hover:bg-accent">
+              <FileDown className="h-3.5 w-3.5" /> قالب
+            </button>
+            <button onClick={() => fileRef.current?.click()} disabled={importing}
+              className="inline-flex items-center gap-1 rounded-md bg-brand px-2.5 h-8 text-xs font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+              <FileUp className="h-3.5 w-3.5" /> {importing ? "جارٍ الاستيراد…" : "استيراد CSV"}
+            </button>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
+          </div>
         </div>
         <div className="max-h-[460px] divide-y overflow-y-auto">
           {students.map((s) => (
@@ -200,6 +237,123 @@ function StudentsTab({ students, classes, onAdd }:
           <button onClick={submit} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">إضافة الطالب</button>
           <p className="text-[11px] text-muted-foreground">يُضاف الطالب بحالة «بانتظار المقياس» حتى يؤدّيه من بوابته.</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== تبويب الحسابات والصلاحيات =====
+const MEMBER_ROLES = [
+  { k: "principal", l: "مدير المدرسة" },
+  { k: "coordinator", l: "منسّق النظام" },
+  { k: "teacher", l: "معلم/مشرف" },
+];
+
+interface Cred { kind: "student" | "member"; label: string; email: string; password: string }
+
+function AccountsTab({ students, live, schoolId }:
+  { students: any[]; live: boolean; schoolId: string | null }) {
+  const { toast } = useSlis();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState("coordinator");
+  const [inviting, setInviting] = useState(false);
+  const [creds, setCreds] = useState<Cred[]>([]);
+
+  const withAccount = students.filter((s) => s.hasAccount).length;
+  const without = students.filter((s) => !s.hasAccount);
+
+  const copy = (t: string) => { navigator.clipboard?.writeText(t); toast("نُسِخ", "info"); };
+
+  const makeStudent = async (s: any) => {
+    setBusyId(s.id);
+    try {
+      const r = await createStudentAccount(s.id);
+      setCreds((c) => [{ kind: "student", label: s.name, email: r.email, password: r.password }, ...c]);
+      toast(`أُنشئ حساب ${s.name}`);
+      // ملاحظة: يظهر الحساب كمرتبط بعد إعادة تحميل البيانات
+    } catch (e: any) { toast(`تعذّر إنشاء الحساب: ${e.message || e}`, "danger"); }
+    finally { setBusyId(null); }
+  };
+
+  const invite = async () => {
+    if (!schoolId || !inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const r = await inviteMember(schoolId, inviteEmail.trim(), inviteName.trim(), inviteRole);
+      setCreds((c) => [{ kind: "member", label: inviteName.trim() || inviteEmail.trim(), email: r.email, password: r.password }, ...c]);
+      setInviteEmail(""); setInviteName("");
+      toast("أُنشئ حساب العضو");
+    } catch (e: any) { toast(`تعذّرت الدعوة: ${e.message || e}`, "danger"); }
+    finally { setInviting(false); }
+  };
+
+  if (!live) return (
+    <div className="rounded-xl border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+      إدارة الحسابات متاحة عند الدخول بحساب مدرسة حقيقي (غير متاحة في العرض التجريبي).
+    </div>
+  );
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-3">
+      {/* حسابات الطلاب */}
+      <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <span className="font-display font-bold">حسابات الطلاب</span>
+          <span className="text-xs text-muted-foreground"><En>{withAccount}</En> مرتبط · <En>{without.length}</En> بلا حساب</span>
+        </div>
+        <div className="max-h-[440px] divide-y overflow-y-auto">
+          {students.map((s) => (
+            <div key={s.id} className="flex items-center gap-3 px-5 py-2.5">
+              <Avatar name={s.name} color={s.avatarColor} size={32} />
+              <div className="flex-1"><div className="font-semibold text-sm">{s.name}</div>
+                <div className="text-xs text-muted-foreground">{s.className || s.grade}</div></div>
+              {s.hasAccount
+                ? <Pill tone="success"><Check className="h-3 w-3" /> له حساب</Pill>
+                : <button onClick={() => makeStudent(s)} disabled={busyId === s.id}
+                    className="inline-flex items-center gap-1 rounded-md bg-brand px-2.5 h-8 text-xs font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+                    {busyId === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />} إنشاء حساب
+                  </button>}
+            </div>
+          ))}
+          {students.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">لا طلاب بعد.</div>}
+        </div>
+      </div>
+
+      {/* دعوة عضو + بيانات الاعتماد */}
+      <div className="space-y-4">
+        <div className="rounded-xl border bg-card p-5">
+          <div className="mb-3 flex items-center gap-2"><UserPlus className="h-4 w-4 text-brand" />
+            <h3 className="font-display font-bold">دعوة عضو (مشرف/منسّق)</h3></div>
+          <div className="space-y-3">
+            <Field label="البريد الإلكتروني"><input className={inputCls} value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" type="email" /></Field>
+            <Field label="الاسم"><input className={inputCls} value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="الاسم الكامل" /></Field>
+            <Field label="الدور"><select className={inputCls} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>{MEMBER_ROLES.map((r) => <option key={r.k} value={r.k}>{r.l}</option>)}</select></Field>
+            <button onClick={invite} disabled={inviting || !inviteEmail.trim()}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+              {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} إنشاء الحساب
+            </button>
+          </div>
+        </div>
+
+        {creds.length > 0 && (
+          <div className="rounded-xl border border-brand/30 bg-brand/5 p-4">
+            <div className="mb-2 text-xs font-semibold text-brand">بيانات الدخول المُنشأة (انسخها وسلّمها للمستخدم — لن تظهر لاحقًا)</div>
+            <div className="space-y-2">
+              {creds.map((c, i) => (
+                <div key={i} className="rounded-lg border bg-card p-2.5 text-[12px]">
+                  <div className="font-semibold">{c.label} <span className="text-muted-foreground">({c.kind === "student" ? "طالب" : "عضو"})</span></div>
+                  <div className="mt-1 flex items-center justify-between gap-2"><span className="text-muted-foreground">البريد</span>
+                    <span className="flex items-center gap-1 font-mono ltr">{c.email}<button onClick={() => copy(c.email)}><Copy className="h-3 w-3 text-brand" /></button></span></div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2"><span className="text-muted-foreground">كلمة المرور</span>
+                    <span className="flex items-center gap-1 font-mono ltr">{c.password}<button onClick={() => copy(c.password)}><Copy className="h-3 w-3 text-brand" /></button></span></div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">لتفعيل الطلاب: يظهر «له حساب» بعد إعادة تحميل الصفحة.</p>
+          </div>
+        )}
       </div>
     </div>
   );

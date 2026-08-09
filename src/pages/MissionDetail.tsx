@@ -9,8 +9,9 @@ import { matchTone, textTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
-  CheckCircle2, CircleUser, Trophy,
+  CheckCircle2, CircleUser, Trophy, ClipboardList, Plus, X, Save, Flag,
 } from "lucide-react";
+import type { DevPlan } from "@/lib/live";
 
 function WeightBar({ m }: { m: Mission }) {
   return (
@@ -155,13 +156,100 @@ function CandidateRow({ c, rank, mission, assigned, onAssign, onOpenStudent }:
   );
 }
 
+const DEV_STATUS: { k: NonNullable<DevPlan["status"]>; l: string; tone: Tone }[] = [
+  { k: "trial", l: "قيد التجربة", tone: "warning" },
+  { k: "confirmed", l: "معتمَد نهائيًا", tone: "success" },
+  { k: "unfit", l: "غير مناسب", tone: "danger" },
+];
+
+function DevPlanCard({ mission, student }: { mission: Mission; student: Candidate }) {
+  const { devPlans, saveDevPlan } = useSlis();
+  const key = `${mission.id}:${student.id}`;
+  const existing = devPlans[key] || {};
+  const [plan, setPlan] = useState<DevPlan>({
+    trialStart: existing.trialStart || "", trialEnd: existing.trialEnd || "",
+    status: existing.status || "trial", performance: existing.performance ?? 0,
+    goals: existing.goals || [], notes: existing.notes || "",
+  });
+  const [goalText, setGoalText] = useState("");
+
+  const addGoal = () => { if (!goalText.trim()) return; setPlan((p) => ({ ...p, goals: [...(p.goals || []), { text: goalText.trim(), done: false }] })); setGoalText(""); };
+  const toggleGoal = (i: number) => setPlan((p) => ({ ...p, goals: (p.goals || []).map((g, j) => j === i ? { ...g, done: !g.done } : g) }));
+  const removeGoal = (i: number) => setPlan((p) => ({ ...p, goals: (p.goals || []).filter((_, j) => j !== i) }));
+
+  const inputCls = "rounded-lg border bg-background px-3 h-9 text-sm";
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div className="mb-3 flex items-center gap-2.5">
+        <Avatar name={student.name} color={student.avatarColor} size={34} />
+        <div className="flex-1"><div className="font-semibold text-sm">{student.name}</div>
+          <div className="text-xs text-muted-foreground">{student.className || student.grade}</div></div>
+        <Pill tone={DEV_STATUS.find((s) => s.k === plan.status)?.tone || "muted"}>
+          {DEV_STATUS.find((s) => s.k === plan.status)?.l}
+        </Pill>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <label className="text-xs text-muted-foreground">بداية التجربة
+          <input type="date" className={cn(inputCls, "mt-1 w-full")} value={plan.trialStart} onChange={(e) => setPlan((p) => ({ ...p, trialStart: e.target.value }))} />
+        </label>
+        <label className="text-xs text-muted-foreground">نهاية التجربة
+          <input type="date" className={cn(inputCls, "mt-1 w-full")} value={plan.trialEnd} onChange={(e) => setPlan((p) => ({ ...p, trialEnd: e.target.value }))} />
+        </label>
+        <label className="text-xs text-muted-foreground">الحالة
+          <select className={cn(inputCls, "mt-1 w-full")} value={plan.status} onChange={(e) => setPlan((p) => ({ ...p, status: e.target.value as DevPlan["status"] }))}>
+            {DEV_STATUS.map((s) => <option key={s.k} value={s.k}>{s.l}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>تقييم الأداء</span><span className="font-bold text-brand"><En>{plan.performance}</En>%</span>
+        </div>
+        <input type="range" min={0} max={100} value={plan.performance}
+          onChange={(e) => setPlan((p) => ({ ...p, performance: Number(e.target.value) }))} className="mt-1 w-full accent-[hsl(191_72%_30%)]" />
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1 text-xs font-semibold">أهداف خطة التطوير</div>
+        <div className="space-y-1.5">
+          {(plan.goals || []).map((g, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-[13px]">
+              <input type="checkbox" checked={g.done} onChange={() => toggleGoal(i)} className="accent-[hsl(152_46%_40%)]" />
+              <span className={cn("flex-1", g.done && "line-through text-muted-foreground")}>{g.text}</span>
+              <button onClick={() => removeGoal(i)} className="text-danger hover:opacity-70"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1.5 flex gap-2">
+          <input value={goalText} onChange={(e) => setGoalText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()}
+            placeholder="أضف هدفًا تطويريًا…" className={cn(inputCls, "flex-1")} />
+          <button onClick={addGoal} className="inline-flex items-center gap-1 rounded-lg border px-2.5 h-9 text-xs font-semibold hover:bg-accent"><Plus className="h-3.5 w-3.5" /> إضافة</button>
+        </div>
+      </div>
+
+      <textarea value={plan.notes} onChange={(e) => setPlan((p) => ({ ...p, notes: e.target.value }))} rows={2}
+        placeholder="ملاحظات المشرف…" className="mt-3 w-full rounded-lg border bg-background px-3 py-2 text-sm" />
+
+      <button onClick={() => saveDevPlan(mission.id, student.id, plan)}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+        <Save className="h-4 w-4" /> حفظ خطة التطوير
+      </button>
+    </div>
+  );
+}
+
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, rankMission } = useSlis();
+  const { missions, assigned, assignCandidate, rankMission, students } = useSlis();
   const m = missions.find((x) => x.id === missionId)!;
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
   const assignedIds = assigned[m.id] || [];
+  const assignedStudents = assignedIds
+    .map((id) => students.find((s) => s.id === id) || ranked.find((c) => c.id === id))
+    .filter((c): c is Candidate => !!c);
 
   return (
     <div className="space-y-5">
@@ -232,6 +320,20 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           ))}
         </div>
       </div>
+
+      {/* التكليف التجريبي وخطة التطوير */}
+      {assignedStudents.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <ClipboardList className="h-[18px] w-[18px] text-brand" />
+            <h2 className="font-display text-lg font-bold">التكليف التجريبي وخطة التطوير</h2>
+            <Pill tone="muted" className="mr-auto"><Flag className="h-3 w-3" /> للمُعتمَدين</Pill>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {assignedStudents.map((s) => <DevPlanCard key={s.id} mission={m} student={s} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

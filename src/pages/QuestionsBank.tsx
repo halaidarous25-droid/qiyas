@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { Pill, En } from "@/components/common";
 import { useSlis } from "@/store";
 import { fetchQuestionBank, type QItem } from "@/lib/live";
-import { dbAddQuestion, dbSetQuestionActive, dbDeleteQuestion } from "@/lib/api";
+import { dbAddQuestion, dbSetQuestionActive, dbDeleteQuestion, dbUpdateQuestionOptions } from "@/lib/api";
 import { QUESTIONS } from "@/data/questions";
 import { cn } from "@/lib/utils";
 import {
   ListChecks, Plus, Trash2, Loader2, BookOpen, Building2,
-  ToggleLeft, ToggleRight, X, AlertCircle,
+  ToggleLeft, ToggleRight, X, AlertCircle, SlidersHorizontal, Save,
 } from "lucide-react";
 
 const AXES: { key: string; label: string }[] = [
@@ -20,10 +20,14 @@ const TYPE_LABEL: Record<string, string> = {
   scenario: "سيناريو", situation: "موقف", parallel: "موازٍ", trap: "فخّ", indicator: "مؤشّر",
 };
 
-function QuestionCard({ q, editable, onToggle, onDelete }: {
+function QuestionCard({ q, editable, onToggle, onDelete, onSaveOptions }: {
   q: QItem; editable: boolean;
   onToggle?: (q: QItem) => void; onDelete?: (q: QItem) => void;
+  onSaveOptions?: (q: QItem, options: { text: string; score: number }[]) => void;
 }) {
+  const [editW, setEditW] = useState(false);
+  const [opts, setOpts] = useState(q.options);
+
   return (
     <div className={cn("rounded-xl border bg-card p-4", !q.active && "opacity-60")}>
       <div className="flex items-start justify-between gap-2">
@@ -36,6 +40,12 @@ function QuestionCard({ q, editable, onToggle, onDelete }: {
         </div>
         {editable && (
           <div className="flex items-center gap-1">
+            {q.options.length > 0 && (
+              <button onClick={() => { setEditW((v) => !v); setOpts(q.options); }} title="تعديل الأوزان"
+                className={cn("grid h-8 w-8 place-items-center rounded-md border hover:bg-accent", editW && "bg-brand/10 text-brand")}>
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            )}
             <button onClick={() => onToggle?.(q)} title={q.active ? "إيقاف" : "تفعيل"}
               className="grid h-8 w-8 place-items-center rounded-md border hover:bg-accent">
               {q.active ? <ToggleRight className="h-4 w-4 text-success" /> : <ToggleLeft className="h-4 w-4 text-muted-foreground" />}
@@ -49,7 +59,8 @@ function QuestionCard({ q, editable, onToggle, onDelete }: {
       </div>
       {q.role && <div className="mt-2 text-[11px] text-muted-foreground">{q.role}</div>}
       <p className="mt-1 text-sm font-medium leading-6">{q.text}</p>
-      {q.options.length > 0 && (
+
+      {q.options.length > 0 && !editW && (
         <ul className="mt-2 space-y-1">
           {q.options.map((o, i) => (
             <li key={i} className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-[13px]">
@@ -58,6 +69,24 @@ function QuestionCard({ q, editable, onToggle, onDelete }: {
             </li>
           ))}
         </ul>
+      )}
+
+      {editW && (
+        <div className="mt-2 space-y-1.5">
+          <div className="text-[11px] font-semibold text-brand">تعديل أوزان الخيارات (٠–١٠٠) — مفتاح التصحيح</div>
+          {opts.map((o, i) => (
+            <div key={i} className="flex items-center gap-2 text-[13px]">
+              <span className="flex-1 truncate">{o.text}</span>
+              <input type="number" min={0} max={100} value={o.score}
+                onChange={(e) => setOpts((os) => os.map((x, j) => j === i ? { ...x, score: Number(e.target.value) } : x))}
+                className="w-16 rounded border bg-background px-2 h-8 text-center text-xs" />
+            </div>
+          ))}
+          <button onClick={() => { onSaveOptions?.(q, opts); setEditW(false); }}
+            className="mt-1 inline-flex items-center gap-1 rounded-md bg-brand px-3 h-8 text-xs font-semibold text-white hover:bg-brand/90">
+            <Save className="h-3.5 w-3.5" /> حفظ الأوزان
+          </button>
+        </div>
       )}
     </div>
   );
@@ -186,6 +215,10 @@ export function QuestionsBank() {
     try { await dbDeleteQuestion(q.id); await load(); toast("حُذف السؤال", "info"); }
     catch (e: any) { toast(`تعذّر الحذف: ${e.message || e}`, "danger"); }
   };
+  const saveOptions = async (q: QItem, options: { text: string; score: number }[]) => {
+    try { await dbUpdateQuestionOptions(q.id, options); await load(); toast("حُدّثت أوزان السؤال"); }
+    catch (e: any) { toast(`تعذّر الحفظ: ${e.message || e}`, "danger"); }
+  };
 
   if (loading) return (
     <div className="grid place-items-center py-20 text-muted-foreground">
@@ -255,7 +288,7 @@ export function QuestionsBank() {
           </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {extra.map((q) => <QuestionCard key={q.id} q={q} editable={live} onToggle={toggle} onDelete={del} />)}
+            {extra.map((q) => <QuestionCard key={q.id} q={q} editable={live} onToggle={toggle} onDelete={del} onSaveOptions={saveOptions} />)}
           </div>
         )
       )}

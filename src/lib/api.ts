@@ -22,6 +22,20 @@ export async function dbAddStudent(schoolId: string, s: { name: string; grade: s
   return data;
 }
 
+// استيراد عدد من الطلاب دفعة واحدة
+export async function dbBulkAddStudents(schoolId: string, rows: { name: string; grade: string; className: string }[]) {
+  const { data: cls } = await supabase.from("classes").select("id,name").eq("school_id", schoolId);
+  const byName: Record<string, string> = {};
+  (cls || []).forEach((c: any) => (byName[c.name] = c.id));
+  const payload = rows.map((r) => ({
+    school_id: schoolId, name: r.name, grade: r.grade || null,
+    class_id: r.className && byName[r.className] ? byName[r.className] : null, assessed: false,
+  }));
+  const { data, error } = await supabase.from("students").insert(payload).select();
+  if (error) throw error;
+  return data;
+}
+
 export async function dbAddTeacher(schoolId: string, t: { name: string; role: string }) {
   const { data, error } = await supabase.from("teachers")
     .insert({ school_id: schoolId, name: t.name, role: t.role }).select().single();
@@ -77,6 +91,14 @@ export async function consumeQuota(schoolId: string, kind: "mission" | "individu
   if (error) throw error;
 }
 
+// حفظ خطة التطوير/التكليف التجريبي لطالب في مهمة
+export async function dbSaveDevelopmentPlan(missionId: string, studentId: string, plan: unknown) {
+  const { error } = await supabase.from("mission_applications")
+    .update({ development_plan: plan })
+    .eq("mission_id", missionId).eq("student_id", studentId);
+  if (error) throw error;
+}
+
 export async function dbResolveIndReq(id: string, approved: boolean, schoolId?: string) {
   const { error } = await supabase.from("individual_requests")
     .update({ status: approved ? "approved" : "denied" }).eq("id", id);
@@ -85,6 +107,25 @@ export async function dbResolveIndReq(id: string, approved: boolean, schoolId?: 
   if (approved && schoolId) {
     try { await consumeQuota(schoolId, "individual"); } catch { /* لا تُفشل الموافقة إن تعذّر الخصم */ }
   }
+}
+
+// ============ إدارة الحسابات (عبر Edge Function بصلاحيات إدارية) ============
+export async function createStudentAccount(studentId: string, email?: string) {
+  const { data, error } = await supabase.functions.invoke("admin-users", {
+    body: { action: "create_student_account", studentId, email },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; email: string; password: string; name: string };
+}
+
+export async function inviteMember(schoolId: string, email: string, fullName: string, role: string) {
+  const { data, error } = await supabase.functions.invoke("admin-users", {
+    body: { action: "invite_member", schoolId, email, fullName, role },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; email: string; password: string; role: string };
 }
 
 // حسم تظلّم (للمدير المركزي/المدرسة) — يُعلّم كمحسوم ويعيّن المُقرِّر
@@ -134,6 +175,12 @@ export async function dbAddQuestion(schoolId: string, q: {
   }).select().single();
   if (error) throw error;
   return data;
+}
+
+// تحديث أوزان خيارات سؤال (مفتاح التصحيح)
+export async function dbUpdateQuestionOptions(id: string, options: { text: string; score: number }[]) {
+  const { error } = await supabase.from("question_items").update({ options }).eq("id", id);
+  if (error) throw error;
 }
 
 export async function dbSetQuestionActive(id: string, active: boolean) {

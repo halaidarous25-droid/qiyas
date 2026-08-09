@@ -31,6 +31,16 @@ export interface Seed {
   missions: Mission[];
   assigned: Record<string, string[]>;
   indReqs: IndReq[];
+  devPlans: Record<string, DevPlan>;   // key: `${missionId}:${studentId}`
+}
+
+export interface DevPlan {
+  trialStart?: string;
+  trialEnd?: string;
+  status?: "trial" | "confirmed" | "unfit";
+  performance?: number;
+  goals?: { text: string; done: boolean }[];
+  notes?: string;
 }
 
 function mapSubscription(row: any): LiveSubscription | null {
@@ -99,7 +109,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       wishRank: null,
       contradiction: a?.contradiction ?? 0, socialDesirability: a?.social_desirability ?? 0,
       trust: a?.trust ?? classifyTrust(0, 0),
-      interviewDone: false, assessed: !!s.assessed,
+      interviewDone: false, assessed: !!s.assessed, hasAccount: !!s.user_id,
     };
   });
 
@@ -118,9 +128,12 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   // ترشيحات كل مهمة + الإسنادات
   const appsByMission: Record<string, any[]> = {};
   const assigned: Record<string, string[]> = {};
+  const devPlans: Record<string, DevPlan> = {};
   (appsRes.data || []).forEach((ap: any) => {
     (appsByMission[ap.mission_id] ||= []).push(ap);
     if (ap.status === "assigned") (assigned[ap.mission_id] ||= []).push(ap.student_id);
+    if (ap.development_plan && Object.keys(ap.development_plan).length)
+      devPlans[`${ap.mission_id}:${ap.student_id}`] = ap.development_plan as DevPlan;
   });
 
   const missions: Mission[] = (missionsRes.data || []).map((m: any) => {
@@ -149,7 +162,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
     hybrid: !!schoolRes.data?.hybrid,
     settings: (schoolRes.data?.settings as Record<string, unknown>) ?? null,
     subscription: mapSubscription(subRes.data),
-    students, teachers, classes, missions, assigned, indReqs,
+    students, teachers, classes, missions, assigned, indReqs, devPlans,
   };
 }
 
