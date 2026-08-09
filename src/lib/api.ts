@@ -77,6 +77,20 @@ export async function dbResolveIndReq(id: string, approved: boolean) {
   if (error) throw error;
 }
 
+// حسم تظلّم (للمدير المركزي/المدرسة) — يُعلّم كمحسوم ويعيّن المُقرِّر
+export async function dbResolveAppeal(id: string, decider: string) {
+  const { error } = await supabase.from("appeals")
+    .update({ status: "resolved", decider }).eq("id", id);
+  if (error) throw error;
+}
+
+// استلام تظلّم للمراجعة
+export async function dbReviewAppeal(id: string, decider: string) {
+  const { error } = await supabase.from("appeals")
+    .update({ status: "review", decider }).eq("id", id);
+  if (error) throw error;
+}
+
 // حفظ محاولة قياس الطالب + وسمه كمُقيَّم
 export async function dbSaveAssessment(schoolId: string, studentId: string, r: {
   axes: AxisScores; competency: number; behavior: number; integrity: number; emotional: number;

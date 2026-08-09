@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { classifyTrust, type Candidate, type Mission, type Teacher, type SchoolClass, type IndReq, type OperatingMode, type AxisScores } from "@/data/mock";
+import { classifyTrust, type Candidate, type Mission, type Teacher, type SchoolClass, type IndReq, type OperatingMode, type AxisScores, type PlatformSchool, type Appeal, type AppealTrack, type AppealStatus } from "@/data/mock";
 
 export interface Seed {
   schoolId: string;
@@ -102,5 +102,81 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
     hybrid: !!schoolRes.data?.hybrid,
     settings: (schoolRes.data?.settings as Record<string, unknown>) ?? null,
     students, teachers, classes, missions, assigned, indReqs,
+  };
+}
+
+// ============ طبقة القراءة المركزية (كل المدارس) ============
+export interface CentralKpi {
+  schools: number;
+  active: number;
+  openAppeals: number;      // تظلّمات غير محسومة
+  escalated: number;        // تظلّمات مُصعّدة (مسار ب/ج غير محسومة)
+  renewalRate: number | null;      // نسبة الاشتراكات النشطة
+  assessmentRate: number | null;   // نسبة الطلاب الذين أكملوا المقياس عبر المنصة
+  activeRate: number | null;       // نسبة المدارس النشطة
+}
+export interface CentralSeed {
+  schools: PlatformSchool[];
+  appeals: Appeal[];
+  kpi: CentralKpi;
+}
+
+const statusNote: Record<PlatformSchool["status"], string> = {
+  active: "نشطة", onboarding: "قيد الانضمام", frozen: "مُجمّدة",
+};
+
+// جلب بيانات كل المنصة للمدير المركزي (يحترم RLS: is_central_admin)
+export async function fetchCentralSeed(): Promise<CentralSeed> {
+  const [schoolsRes, subsRes, studentsRes, appealsRes] = await Promise.all([
+    supabase.from("schools").select("id,name,city,status"),
+    supabase.from("subscriptions").select("school_id,plan,active"),
+    supabase.from("students").select("id,school_id,assessed"),
+    supabase.from("appeals").select("*").order("days_elapsed", { ascending: false }),
+  ]);
+
+  const subBySchool: Record<string, any> = {};
+  (subsRes.data || []).forEach((s: any) => (subBySchool[s.school_id] = s));
+
+  const countBySchool: Record<string, number> = {};
+  let totalStudents = 0, assessedStudents = 0;
+  (studentsRes.data || []).forEach((s: any) => {
+    countBySchool[s.school_id] = (countBySchool[s.school_id] || 0) + 1;
+    totalStudents++; if (s.assessed) assessedStudents++;
+  });
+
+  const schools: PlatformSchool[] = (schoolsRes.data || []).map((s: any) => {
+    const st = (["active", "onboarding", "frozen"].includes(s.status) ? s.status : "active") as PlatformSchool["status"];
+    return {
+      id: s.id, name: s.name, city: s.city || "—",
+      students: countBySchool[s.id] || 0,
+      plan: subBySchool[s.id]?.plan || "—",
+      status: st, note: statusNote[st],
+    };
+  });
+
+  const appeals: Appeal[] = (appealsRes.data || []).map((a: any) => ({
+    id: a.id, student: a.student_name || "—", color: "#0f5c66",
+    track: (a.track as AppealTrack), subject: a.subject || "",
+    daysElapsed: a.days_elapsed ?? 0, slaMax: a.sla_max ?? 0,
+    status: (a.status as AppealStatus), decider: a.decider || "—",
+  }));
+
+  const totalSchools = schools.length;
+  const active = schools.filter((s) => s.status === "active").length;
+  const openAppeals = appeals.filter((a) => a.status !== "resolved").length;
+  const escalated = appeals.filter((a) => a.track !== "A" && a.status !== "resolved").length;
+  const totalSubs = (subsRes.data || []).length;
+  const activeSubs = (subsRes.data || []).filter((s: any) => s.active).length;
+
+  const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 100) : null);
+
+  return {
+    schools, appeals,
+    kpi: {
+      schools: totalSchools, active, openAppeals, escalated,
+      renewalRate: pct(activeSubs, totalSubs),
+      assessmentRate: pct(assessedStudents, totalStudents),
+      activeRate: pct(active, totalSchools),
+    },
   };
 }
