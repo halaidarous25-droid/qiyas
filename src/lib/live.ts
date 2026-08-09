@@ -4,6 +4,8 @@ import { classifyTrust, type Candidate, type Mission, type Teacher, type SchoolC
 export interface Seed {
   schoolId: string;
   mode: OperatingMode;
+  hybrid: boolean;
+  settings: Record<string, unknown> | null;
   students: Candidate[];
   teachers: Teacher[];
   classes: SchoolClass[];
@@ -19,7 +21,7 @@ const scopeLabel = (t: string) =>
 export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes] =
     await Promise.all([
-      supabase.from("schools").select("operating_mode").eq("id", schoolId).single(),
+      supabase.from("schools").select("operating_mode,hybrid,settings").eq("id", schoolId).single(),
       supabase.from("students").select("*").eq("school_id", schoolId),
       supabase.from("assessments").select("*").eq("school_id", schoolId).order("completed_at", { ascending: false }),
       supabase.from("teachers").select("*").eq("school_id", schoolId),
@@ -97,6 +99,8 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   return {
     schoolId,
     mode: (schoolRes.data?.operating_mode as OperatingMode) || "B",
+    hybrid: !!schoolRes.data?.hybrid,
+    settings: (schoolRes.data?.settings as Record<string, unknown>) ?? null,
     students, teachers, classes, missions, assigned, indReqs,
   };
 }

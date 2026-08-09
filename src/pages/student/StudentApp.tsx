@@ -24,7 +24,7 @@ export function StudentApp() {
 
   const finish = (a: Answers) => {
     setResult(scoreAssessment(a));
-    const n = completeAssessment();
+    const n = completeAssessment(a);
     if (mode === "B" && n > 0) toast(`أكملت المقياس ورُشّحت تلقائيًا لـ ${n} مهام`);
     else toast("أكملت المقياس بنجاح");
     if (pendingApply) { applyToMission(pendingApply); setPendingApply(null); }

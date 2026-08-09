@@ -5,6 +5,9 @@ import {
   type Mission, type OperatingMode, type ScopeLevel, type IndReq, type AxisKey,
   type Candidate, type Teacher, type SchoolClass,
 } from "@/data/mock";
+import { fetchSchoolSeed } from "@/lib/live";
+import * as api from "@/lib/api";
+import { scoreAssessment } from "@/lib/scoring";
 
 export interface AppSettings {
   scope: ScopeLevel;
@@ -14,10 +17,15 @@ export interface AppSettings {
   alertPct: number;
 }
 
+const DEFAULT_SETTINGS: AppSettings = {
+  scope: "school", lang: "ar", maxTasks: 3, autoApprove: true, alertPct: 25,
+};
+
 export interface Toast { id: number; text: string; tone: "success" | "info" | "danger" }
 
 interface Store {
   // الحالة
+  live: boolean;
   mode: OperatingMode;
   hybrid: boolean;
   settings: AppSettings;
@@ -37,7 +45,7 @@ interface Store {
   // دورة الطالب المُسجَّل (me)
   meAssessed: boolean;
   applyToMission: (missionId: string) => void;
-  completeAssessment: () => number;   // يُرجع عدد المهام التي رُشِّح لها تلقائيًا (الوضع ب)
+  completeAssessment: (answers?: Record<string, number | boolean>) => number;   // يُرجع عدد المهام التي رُشِّح لها تلقائيًا (الوضع ب)
   isMeIn: (missionId: string) => boolean;
   isMeAssigned: (missionId: string) => boolean;
   // إدارة المدرسة
@@ -63,7 +71,10 @@ let mid = 100;
 let tid = 1;
 
 export interface StoreSeed {
+  schoolId?: string;
   mode?: OperatingMode;
+  hybrid?: boolean;
+  settings?: Record<string, unknown> | null;
   missions?: Mission[];
   assigned?: Record<string, string[]>;
   indReqs?: IndReq[];
@@ -72,11 +83,17 @@ export interface StoreSeed {
   classes?: SchoolClass[];
 }
 
-export function SlisProvider({ children, seed }: { children: ReactNode; seed?: StoreSeed }) {
+export function SlisProvider({ children, seed, live, meStudentId }:
+  { children: ReactNode; seed?: StoreSeed; live?: boolean; meStudentId?: string | null }) {
+  const isLive = !!live;
+  const schoolId = seed?.schoolId ?? null;
+  const meId = meStudentId ?? ME_ID;
+
   const [mode, setMode] = useState<OperatingMode>(seed?.mode ?? "B");
-  const [hybrid, setHybrid] = useState(false);
+  const [hybrid, setHybrid] = useState(seed?.hybrid ?? false);
   const [settings, setSettings] = useState<AppSettings>({
-    scope: "school", lang: "ar", maxTasks: 3, autoApprove: true, alertPct: 25,
+    ...DEFAULT_SETTINGS,
+    ...((seed?.settings as Partial<AppSettings>) ?? {}),
   });
   const [missions, setMissions] = useState<Mission[]>(seed?.missions ?? MISSIONS);
   const [assigned, setAssigned] = useState<Record<string, string[]>>(seed?.assigned ?? {});
@@ -94,7 +111,24 @@ export function SlisProvider({ children, seed }: { children: ReactNode; seed?: S
   }, []);
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
+  // إعادة مزامنة الحالة من قاعدة البيانات بعد أي كتابة (الوضع الحيّ فقط)
+  const resync = useCallback(async () => {
+    if (!isLive || !schoolId) return;
+    const s = await fetchSchoolSeed(schoolId);
+    setMode(s.mode); setHybrid(s.hybrid);
+    setSettings({ ...DEFAULT_SETTINGS, ...((s.settings as Partial<AppSettings>) ?? {}) });
+    setMissions(s.missions); setAssigned(s.assigned); setIndReqs(s.indReqs);
+    setStudents(s.students); setTeachers(s.teachers); setClasses(s.classes);
+  }, [isLive, schoolId]);
+
   const addMission: Store["addMission"] = (m) => {
+    if (isLive && schoolId) {
+      api.dbAddMission(schoolId, m)
+        .then(() => resync())
+        .then(() => toast(`أُنشئت المهمة «${m.title}» بنجاح`))
+        .catch((e) => toast(`تعذّر إنشاء المهمة: ${e.message || e}`, "danger"));
+      return;
+    }
     const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
       : m.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
     const nm: Mission = {
@@ -108,6 +142,13 @@ export function SlisProvider({ children, seed }: { children: ReactNode; seed?: S
   };
 
   const assignCandidate: Store["assignCandidate"] = (missionId, candId, name) => {
+    if (isLive && schoolId) {
+      api.dbAssign(schoolId, missionId, candId)
+        .then(() => resync())
+        .then(() => toast(`اعتُمد ${name} للتكليف التجريبي`))
+        .catch((e) => toast(`تعذّر الاعتماد: ${e.message || e}`, "danger"));
+      return;
+    }
     setAssigned((a) => {
       const cur = a[missionId] || [];
       if (cur.includes(candId)) return a;
@@ -118,56 +159,130 @@ export function SlisProvider({ children, seed }: { children: ReactNode; seed?: S
   };
 
   const resolveIndReq: Store["resolveIndReq"] = (id, approved, name) => {
+    if (isLive) {
+      api.dbResolveIndReq(id, approved)
+        .then(() => resync())
+        .then(() => toast(approved ? `تمت الموافقة على اختبار ${name}` : `رُفض طلب ${name}`,
+          approved ? "success" : "danger"))
+        .catch((e) => toast(`تعذّرت المعالجة: ${e.message || e}`, "danger"));
+      return;
+    }
     setIndReqs((r) => r.filter((x) => x.id !== id));
     toast(approved ? `تمت الموافقة على اختبار ${name}` : `رُفض طلب ${name}`,
       approved ? "success" : "danger");
   };
 
   const saveSettings: Store["saveSettings"] = ({ mode, hybrid, settings }) => {
+    if (isLive && schoolId) {
+      api.saveSchoolSettings(schoolId, mode, hybrid, settings)
+        .then(() => { setMode(mode); setHybrid(hybrid); setSettings(settings); })
+        .then(() => toast("حُفظت الإعدادات وطُبّقت على المدرسة"))
+        .catch((e) => toast(`تعذّر حفظ الإعدادات: ${e.message || e}`, "danger"));
+      return;
+    }
     setMode(mode); setHybrid(hybrid); setSettings(settings);
     toast("حُفظت الإعدادات وطُبّقت على المدرسة");
   };
 
   // ===== دورة الطالب المُسجَّل =====
   const applyToMission: Store["applyToMission"] = (missionId) => {
+    if (isLive && schoolId) {
+      const mission = missions.find((m) => m.id === missionId);
+      const me = students.find((s) => s.id === meId);
+      if (!mission || !me) { toast("تعذّر التقديم", "danger"); return; }
+      api.dbApply(schoolId, mission, me, false)
+        .then(() => resync())
+        .then(() => toast("تم تقديم ترشّحك للمهمة بنجاح"))
+        .catch((e) => toast(`تعذّر التقديم: ${e.message || e}`, "danger"));
+      return;
+    }
     setMissions((list) => list.map((m) => {
-      if (m.id !== missionId || m.candidateIds.includes(ME_ID)) return m;
-      return { ...m, candidateIds: [...m.candidateIds, ME_ID], applicants: m.applicants + 1 };
+      if (m.id !== missionId || m.candidateIds.includes(meId)) return m;
+      return { ...m, candidateIds: [...m.candidateIds, meId], applicants: m.applicants + 1 };
     }));
     toast("تم تقديم ترشّحك للمهمة بنجاح");
   };
 
-  const completeAssessment: Store["completeAssessment"] = () => {
+  const completeAssessment: Store["completeAssessment"] = (answers) => {
     setMeAssessed(true);
+    if (isLive && schoolId) {
+      // حفظ محاولة القياس في قاعدة البيانات ثم التوزيع التلقائي في الوضع (ب)
+      (async () => {
+        try {
+          if (answers) {
+            const r = scoreAssessment(answers);
+            await api.dbSaveAssessment(schoolId, meId, {
+              axes: r.axes, competency: r.competency, behavior: r.behavior,
+              integrity: r.integrity ?? 0, emotional: r.emotional ?? 0,
+              contradiction: r.contradiction, socialDesirability: r.socialDesirability,
+              trust: r.trust,
+            }, answers);
+          }
+          if (mode === "B") {
+            const me = students.find((s) => s.id === meId);
+            const open = missions.filter((m) => ["open", "screening"].includes(m.status) && !m.candidateIds.includes(meId));
+            if (me) for (const m of open) await api.dbApply(schoolId, m, me, true);
+          }
+          await resync();
+          toast("حُفظت نتيجة المقياس بنجاح");
+        } catch (e: any) {
+          toast(`تعذّر حفظ المقياس: ${e.message || e}`, "danger");
+        }
+      })();
+      // العدد التقريبي للمهام المتاحة للتوزيع (تحديث فوري للواجهة)
+      return mode === "B"
+        ? missions.filter((m) => ["open", "screening"].includes(m.status) && !m.candidateIds.includes(meId)).length
+        : 0;
+    }
     let n = 0;
     if (mode === "B") {
-      // الوضع (ب): توزيع تلقائي على المهام المتاحة
       setMissions((list) => list.map((m) => {
-        if (!["open", "screening"].includes(m.status) || m.candidateIds.includes(ME_ID)) return m;
+        if (!["open", "screening"].includes(m.status) || m.candidateIds.includes(meId)) return m;
         n++;
-        return { ...m, candidateIds: [...m.candidateIds, ME_ID], applicants: m.applicants + 1 };
+        return { ...m, candidateIds: [...m.candidateIds, meId], applicants: m.applicants + 1 };
       }));
     }
     return n;
   };
 
   const isMeIn: Store["isMeIn"] = (missionId) =>
-    !!missions.find((m) => m.id === missionId)?.candidateIds.includes(ME_ID);
+    !!missions.find((m) => m.id === missionId)?.candidateIds.includes(meId);
   const isMeAssigned: Store["isMeAssigned"] = (missionId) =>
-    (assigned[missionId] || []).includes(ME_ID);
+    (assigned[missionId] || []).includes(meId);
 
   // ===== إدارة المدرسة =====
   let sid = students.length;
   const addStudent: Store["addStudent"] = ({ name, grade, className }) => {
+    if (isLive && schoolId) {
+      api.dbAddStudent(schoolId, { name, grade, className })
+        .then(() => resync())
+        .then(() => toast(`أُضيف الطالب ${name} — بانتظار أداء المقياس`))
+        .catch((e) => toast(`تعذّرت الإضافة: ${e.message || e}`, "danger"));
+      return;
+    }
     const s = newStudent(`ns${sid++}`, name, grade, className);
     setStudents((list) => [s, ...list]);
     toast(`أُضيف الطالب ${name} — بانتظار أداء المقياس`);
   };
   const addTeacher: Store["addTeacher"] = ({ name, role }) => {
+    if (isLive && schoolId) {
+      api.dbAddTeacher(schoolId, { name, role })
+        .then(() => resync())
+        .then(() => toast(`أُضيف ${name} (${role})`))
+        .catch((e) => toast(`تعذّرت الإضافة: ${e.message || e}`, "danger"));
+      return;
+    }
     setTeachers((list) => [{ id: `nt${list.length}`, name, role }, ...list]);
     toast(`أُضيف ${name} (${role})`);
   };
   const addClass: Store["addClass"] = ({ name, grade, homeroom }) => {
+    if (isLive && schoolId) {
+      api.dbAddClass(schoolId, { name, grade, homeroom })
+        .then(() => resync())
+        .then(() => toast(`أُضيف الفصل ${name}`))
+        .catch((e) => toast(`تعذّرت الإضافة: ${e.message || e}`, "danger"));
+      return;
+    }
     setClasses((list) => [{ id: `nc${list.length}`, name, grade, homeroom, students: 0 }, ...list]);
     toast(`أُضيف الفصل ${name}`);
   };
@@ -192,6 +307,7 @@ export function SlisProvider({ children, seed }: { children: ReactNode; seed?: S
 
   return (
     <Ctx.Provider value={{
+      live: isLive,
       mode, hybrid, settings, missions, assigned, indReqs, toasts,
       toast, dismissToast, addMission, assignCandidate, resolveIndReq, saveSettings,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,

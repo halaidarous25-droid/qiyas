@@ -117,7 +117,7 @@ function LiveApp() {
   );
 
   return (
-    <SlisProvider seed={seed}>
+    <SlisProvider seed={seed} live meStudentId={identity?.studentId}>
       <Shell initialRole={ROLE_MAP[identity!.role]} locked onSignOut={signOut} userName={identity?.name || email || ""} />
     </SlisProvider>
   );
