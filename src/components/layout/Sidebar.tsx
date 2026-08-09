@@ -3,11 +3,11 @@ import { En } from "@/components/common";
 import { useSlis } from "@/store";
 import {
   LayoutDashboard, Target, Users, BarChart3, Wallet,
-  ShieldCheck, Settings, GraduationCap, Sparkles, Building2,
+  ShieldCheck, Settings, GraduationCap, Sparkles, Building2, ListChecks,
 } from "lucide-react";
 
 export type PageKey =
-  | "dashboard" | "missions" | "students" | "school" | "reports"
+  | "dashboard" | "missions" | "students" | "school" | "questions" | "reports"
   | "quota" | "governance" | "settings";
 
 const NAV: { key: PageKey; label: string; icon: any; soon?: boolean }[] = [
@@ -15,6 +15,7 @@ const NAV: { key: PageKey; label: string; icon: any; soon?: boolean }[] = [
   { key: "missions", label: "المهام القيادية", icon: Target },
   { key: "students", label: "الطلاب والملفات", icon: Users },
   { key: "school", label: "إدارة المدرسة", icon: Building2 },
+  { key: "questions", label: "مستودع الأسئلة", icon: ListChecks },
   { key: "reports", label: "التقارير والتحليل", icon: BarChart3 },
   { key: "quota", label: "حصص الاختبارات", icon: Wallet },
   { key: "governance", label: "الحوكمة والتظلّمات", icon: ShieldCheck },

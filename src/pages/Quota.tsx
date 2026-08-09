@@ -1,28 +1,17 @@
 import { Pill, Meter, Avatar, En } from "@/components/common";
-import { SUBSCRIPTION as S, INST_PLANS } from "@/data/mock";
+import { SUBSCRIPTION, INST_PLANS } from "@/data/mock";
 import { useSlis } from "@/store";
 import { type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import {
-  Wallet, CalendarClock, TrendingUp, AlertTriangle, Check, X,
+  CalendarClock, TrendingUp, AlertTriangle, Check, X,
   Sparkles, ArrowUpRight, RefreshCw, Package,
 } from "lucide-react";
 
-const totalAlloc = S.buckets.mission.alloc + S.buckets.individual.alloc + S.buckets.buffer.alloc;
-const totalUsed = S.buckets.mission.used + S.buckets.individual.used + S.buckets.buffer.used;
-
-// توقّع تاريخ النفاد من متوسط آخر أسبوعين
-function forecastWeeks() {
-  const last = S.weekly.slice(-2);
-  const rate = last.reduce((a, b) => a + b, 0) / last.length;
-  const remaining = totalAlloc - totalUsed;
-  return rate > 0 ? Math.max(1, Math.round(remaining / rate)) : 99;
-}
-
-function Bucket({ label, used, alloc, tone, protectedNote }:
-  { label: string; used: number; alloc: number; tone: Tone; protectedNote?: string }) {
+function Bucket({ label, used, alloc, tone, protectedNote, alertAt }:
+  { label: string; used: number; alloc: number; tone: Tone; protectedNote?: string; alertAt: number }) {
   const remainingPct = alloc ? ((alloc - used) / alloc) * 100 : 100;
-  const low = remainingPct <= S.alertAt;
+  const low = remainingPct <= alertAt;
   return (
     <div className="rounded-xl border bg-card p-4">
       <div className="flex items-center justify-between">
@@ -43,9 +32,23 @@ function Bucket({ label, used, alloc, tone, protectedNote }:
 }
 
 export function Quota() {
-  const { indReqs, resolveIndReq, toast } = useSlis();
-  const weeksLeft = forecastWeeks();
-  const maxW = Math.max(...S.weekly);
+  const { indReqs, resolveIndReq, toast, subscription } = useSlis();
+  // الاشتراك الحيّ إن توفّر، وإلا البيانات التجريبية
+  const S = subscription ?? SUBSCRIPTION;
+
+  const totalAlloc = S.buckets.mission.alloc + S.buckets.individual.alloc + S.buckets.buffer.alloc;
+  const totalUsed = S.buckets.mission.used + S.buckets.individual.used + S.buckets.buffer.used;
+
+  const hasWeekly = S.weekly.length > 0;
+  const maxW = hasWeekly ? Math.max(...S.weekly) : 0;
+  // توقّع تاريخ النفاد من متوسط آخر أسبوعين (عند توفّر بيانات أسبوعية)
+  const weeksLeft = (() => {
+    if (!hasWeekly) return null;
+    const last = S.weekly.slice(-2);
+    const rate = last.reduce((a, b) => a + b, 0) / last.length;
+    const remaining = totalAlloc - totalUsed;
+    return rate > 0 ? Math.max(1, Math.round(remaining / rate)) : 99;
+  })();
 
   return (
     <div className="space-y-5">
@@ -67,7 +70,7 @@ export function Quota() {
           <div className="flex items-center gap-4">
             <div className="text-center">
               <div className="flex items-center gap-1 text-white/80 text-xs"><CalendarClock className="h-3.5 w-3.5" /> يتجدّد خلال</div>
-              <div className="font-display text-2xl font-extrabold"><En>{S.daysLeft}</En> يوم</div>
+              <div className="font-display text-2xl font-extrabold">{S.daysLeft === null ? "—" : <><En>{S.daysLeft}</En> يوم</>}</div>
               <div className="text-[11px] text-white/70"><En>{S.renewsAt}</En></div>
             </div>
             <button onClick={() => toast("فُتحت خيارات ترقية الخطة", "info")}
@@ -89,9 +92,9 @@ export function Quota() {
 
       {/* تقسيم الرصيد */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Bucket label="حصة المهام" used={S.buckets.mission.used} alloc={S.buckets.mission.alloc} tone="brand" protectedNote="محميّة" />
-        <Bucket label="الاختبارات الفردية" used={S.buckets.individual.used} alloc={S.buckets.individual.alloc} tone="gold" />
-        <Bucket label="الرصيد المرن (بوفر)" used={S.buckets.buffer.used} alloc={S.buckets.buffer.alloc} tone="info" />
+        <Bucket label="حصة المهام" used={S.buckets.mission.used} alloc={S.buckets.mission.alloc} tone="brand" protectedNote="محميّة" alertAt={S.alertAt} />
+        <Bucket label="الاختبارات الفردية" used={S.buckets.individual.used} alloc={S.buckets.individual.alloc} tone="gold" alertAt={S.alertAt} />
+        <Bucket label="الرصيد المرن (بوفر)" used={S.buckets.buffer.used} alloc={S.buckets.buffer.alloc} tone="info" alertAt={S.alertAt} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -99,24 +102,46 @@ export function Quota() {
         <div className="lg:col-span-2 rounded-xl border bg-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2"><TrendingUp className="h-[18px] w-[18px] text-brand" />
-              <h2 className="font-display font-bold">الاستهلاك الأسبوعي</h2></div>
-            <Pill tone={weeksLeft <= 3 ? "danger" : "muted"}>
-              <CalendarClock className="h-3 w-3" /> يكفي ~<En>{weeksLeft}</En> أسابيع بالمعدّل الحالي
-            </Pill>
+              <h2 className="font-display font-bold">الاستهلاك</h2></div>
+            {weeksLeft !== null && (
+              <Pill tone={weeksLeft <= 3 ? "danger" : "muted"}>
+                <CalendarClock className="h-3 w-3" /> يكفي ~<En>{weeksLeft}</En> أسابيع بالمعدّل الحالي
+              </Pill>
+            )}
           </div>
-          <div className="flex items-end justify-between gap-2 h-40 border-b border-border pb-0">
-            {S.weekly.map((v, i) => (
-              <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
-                <span className="text-xs font-bold text-brand"><En>{v}</En></span>
-                <div className="w-full rounded-t-md bg-gradient-to-t from-brand to-brand-soft transition-all"
-                  style={{ height: `${(v / maxW) * 120}px` }} />
-                <span className="text-[11px] text-muted-foreground">أ<En>{i + 1}</En></span>
+          {hasWeekly ? (
+            <>
+              <div className="flex items-end justify-between gap-2 h-40 border-b border-border pb-0">
+                {S.weekly.map((v, i) => (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+                    <span className="text-xs font-bold text-brand"><En>{v}</En></span>
+                    <div className="w-full rounded-t-md bg-gradient-to-t from-brand to-brand-soft transition-all"
+                      style={{ height: `${(v / maxW) * 120}px` }} />
+                    <span className="text-[11px] text-muted-foreground">أ<En>{i + 1}</En></span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            ارتفاع الاستهلاك مؤشر إيجابي على استخدام فعلي للبرنامج — ويرفع احتمال التجديد بخطة أعلى.
-          </p>
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                ارتفاع الاستهلاك مؤشر إيجابي على استخدام فعلي للبرنامج — ويرفع احتمال التجديد بخطة أعلى.
+              </p>
+            </>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { l: "إجمالي المُستهلَك", v: `${totalUsed}` },
+                { l: "إجمالي الرصيد", v: `${totalAlloc}` },
+                { l: "المتبقّي", v: `${totalAlloc - totalUsed}` },
+              ].map((c) => (
+                <div key={c.l} className="rounded-lg border p-3 text-center">
+                  <div className="font-display text-2xl font-extrabold text-brand"><En>{c.v}</En></div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">{c.l}</div>
+                </div>
+              ))}
+              <p className="sm:col-span-3 mt-1 text-[11px] text-muted-foreground">
+                كل مقياس مكتمل يخصم وحدة من حصة المهام، وكل طلب فردي مُعتمَد يخصم وحدة من الحصة الفردية.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* طلبات الاختبار الفردي */}

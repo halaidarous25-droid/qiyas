@@ -1,11 +1,30 @@
 import { supabase } from "./supabase";
 import { classifyTrust, type Candidate, type Mission, type Teacher, type SchoolClass, type IndReq, type OperatingMode, type AxisScores, type PlatformSchool, type Appeal, type AppealTrack, type AppealStatus } from "@/data/mock";
 
+// اشتراك المدرسة بالشكل الذي تستهلكه شاشة الحصص
+export interface LiveSubscription {
+  plan: string;
+  planQuota: number;
+  priceSAR: number;
+  renewsAt: string;
+  daysLeft: number | null;
+  overagePriceSAR: number;
+  rolloverPct: number;
+  alertAt: number;
+  buckets: {
+    mission: { alloc: number; used: number };
+    individual: { alloc: number; used: number };
+    buffer: { alloc: number; used: number };
+  };
+  weekly: number[];
+}
+
 export interface Seed {
   schoolId: string;
   mode: OperatingMode;
   hybrid: boolean;
   settings: Record<string, unknown> | null;
+  subscription: LiveSubscription | null;
   students: Candidate[];
   teachers: Teacher[];
   classes: SchoolClass[];
@@ -14,12 +33,39 @@ export interface Seed {
   indReqs: IndReq[];
 }
 
+function mapSubscription(row: any): LiveSubscription | null {
+  if (!row) return null;
+  let daysLeft: number | null = null;
+  let renewsAt = "—";
+  if (row.renews_at) {
+    renewsAt = String(row.renews_at);
+    const ms = new Date(row.renews_at).getTime() - Date.now();
+    daysLeft = Math.max(0, Math.ceil(ms / 86400000));
+  }
+  return {
+    plan: row.plan || "—",
+    planQuota: row.plan_quota ?? 0,
+    priceSAR: row.price_sar ?? 0,
+    renewsAt,
+    daysLeft,
+    overagePriceSAR: row.overage_price ?? 0,
+    rolloverPct: row.rollover_pct ?? 0,
+    alertAt: row.alert_pct ?? 25,
+    buckets: {
+      mission: { alloc: row.mission_quota ?? 0, used: row.mission_used ?? 0 },
+      individual: { alloc: row.individual_quota ?? 0, used: row.individual_used ?? 0 },
+      buffer: { alloc: row.buffer_quota ?? 0, used: row.buffer_used ?? 0 },
+    },
+    weekly: [],
+  };
+}
+
 const scopeLabel = (t: string) =>
   t === "school" ? "كامل المدرسة" : t === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
 
 // جلب بيانات مدرسة كاملة من قاعدة البيانات وتحويلها لأشكال الواجهة
 export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
-  const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes] =
+  const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes, subRes] =
     await Promise.all([
       supabase.from("schools").select("operating_mode,hybrid,settings").eq("id", schoolId).single(),
       supabase.from("students").select("*").eq("school_id", schoolId),
@@ -29,6 +75,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       supabase.from("missions").select("*").eq("school_id", schoolId),
       supabase.from("mission_applications").select("*").eq("school_id", schoolId),
       supabase.from("individual_requests").select("*").eq("school_id", schoolId).eq("status", "pending"),
+      supabase.from("subscriptions").select("*").eq("school_id", schoolId).maybeSingle(),
     ]);
 
   const classById: Record<string, string> = {};
@@ -101,6 +148,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
     mode: (schoolRes.data?.operating_mode as OperatingMode) || "B",
     hybrid: !!schoolRes.data?.hybrid,
     settings: (schoolRes.data?.settings as Record<string, unknown>) ?? null,
+    subscription: mapSubscription(subRes.data),
     students, teachers, classes, missions, assigned, indReqs,
   };
 }
@@ -178,5 +226,45 @@ export async function fetchCentralSeed(): Promise<CentralSeed> {
       assessmentRate: pct(assessedStudents, totalStudents),
       activeRate: pct(active, totalSchools),
     },
+  };
+}
+
+// ============ مستودع الأسئلة ============
+export interface QItem {
+  id: string;
+  schoolId: string | null;   // null = عنصر عام مشترك
+  seq: number;
+  type: string;              // scenario | situation | parallel | trap | indicator
+  axis: string | null;
+  section: number | null;
+  role: string | null;
+  text: string;
+  options: { text: string; score: number }[];
+  active: boolean;
+}
+export interface QuestionBank {
+  global: QItem[];   // الأسئلة الأساسية المشتركة (٣٥)
+  school: QItem[];   // أسئلة المدرسة الإضافية
+}
+
+function mapQItem(r: any): QItem {
+  return {
+    id: r.id, schoolId: r.school_id ?? null, seq: r.seq ?? 0,
+    type: r.type, axis: r.axis ?? null, section: r.section ?? null,
+    role: r.role ?? null, text: r.text || "",
+    options: Array.isArray(r.options) ? r.options : [],
+    active: r.active !== false,
+  };
+}
+
+// جلب بنك الأسئلة: العام + الخاص بالمدرسة (يحترم RLS)
+export async function fetchQuestionBank(schoolId: string): Promise<QuestionBank> {
+  const { data, error } = await supabase.from("question_items")
+    .select("*").or(`school_id.is.null,school_id.eq.${schoolId}`).order("seq", { ascending: true });
+  if (error) throw error;
+  const rows = (data || []).map(mapQItem);
+  return {
+    global: rows.filter((r) => r.schoolId === null),
+    school: rows.filter((r) => r.schoolId !== null),
   };
 }

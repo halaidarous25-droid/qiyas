@@ -5,7 +5,7 @@ import {
   type Mission, type OperatingMode, type ScopeLevel, type IndReq, type AxisKey,
   type Candidate, type Teacher, type SchoolClass,
 } from "@/data/mock";
-import { fetchSchoolSeed } from "@/lib/live";
+import { fetchSchoolSeed, type LiveSubscription } from "@/lib/live";
 import * as api from "@/lib/api";
 import { scoreAssessment } from "@/lib/scoring";
 
@@ -26,9 +26,11 @@ export interface Toast { id: number; text: string; tone: "success" | "info" | "d
 interface Store {
   // الحالة
   live: boolean;
+  schoolId: string | null;
   mode: OperatingMode;
   hybrid: boolean;
   settings: AppSettings;
+  subscription: LiveSubscription | null;
   missions: Mission[];
   assigned: Record<string, string[]>;   // missionId -> [candidateId]
   indReqs: IndReq[];
@@ -75,6 +77,7 @@ export interface StoreSeed {
   mode?: OperatingMode;
   hybrid?: boolean;
   settings?: Record<string, unknown> | null;
+  subscription?: LiveSubscription | null;
   missions?: Mission[];
   assigned?: Record<string, string[]>;
   indReqs?: IndReq[];
@@ -95,6 +98,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     ...DEFAULT_SETTINGS,
     ...((seed?.settings as Partial<AppSettings>) ?? {}),
   });
+  const [subscription, setSubscription] = useState<LiveSubscription | null>(seed?.subscription ?? null);
   const [missions, setMissions] = useState<Mission[]>(seed?.missions ?? MISSIONS);
   const [assigned, setAssigned] = useState<Record<string, string[]>>(seed?.assigned ?? {});
   const [indReqs, setIndReqs] = useState<IndReq[]>(seed?.indReqs ?? IND_REQUESTS);
@@ -117,6 +121,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     const s = await fetchSchoolSeed(schoolId);
     setMode(s.mode); setHybrid(s.hybrid);
     setSettings({ ...DEFAULT_SETTINGS, ...((s.settings as Partial<AppSettings>) ?? {}) });
+    setSubscription(s.subscription);
     setMissions(s.missions); setAssigned(s.assigned); setIndReqs(s.indReqs);
     setStudents(s.students); setTeachers(s.teachers); setClasses(s.classes);
   }, [isLive, schoolId]);
@@ -160,7 +165,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
 
   const resolveIndReq: Store["resolveIndReq"] = (id, approved, name) => {
     if (isLive) {
-      api.dbResolveIndReq(id, approved)
+      api.dbResolveIndReq(id, approved, schoolId ?? undefined)
         .then(() => resync())
         .then(() => toast(approved ? `تمت الموافقة على اختبار ${name}` : `رُفض طلب ${name}`,
           approved ? "success" : "danger"))
@@ -307,8 +312,8 @@ export function SlisProvider({ children, seed, live, meStudentId }:
 
   return (
     <Ctx.Provider value={{
-      live: isLive,
-      mode, hybrid, settings, missions, assigned, indReqs, toasts,
+      live: isLive, schoolId,
+      mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
       toast, dismissToast, addMission, assignCandidate, resolveIndReq, saveSettings,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
       students, teachers, classes, addStudent, addTeacher, addClass, rankMission, studentMissionsFor,

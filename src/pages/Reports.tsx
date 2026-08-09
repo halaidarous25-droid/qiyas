@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { Pill, Meter, En } from "@/components/common";
 import { AXES, STATUS_META, type Mission, type Candidate } from "@/data/mock";
 import { leadershipStyle } from "@/lib/scoring";
 import { useSlis } from "@/store";
 import { matchTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
-import { BarChart3, PieChart, Target, FileText, Layers, TrendingUp } from "lucide-react";
+import { PieChart, Target, FileText, Layers, TrendingUp, User, Printer } from "lucide-react";
+import { StudentReport, MissionReport, SchoolReport } from "./reports/ReportView";
 
 const STYLE_COLORS = ["hsl(191 72% 30%)", "hsl(36 55% 47%)", "hsl(152 46% 40%)", "hsl(205 70% 45%)", "hsl(280 40% 55%)", "hsl(15 65% 55%)"];
 
@@ -13,9 +15,20 @@ function candidateStyle(c: Candidate) {
   return leadershipStyle(top).name;
 }
 
+type OpenReport =
+  | { kind: "student"; id: string }
+  | { kind: "mission"; id: string }
+  | { kind: "school" }
+  | null;
+
 export function Reports() {
-  const { toast, missions, students, rankMission } = useSlis();
+  const { missions, students, rankMission, studentMissionsFor } = useSlis();
   const assessed = students.filter((c) => c.assessed);
+  const [open, setOpen] = useState<OpenReport>(null);
+  const [pickStudent, setPickStudent] = useState("");
+  const [pickMission, setPickMission] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  const schoolName = "مدرستك";
 
   const missionReadiness = (m: Mission) => {
     const r = rankMission(m);
@@ -154,30 +167,76 @@ export function Reports() {
         </div>
       </div>
 
-      {/* التقارير الدورية */}
+      {/* توليد التقارير القابلة للطباعة/التصدير PDF */}
       <div className="rounded-xl border bg-card p-5">
         <div className="mb-3 flex items-center gap-2"><FileText className="h-[18px] w-[18px] text-gold" />
-          <h2 className="font-display font-bold">التقارير الدورية القابلة للتصدير</h2></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { c: "T1", t: "تقرير أسبوعي", d: "المتقدمون · المهام المفتوحة · تنبيهات حرجة", to: "مدير المدرسة" },
-            { c: "T2", t: "تقرير شهري", d: "أداء المهام · مؤشرات المواءمة · إعادة التوجيه", to: "منسّق + مدير" },
-            { c: "T3", t: "تقرير فصلي", d: "النشاط · النزاعات · سلامة البيانات", to: "النظام المركزي" },
-            { c: "T4", t: "تقرير سنوي", d: "الأثر · النجاح · الخطة · التقرير المالي", to: "الجهات الإشرافية" },
-          ].map((r) => (
-            <div key={r.c} className="rounded-xl border p-4">
-              <div className="flex items-center justify-between">
-                <Pill tone="brand"><En>{r.c}</En></Pill>
-                <button onClick={() => toast(`جارِ تجهيز ${r.t} (${r.c}) للتصدير`, "info")}
-                  className="text-xs font-semibold text-brand hover:underline">تصدير</button>
-              </div>
-              <div className="mt-2 font-display font-bold">{r.t}</div>
-              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{r.d}</p>
-              <div className="mt-2 text-[11px] text-muted-foreground">المُستلِم: {r.to}</div>
-            </div>
-          ))}
+          <h2 className="font-display font-bold">توليد التقارير (طباعة / حفظ PDF)</h2></div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* تقرير الطالب */}
+          <div className="rounded-xl border p-4">
+            <div className="flex items-center gap-2"><User className="h-4 w-4 text-brand" /><span className="font-semibold">تقرير طالب</span></div>
+            <p className="mt-1 text-[11px] text-muted-foreground">الملف القيادي الكامل للطالب مع المحاور والترشيحات.</p>
+            <select value={pickStudent} onChange={(e) => setPickStudent(e.target.value)}
+              className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
+              <option value="">اختر طالبًا…</option>
+              {students.map((s) => <option key={s.id} value={s.id}>{s.name}{s.className ? ` — ${s.className}` : ""}</option>)}
+            </select>
+            <button disabled={!pickStudent} onClick={() => setOpen({ kind: "student", id: pickStudent })}
+              className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+              <Printer className="h-4 w-4" /> توليد
+            </button>
+          </div>
+
+          {/* تقرير المهمة */}
+          <div className="rounded-xl border p-4">
+            <div className="flex items-center gap-2"><Target className="h-4 w-4 text-brand" /><span className="font-semibold">تقرير مهمة</span></div>
+            <p className="mt-1 text-[11px] text-muted-foreground">ترتيب المرشّحين ومتوسط المواءمة وتغطية المقاعد.</p>
+            <select value={pickMission} onChange={(e) => setPickMission(e.target.value)}
+              className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
+              <option value="">اختر مهمة…</option>
+              {missions.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+            </select>
+            <button disabled={!pickMission} onClick={() => setOpen({ kind: "mission", id: pickMission })}
+              className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+              <Printer className="h-4 w-4" /> توليد
+            </button>
+          </div>
+
+          {/* تقرير المدرسة */}
+          <div className="rounded-xl border p-4">
+            <div className="flex items-center gap-2"><Layers className="h-4 w-4 text-brand" /><span className="font-semibold">تقرير المدرسة</span></div>
+            <p className="mt-1 text-[11px] text-muted-foreground">ملخّص شامل: الطلاب، متوسط المحاور، الأنماط، الفرص.</p>
+            <div className="mt-2 h-9" />
+            <button onClick={() => setOpen({ kind: "school" })}
+              className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+              <Printer className="h-4 w-4" /> توليد
+            </button>
+          </div>
         </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          يفتح التقرير في عرض قابل للطباعة — اضغط «طباعة / حفظ PDF» واختر «حفظ كـ PDF» من نافذة الطباعة للتصدير.
+        </p>
       </div>
+
+      {/* عارض التقارير */}
+      {open?.kind === "student" && (() => {
+        const s = students.find((c) => c.id === open.id);
+        if (!s) return null;
+        return <StudentReport student={s} missions={studentMissionsFor(s.id)} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
+      })()}
+      {open?.kind === "mission" && (() => {
+        const m = missions.find((x) => x.id === open.id);
+        if (!m) return null;
+        return <MissionReport mission={m} ranked={rankMission(m)} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
+      })()}
+      {open?.kind === "school" && (
+        <SchoolReport schoolName={schoolName} today={today} onClose={() => setOpen(null)}
+          stats={{
+            students: students.length, assessed: assessed.length, missions: missions.length,
+            axisAvg: AXES.map((a) => ({ key: a.key, label: a.label, v: Math.round(assessed.reduce((s, c) => s + c.axes[a.key], 0) / total) })),
+            styles, scope: { school: scopeCount.school, stage: scopeCount.stage, grade: scopeCount.grade },
+          }} />
+      )}
     </div>
   );
 }

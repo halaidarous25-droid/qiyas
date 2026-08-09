@@ -71,10 +71,20 @@ export async function dbAssign(schoolId: string, missionId: string, studentId: s
   if (b.error) throw b.error;
 }
 
-export async function dbResolveIndReq(id: string, approved: boolean) {
+// خصم وحدة من حصة المدرسة (mission | individual | buffer) عبر دالة ذرّية
+export async function consumeQuota(schoolId: string, kind: "mission" | "individual" | "buffer") {
+  const { error } = await supabase.rpc("consume_quota", { p_school: schoolId, p_kind: kind });
+  if (error) throw error;
+}
+
+export async function dbResolveIndReq(id: string, approved: boolean, schoolId?: string) {
   const { error } = await supabase.from("individual_requests")
     .update({ status: approved ? "approved" : "denied" }).eq("id", id);
   if (error) throw error;
+  // الموافقة تمنح اختبارًا فرديًا → تُخصم وحدة من الحصة الفردية
+  if (approved && schoolId) {
+    try { await consumeQuota(schoolId, "individual"); } catch { /* لا تُفشل الموافقة إن تعذّر الخصم */ }
+  }
 }
 
 // حسم تظلّم (للمدير المركزي/المدرسة) — يُعلّم كمحسوم ويعيّن المُقرِّر
@@ -105,4 +115,33 @@ export async function dbSaveAssessment(schoolId: string, studentId: string, r: {
   if (ins.error) throw ins.error;
   const upd = await supabase.from("students").update({ assessed: true }).eq("id", studentId);
   if (upd.error) throw upd.error;
+  // كل مقياس مكتمل يخصم وحدة من حصة المهام
+  try { await consumeQuota(schoolId, "mission"); } catch { /* لا تُفشل حفظ المقياس إن تعذّر الخصم */ }
+}
+
+// ============ مستودع الأسئلة (كتابة) ============
+export async function dbAddQuestion(schoolId: string, q: {
+  type: string; axis: string | null; section: number | null; role: string | null;
+  text: string; options: { text: string; score: number }[];
+}) {
+  // seq تالٍ ضمن أسئلة هذه المدرسة (يبدأ بعد ١٠٠٠ لتمييزها عن الأساسية)
+  const { data: last } = await supabase.from("question_items")
+    .select("seq").eq("school_id", schoolId).order("seq", { ascending: false }).limit(1).maybeSingle();
+  const nextSeq = Math.max(1000, (last?.seq ?? 999) + 1);
+  const { data, error } = await supabase.from("question_items").insert({
+    school_id: schoolId, seq: nextSeq, type: q.type, axis: q.axis,
+    section: q.section, role: q.role, text: q.text, options: q.options, active: true,
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function dbSetQuestionActive(id: string, active: boolean) {
+  const { error } = await supabase.from("question_items").update({ active }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function dbDeleteQuestion(id: string) {
+  const { error } = await supabase.from("question_items").delete().eq("id", id);
+  if (error) throw error;
 }

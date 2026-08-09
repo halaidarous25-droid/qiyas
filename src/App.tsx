@@ -7,6 +7,7 @@ import { MissionDetail } from "@/pages/MissionDetail";
 import { StudentApp } from "@/pages/student/StudentApp";
 import { Students } from "@/pages/Students";
 import { SchoolAdmin } from "@/pages/SchoolAdmin";
+import { QuestionsBank } from "@/pages/QuestionsBank";
 import { Quota } from "@/pages/Quota";
 import { Governance } from "@/pages/Governance";
 import { Reports } from "@/pages/Reports";
@@ -23,7 +24,7 @@ import { Loader2, LogOut, AlertCircle } from "lucide-react";
 
 const CRUMBS: Record<PageKey, string> = {
   dashboard: "لوحة المدرسة", missions: "المهام القيادية", students: "الطلاب",
-  school: "إدارة المدرسة", reports: "التقارير", quota: "الحصص",
+  school: "إدارة المدرسة", questions: "مستودع الأسئلة", reports: "التقارير", quota: "الحصص",
   governance: "الحوكمة", settings: "الإعدادات",
 };
 
@@ -115,6 +116,7 @@ function Shell({ initialRole, locked, onSignOut, userName }:
             )}
             {page === "students" && <Students initialStudentId={studentId} onConsumed={() => setStudentId(null)} />}
             {page === "school" && <SchoolAdmin />}
+            {page === "questions" && <QuestionsBank />}
             {page === "quota" && <Quota />}
             {page === "governance" && <Governance />}
             {page === "reports" && <Reports />}
