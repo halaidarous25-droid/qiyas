@@ -1,14 +1,15 @@
 import { Pill, Meter, En } from "@/components/common";
 import {
-  PLATFORM_SCHOOLS, SCHOOL_STATUS, PLATFORM_KPI as K, ONBOARDING_STEPS,
-  APPEALS, APPEAL_TRACK,
+  PLATFORM_SCHOOLS, SCHOOL_STATUS, PLATFORM_KPI, ONBOARDING_STEPS,
+  APPEALS, APPEAL_TRACK, type PlatformSchool, type Appeal,
 } from "@/data/mock";
+import type { CentralSeed } from "@/lib/live";
 import { badgeTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import { useSlis } from "@/store";
 import {
   Building2, ShieldCheck, Scale, TrendingUp, School, CheckCircle2,
-  Server, ListChecks, Globe,
+  Server, ListChecks, Globe, ClipboardCheck, Gavel, Hourglass,
 } from "lucide-react";
 
 function Kpi({ icon: Icon, label, value, sub, tone }:
@@ -29,9 +30,36 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
   );
 }
 
-export function CentralApp() {
+const pctText = (v: number | null) => (v === null ? "—" : `${v}%`);
+
+export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal }: {
+  data?: CentralSeed;
+  userName?: string;
+  onResolveAppeal?: (id: string) => void;
+  onReviewAppeal?: (id: string) => void;
+} = {}) {
   const { toast } = useSlis();
-  const escalated = APPEALS.filter((a) => a.track !== "A");
+  const live = !!data;
+
+  // البيانات: حيّة إن توفّرت، وإلا الوضع التجريبي
+  const schools: PlatformSchool[] = live ? data!.schools : PLATFORM_SCHOOLS;
+  const appeals: Appeal[] = live ? data!.appeals : APPEALS;
+  const kpi = live ? data!.kpi : {
+    schools: PLATFORM_KPI.schools, active: PLATFORM_KPI.active,
+    openAppeals: APPEALS.filter((a) => a.status !== "resolved").length,
+    escalated: APPEALS.filter((a) => a.track !== "A" && a.status !== "resolved").length,
+    renewalRate: PLATFORM_KPI.renewalRate, assessmentRate: null as number | null,
+    activeRate: Math.round((PLATFORM_KPI.active / PLATFORM_KPI.schools) * 100),
+  };
+
+  const openAppeals = appeals.filter((a) => a.status !== "resolved");
+
+  const meters = [
+    { l: "نسبة إكمال المقياس", v: kpi.assessmentRate, target: "عبر كل المدارس", tone: "brand" as Tone },
+    { l: "المدارس النشطة", v: kpi.activeRate, target: "من إجمالي المدارس", tone: "success" as Tone },
+    { l: "معدّل تجديد الاشتراك", v: kpi.renewalRate, target: "الاشتراكات النشطة", tone: "info" as Tone },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-brand text-white">
@@ -39,18 +67,20 @@ export function CentralApp() {
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15"><Server className="h-5 w-5" /></div>
           <div className="leading-tight">
             <div className="font-display font-extrabold text-[15px]">لوحة النظام المركزي — SLIS</div>
-            <div className="text-[11px] text-white/75">مزوّد الخدمة · حوكمة المنصة بالكامل</div>
+            <div className="text-[11px] text-white/75">
+              {userName ? userName : "مزوّد الخدمة"} · حوكمة المنصة بالكامل{live ? " · بيانات حيّة" : ""}
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-8 soft-grid">
-        {/* مؤشرات المنصة */}
+        {/* مؤشرات المنصة (محسوبة من البيانات الحيّة) */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi icon={School} tone="brand" label="المدارس المشتركة" value={String(K.schools)} sub={`${K.active} نشطة`} />
-          <Kpi icon={Scale} tone="warning" label="نزاعات مُصعّدة" value={String(K.disputesOpen)} sub="مسارات ب/ج" />
-          <Kpi icon={ShieldCheck} tone="success" label="الامتثال للبيانات" value={`${K.dataCompliance}%`} sub="مراجعة فصلية" />
-          <Kpi icon={TrendingUp} tone="info" label="معدّل التجديد" value={`${K.renewalRate}%`} sub="سنوي" />
+          <Kpi icon={School} tone="brand" label="المدارس المشتركة" value={String(kpi.schools)} sub={`${kpi.active} نشطة`} />
+          <Kpi icon={Scale} tone="warning" label="تظلّمات مفتوحة" value={String(kpi.openAppeals)} sub={`${kpi.escalated} مُصعّدة`} />
+          <Kpi icon={ClipboardCheck} tone="success" label="إكمال المقياس" value={pctText(kpi.assessmentRate)} sub="عبر المنصة" />
+          <Kpi icon={TrendingUp} tone="info" label="معدّل التجديد" value={pctText(kpi.renewalRate)} sub="سنوي" />
         </div>
 
         <div className="grid gap-5 lg:grid-cols-3">
@@ -59,11 +89,11 @@ export function CentralApp() {
             <div className="flex items-center justify-between border-b px-5 py-3.5">
               <div className="flex items-center gap-2"><Building2 className="h-[18px] w-[18px] text-brand" />
                 <h2 className="font-display font-bold">المدارس على المنصة</h2></div>
-              <button onClick={() => toast("فُتح نموذج طلب انضمام مدرسة جديدة", "info")}
+              <button onClick={() => toast("قبول مدرسة جديدة يتم عبر إنشاء حساب المدرسة وربطه بمشرف", "info")}
                 className="rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90">+ قبول مدرسة</button>
             </div>
             <div className="divide-y">
-              {PLATFORM_SCHOOLS.map((s) => {
+              {schools.map((s) => {
                 const st = SCHOOL_STATUS[s.status];
                 return (
                   <div key={s.id} className="flex items-center gap-3 px-5 py-3">
@@ -81,29 +111,49 @@ export function CentralApp() {
                   </div>
                 );
               })}
+              {schools.length === 0 && <p className="px-5 py-4 text-sm text-muted-foreground">لا توجد مدارس بعد.</p>}
             </div>
           </div>
 
-          {/* النزاعات المصعّدة */}
+          {/* التظلّمات */}
           <div className="rounded-xl border bg-card">
             <div className="border-b px-5 py-3.5">
               <div className="flex items-center gap-2"><Scale className="h-[18px] w-[18px] text-brand" />
-                <h2 className="font-display font-bold text-[15px]">نزاعات مُصعّدة إليك</h2></div>
+                <h2 className="font-display font-bold text-[15px]">التظلّمات المفتوحة</h2></div>
             </div>
             <div className="space-y-2 p-3">
-              {escalated.map((a) => {
+              {openAppeals.map((a) => {
                 const t = APPEAL_TRACK[a.track];
                 return (
                   <div key={a.id} className="rounded-lg border p-3">
-                    <Pill tone={t.tone as Tone}>المسار {a.track}</Pill>
+                    <div className="flex items-center justify-between">
+                      <Pill tone={t.tone as Tone}>المسار {a.track}</Pill>
+                      {a.status === "review"
+                        ? <Pill tone="info"><Hourglass className="h-3 w-3" /> قيد المراجعة</Pill>
+                        : <Pill tone="warning">جديد</Pill>}
+                    </div>
                     <p className="mt-1.5 text-[13px] font-medium">{a.subject}</p>
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      <En>{a.daysElapsed}/{a.slaMax}</En> يوم · {t.decider}
+                      {a.student} · <En>{a.daysElapsed}/{a.slaMax}</En> يوم · {a.decider}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      {a.status === "new" && (
+                        <button
+                          onClick={() => onReviewAppeal ? onReviewAppeal(a.id) : toast("استُلم التظلّم للمراجعة", "info")}
+                          className="rounded-md border px-2.5 h-8 text-xs font-semibold hover:bg-accent">
+                          استلام
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onResolveAppeal ? onResolveAppeal(a.id) : toast("حُسم التظلّم")}
+                        className="inline-flex items-center gap-1 rounded-md bg-brand px-2.5 h-8 text-xs font-semibold text-white hover:bg-brand/90">
+                        <Gavel className="h-3.5 w-3.5" /> حسم
+                      </button>
                     </div>
                   </div>
                 );
               })}
-              {escalated.length === 0 && <p className="p-3 text-sm text-muted-foreground">لا نزاعات مُصعّدة حاليًا.</p>}
+              {openAppeals.length === 0 && <p className="p-3 text-sm text-muted-foreground">لا تظلّمات مفتوحة حاليًا.</p>}
             </div>
           </div>
         </div>
@@ -128,21 +178,21 @@ export function CentralApp() {
         {/* مؤشرات أداء المنصة */}
         <div className="rounded-xl border bg-card p-5">
           <div className="mb-3 flex items-center gap-2"><Globe className="h-[18px] w-[18px] text-brand" />
-            <h2 className="font-display font-bold">مؤشرات أداء المنصة (مستقلة عن الطلاب)</h2></div>
+            <h2 className="font-display font-bold">مؤشرات أداء المنصة</h2>
+            {live && <Pill tone="success" className="mr-auto"><ShieldCheck className="h-3 w-3" /> محسوبة آنيًا</Pill>}
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              { l:"الامتثال لسياسة البيانات", v:K.dataCompliance, target:"≥ ٩٠٪", tone:"success" as Tone },
-              { l:"رضا المدارس", v:K.satisfaction, target:"≥ ٨٠٪", tone:"brand" as Tone },
-              { l:"معدّل تجديد الاشتراك", v:K.renewalRate, target:"≥ ٧٠٪", tone:"info" as Tone },
-            ].map((m) => (
+            {meters.map((m) => (
               <div key={m.l} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-foreground/80">{m.l}</span>
                   <CheckCircle2 className="h-4 w-4 text-success" />
                 </div>
-                <div className="mt-1 font-display text-2xl font-extrabold"><En>{m.v}%</En></div>
-                <Meter value={m.v} tone={m.tone} className="mt-1.5" />
-                <div className="mt-1 text-[11px] text-muted-foreground">الهدف: {m.target}</div>
+                <div className="mt-1 font-display text-2xl font-extrabold">
+                  {m.v === null ? "—" : <En>{m.v}%</En>}
+                </div>
+                <Meter value={m.v ?? 0} tone={m.tone} className="mt-1.5" />
+                <div className="mt-1 text-[11px] text-muted-foreground">{m.target}</div>
               </div>
             ))}
           </div>
