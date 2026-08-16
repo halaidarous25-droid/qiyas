@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import {
   MISSIONS, IND_REQUESTS, ME_ID, CANDIDATES, TEACHERS, CLASSES,
   computeMatch, newStudent,
-  type Mission, type OperatingMode, type ScopeLevel, type IndReq, type AxisKey,
+  type Mission, type OperatingMode, type ScopeLevel, type IndReq, type AxisKey, type AxisScores,
   type Candidate, type Teacher, type SchoolClass,
 } from "@/data/mock";
 import { fetchSchoolSeed, type LiveSubscription, type DevPlan } from "@/lib/live";
@@ -39,7 +39,7 @@ interface Store {
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
   addMission: (m: {
-    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
+    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores;
   }) => void;
   assignCandidate: (missionId: string, candId: string, name: string) => void;
   devPlans: Record<string, DevPlan>;
@@ -146,7 +146,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
       id: `m${mid++}`, title: m.title, scopeType: m.scopeType, scopeLabel,
       mode: m.mode, seats: m.seats, supervisor: "أ. سعد المالكي", status: "open",
       applicants: 0, eligible: 214, createdAt: "1446/03/01",
-      weights: { ...EVEN }, candidateIds: [],
+      weights: m.weights ?? { ...EVEN }, candidateIds: [],
     };
     setMissions((list) => [nm, ...list]);
     toast(`أُنشئت المهمة «${m.title}» بنجاح`);

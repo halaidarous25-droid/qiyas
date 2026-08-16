@@ -2,11 +2,19 @@ import { useState } from "react";
 import { useSlis } from "@/store";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { type ScopeLevel, type OperatingMode } from "@/data/mock";
-import { X, Target, Plus } from "lucide-react";
+import { AXES, type ScopeLevel, type OperatingMode, type AxisScores, type AxisKey } from "@/data/mock";
+import { X, Target, Plus, SlidersHorizontal } from "lucide-react";
 
 const SCOPES: { k: ScopeLevel; l: string }[] = [
   { k: "school", l: "المدرسة" }, { k: "stage", l: "المرحلة" }, { k: "grade", l: "الصف/الفصل" },
+];
+
+const EVEN_W: AxisScores = { org: 20, lead: 20, comm: 20, firm: 20, init: 20 };
+const PRESETS: { l: string; w: AxisScores }[] = [
+  { l: "متوازن", w: { org: 20, lead: 20, comm: 20, firm: 20, init: 20 } },
+  { l: "قيادي", w: { org: 15, lead: 35, comm: 15, firm: 20, init: 15 } },
+  { l: "تنظيمي", w: { org: 35, lead: 15, comm: 15, firm: 20, init: 15 } },
+  { l: "تواصلي", w: { org: 15, lead: 20, comm: 35, firm: 10, init: 20 } },
 ];
 
 export function CreateMissionModal({ onClose }: { onClose: () => void }) {
@@ -15,11 +23,23 @@ export function CreateMissionModal({ onClose }: { onClose: () => void }) {
   const [scopeType, setScopeType] = useState<ScopeLevel>("school");
   const [seats, setSeats] = useState(1);
   const [mMode, setMMode] = useState<OperatingMode>(mode);
+  const [showPriorities, setShowPriorities] = useState(false);
+  const [weights, setWeights] = useState<AxisScores>({ ...EVEN_W });
   const valid = title.trim().length >= 3;
+
+  const wSum = AXES.reduce((s, a) => s + weights[a.key], 0);
+  // تطبيع الأوزان إلى مجموع ١٠٠
+  const normalize = (w: AxisScores): AxisScores => {
+    const sum = AXES.reduce((s, a) => s + w[a.key], 0);
+    if (sum <= 0) return { ...EVEN_W };
+    const out = {} as AxisScores;
+    AXES.forEach((a) => (out[a.key] = Math.round((w[a.key] / sum) * 100)));
+    return out;
+  };
 
   const submit = () => {
     if (!valid) return;
-    addMission({ title: title.trim(), scopeType, seats, mode: hybrid ? mMode : mode });
+    addMission({ title: title.trim(), scopeType, seats, mode: hybrid ? mMode : mode, weights: normalize(weights) });
     onClose();
   };
 
@@ -75,6 +95,37 @@ export function CreateMissionModal({ onClose }: { onClose: () => void }) {
           ) : (
             <div className="mt-1 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               موحّد على المدرسة: الوضع {mode === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"} · فعّل «التشغيل الهجين» من الإعدادات لاختيار الوضع لكل مهمة.
+            </div>
+          )}
+        </div>
+
+        {/* أولويات المهمة (أوزان المحاور) */}
+        <div className="mt-4">
+          <button onClick={() => setShowPriorities((v) => !v)}
+            className="flex w-full items-center justify-between rounded-lg border px-3 h-10 text-sm font-semibold hover:bg-accent">
+            <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-brand" /> أولويات المهمة (أوزان المحاور)</span>
+            <span className="text-xs text-muted-foreground">{showPriorities ? "إخفاء" : "تخصيص"}</span>
+          </button>
+          {showPriorities && (
+            <div className="mt-2 rounded-lg border p-3">
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {PRESETS.map((p) => (
+                  <button key={p.l} onClick={() => setWeights({ ...p.w })}
+                    className="rounded-md border px-2.5 h-7 text-[11px] font-semibold hover:bg-accent">{p.l}</button>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {AXES.map((a) => (
+                  <div key={a.key} className="grid grid-cols-[70px_1fr_36px] items-center gap-2">
+                    <span className="text-xs text-foreground/80">{a.label}</span>
+                    <input type="range" min={0} max={100} value={weights[a.key as AxisKey]}
+                      onChange={(e) => setWeights((w) => ({ ...w, [a.key]: Number(e.target.value) }))}
+                      className="accent-[hsl(191_72%_30%)]" />
+                    <span className="text-left text-xs font-bold text-brand"><En>{Math.round((weights[a.key as AxisKey] / (wSum || 1)) * 100)}</En>%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[10px] text-muted-foreground">تُطبَّع الأوزان تلقائيًا إلى مجموع ١٠٠٪ وتُحدِّد كيفية حساب مواءمة الطلاب لهذه المهمة.</p>
             </div>
           )}
         </div>

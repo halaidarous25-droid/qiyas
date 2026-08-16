@@ -53,13 +53,14 @@ export async function dbAddClass(schoolId: string, c: { name: string; grade: str
 
 export async function dbAddMission(schoolId: string, m: {
   title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
+  weights?: AxisScores;
 }) {
   const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
     : m.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
   const { data, error } = await supabase.from("missions").insert({
     school_id: schoolId, title: m.title, scope_type: m.scopeType, scope_label: scopeLabel,
     operating_mode: m.mode, seats: m.seats, status: "open",
-    weights: { org: 20, lead: 20, comm: 20, firm: 20, init: 20 },
+    weights: m.weights ?? { org: 20, lead: 20, comm: 20, firm: 20, init: 20 },
   }).select().single();
   if (error) throw error;
   return data;
