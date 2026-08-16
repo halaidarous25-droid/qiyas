@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Pill, En } from "@/components/common";
+import { Pill, En, Meter } from "@/components/common";
 import { Assessment } from "./Assessment";
 import { Report } from "./Report";
 import { scoreAssessment, type Answers, type AssessmentResult } from "@/lib/scoring";
 import { QUESTIONS } from "@/data/questions";
+import { AXES } from "@/data/mock";
 import { useSlis } from "@/store";
 import { cn } from "@/lib/utils";
 import {
@@ -14,7 +15,7 @@ import {
 type View = "home" | "test" | "report";
 
 export function StudentApp() {
-  const { mode, missions, meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned, toast } = useSlis();
+  const { mode, missions, me, meAssessed, applyToMission, completeAssessment, requestRetake, isMeIn, isMeAssigned, toast } = useSlis();
   const [view, setView] = useState<View>("home");
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [pendingApply, setPendingApply] = useState<string | null>(null);
@@ -73,11 +74,53 @@ export function StudentApp() {
               ? <><En>{QUESTIONS.length}</En> موقفًا. أكمل المقياس مرة واحدة ويُرشّحك النظام تلقائيًا للمهام الأنسب لك.</>
               : <><En>{QUESTIONS.length}</En> موقفًا. أكمل المقياس ثم تقدّم للمهام المُعلَنة التي تناسبك.</>}
           </p>
-          <button onClick={() => { setPendingApply(null); setView("test"); }}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-6 h-12 font-bold text-brand shadow-sm hover:bg-white/90">
-            <Play className="h-5 w-5" /> {meAssessed ? "إعادة المقياس" : "ابدأ المقياس الآن"}
-          </button>
+          {meAssessed ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 h-12 font-bold text-white">
+                <CheckCircle2 className="h-5 w-5" /> أكملتَ المقياس — نتيجتك محفوظة
+              </span>
+              <button onClick={() => requestRetake()}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 h-12 font-bold text-brand shadow-sm hover:bg-white/90">
+                <Play className="h-5 w-5" /> طلب إعادة الاختبار
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => { setPendingApply(null); setView("test"); }}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-6 h-12 font-bold text-brand shadow-sm hover:bg-white/90">
+              <Play className="h-5 w-5" /> ابدأ المقياس الآن
+            </button>
+          )}
+          {meAssessed && <p className="mt-2 text-xs text-white/80">لن يُعاد الاختبار تلقائيًا. إعادة المقياس تحتاج موافقة مدرستك بعد طلبك.</p>}
         </div>
+
+        {/* نتيجتي المحفوظة (بعد إكمال المقياس) */}
+        {meAssessed && me && (
+          <div className="rounded-2xl border bg-card p-5">
+            <div className="mb-3 flex items-center gap-2"><Award className="h-[18px] w-[18px] text-gold" />
+              <h2 className="font-display font-bold">نتيجتي القيادية المحفوظة</h2></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-xl border p-3 text-center">
+                  <div className="font-display text-2xl font-extrabold text-brand"><En>{me.competency}%</En></div>
+                  <div className="text-[11px] text-muted-foreground">الكفايات القيادية</div>
+                </div>
+                <div className="flex-1 rounded-xl border p-3 text-center">
+                  <div className="font-display text-2xl font-extrabold text-gold"><En>{me.behavior}%</En></div>
+                  <div className="text-[11px] text-muted-foreground">السلوك في المواقف</div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {AXES.map((a) => (
+                  <div key={a.key} className="grid grid-cols-[80px_1fr_32px] items-center gap-2">
+                    <span className="text-[12px] text-foreground/80">{a.label}</span>
+                    <Meter value={me.axes[a.key]} tone="brand" />
+                    <span className="text-left text-[11px] font-bold"><En>{me.axes[a.key]}</En></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* كيف تعمل البوابة؟ */}
         <div className="rounded-2xl border bg-card p-4">

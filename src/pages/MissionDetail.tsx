@@ -10,8 +10,10 @@ import { cn } from "@/lib/utils";
 import {
   ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
   CheckCircle2, CircleUser, Trophy, ClipboardList, Plus, X, Save, Flag,
+  XCircle, Pencil, UserPlus,
 } from "lucide-react";
 import type { DevPlan } from "@/lib/live";
+import { CreateMissionModal } from "@/components/CreateMissionModal";
 
 function WeightBar({ m }: { m: Mission }) {
   return (
@@ -27,9 +29,9 @@ function WeightBar({ m }: { m: Mission }) {
   );
 }
 
-function CandidateRow({ c, rank, mission, assigned, onAssign, onOpenStudent }:
+function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onOpenStudent }:
   { c: Candidate; rank: number; mission: Mission; assigned: boolean;
-    onAssign: () => void; onOpenStudent: () => void }) {
+    onAssign: () => void; onUnassign: () => void; onOpenStudent: () => void }) {
   const [open, setOpen] = useState(rank === 1);
   const trust = TRUST_META[c.trust];
   const isSeat = rank <= mission.seats;
@@ -139,11 +141,17 @@ function CandidateRow({ c, rank, mission, assigned, onAssign, onOpenStudent }:
               )}
 
               <div className="flex gap-2">
-                <button onClick={onAssign} disabled={assigned}
-                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 h-9 text-sm font-semibold text-white",
-                    assigned ? "bg-success cursor-default" : "bg-brand hover:bg-brand/90")}>
-                  {assigned ? <><CheckCircle2 className="h-4 w-4" /> مُعتمَد للتكليف</> : "اعتماد للتكليف التجريبي"}
-                </button>
+                {assigned ? (
+                  <button onClick={onUnassign}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-danger/40 text-danger px-3 h-9 text-sm font-semibold hover:bg-danger/10">
+                    <XCircle className="h-4 w-4" /> إلغاء الاعتماد
+                  </button>
+                ) : (
+                  <button onClick={onAssign}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 h-9 text-sm font-semibold text-white bg-brand hover:bg-brand/90">
+                    اعتماد للتكليف التجريبي
+                  </button>
+                )}
                 <button onClick={onOpenStudent} className="rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
                   عرض الملف
                 </button>
@@ -242,7 +250,7 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, rankMission, students } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, rankMission, students } = useSlis();
   const m = missions.find((x) => x.id === missionId)!;
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
@@ -250,6 +258,9 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
   const assignedStudents = assignedIds
     .map((id) => students.find((s) => s.id === id) || ranked.find((c) => c.id === id))
     .filter((c): c is Candidate => !!c);
+  const [editing, setEditing] = useState(false);
+  const [nomId, setNomId] = useState("");
+  const notNominated = students.filter((s) => !m.candidateIds.includes(s.id));
 
   return (
     <div className="space-y-5">
@@ -276,6 +287,10 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           <div className="flex items-center gap-1.5">
             <Pill tone={st.tone as Tone}>{st.label}</Pill>
             <Pill tone="brand">الوضع {m.mode === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"}</Pill>
+            <button onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent">
+              <Pencil className="h-3.5 w-3.5" /> تعديل المهمة
+            </button>
           </div>
         </div>
 
@@ -316,8 +331,24 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
             <CandidateRow key={c.id} c={c} rank={i + 1} mission={m}
               assigned={assignedIds.includes(c.id)}
               onAssign={() => assignCandidate(m.id, c.id, c.name)}
+              onUnassign={() => unassignCandidate(m.id, c.id, c.name)}
               onOpenStudent={() => onOpenStudent(c.id)} />
           ))}
+        </div>
+
+        {/* ترشيح طالب يدويًا */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
+          <span className="flex items-center gap-1.5 text-sm font-semibold"><UserPlus className="h-4 w-4 text-brand" /> ترشيح طالب</span>
+          <select value={nomId} onChange={(e) => setNomId(e.target.value)}
+            className="rounded-lg border bg-background px-2 h-9 text-sm min-w-[200px]">
+            <option value="">اختر طالبًا…</option>
+            {notNominated.map((s) => <option key={s.id} value={s.id}>{s.name}{s.className ? ` — ${s.className}` : ""}</option>)}
+          </select>
+          <button disabled={!nomId}
+            onClick={() => { const s = students.find((x) => x.id === nomId); if (s) { nominateStudent(m.id, s.id, s.name); setNomId(""); } }}
+            className="rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+            ترشيح
+          </button>
         </div>
       </div>
 
@@ -334,6 +365,8 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           </div>
         </div>
       )}
+
+      {editing && <CreateMissionModal edit={m} onClose={() => setEditing(false)} />}
     </div>
   );
 }

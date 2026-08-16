@@ -42,11 +42,16 @@ interface Store {
     title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores;
   }) => void;
   assignCandidate: (missionId: string, candId: string, name: string) => void;
+  unassignCandidate: (missionId: string, candId: string, name: string) => void;
+  nominateStudent: (missionId: string, candId: string, name: string) => void;
+  updateMission: (missionId: string, patch: { title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode; weights?: AxisScores; status?: string }) => void;
+  requestRetake: () => void;
   devPlans: Record<string, DevPlan>;
   saveDevPlan: (missionId: string, studentId: string, plan: DevPlan) => void;
   resolveIndReq: (id: string, approved: boolean, name: string) => void;
   saveSettings: (s: { mode: OperatingMode; hybrid: boolean; settings: AppSettings }) => void;
   // دورة الطالب المُسجَّل (me)
+  me: Candidate | null;
   meAssessed: boolean;
   applyToMission: (missionId: string) => void;
   completeAssessment: (answers?: Record<string, number | boolean>) => number;   // يُرجع عدد المهام التي رُشِّح لها تلقائيًا (الوضع ب)
@@ -108,7 +113,9 @@ export function SlisProvider({ children, seed, live, meStudentId }:
   const [devPlans, setDevPlans] = useState<Record<string, DevPlan>>(seed?.devPlans ?? {});
   const [indReqs, setIndReqs] = useState<IndReq[]>(seed?.indReqs ?? IND_REQUESTS);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [meAssessed, setMeAssessed] = useState(false);
+  const [meAssessed, setMeAssessed] = useState(
+    (seed?.students ?? CANDIDATES).find((s) => s.id === meId)?.assessed ?? false,
+  );
   const [students, setStudents] = useState<Candidate[]>(seed?.students ?? CANDIDATES);
   const [teachers, setTeachers] = useState<Teacher[]>(seed?.teachers ?? TEACHERS);
   const [classes, setClasses] = useState<SchoolClass[]>(seed?.classes ?? CLASSES);
@@ -130,7 +137,8 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     setMissions(s.missions); setAssigned(s.assigned); setIndReqs(s.indReqs);
     setDevPlans(s.devPlans);
     setStudents(s.students); setTeachers(s.teachers); setClasses(s.classes);
-  }, [isLive, schoolId]);
+    setMeAssessed(s.students.find((x) => x.id === meId)?.assessed ?? false);
+  }, [isLive, schoolId, meId]);
 
   const addMission: Store["addMission"] = (m) => {
     if (isLive && schoolId) {
@@ -167,6 +175,65 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     });
     setMissions((list) => list.map((m) => m.id === missionId ? { ...m, status: "trial" } : m));
     toast(`اعتُمد ${name} للتكليف التجريبي`);
+  };
+
+  const unassignCandidate: Store["unassignCandidate"] = (missionId, candId, name) => {
+    if (isLive && schoolId) {
+      api.dbUnassign(missionId, candId)
+        .then(() => resync())
+        .then(() => toast(`أُلغي اعتماد ${name}`, "info"))
+        .catch((e) => toast(`تعذّر الإلغاء: ${e.message || e}`, "danger"));
+      return;
+    }
+    setAssigned((a) => ({ ...a, [missionId]: (a[missionId] || []).filter((x) => x !== candId) }));
+    toast(`أُلغي اعتماد ${name}`, "info");
+  };
+
+  const nominateStudent: Store["nominateStudent"] = (missionId, candId, name) => {
+    if (isLive && schoolId) {
+      const mission = missions.find((m) => m.id === missionId);
+      const student = students.find((s) => s.id === candId);
+      if (!mission || !student) { toast("تعذّر الترشيح", "danger"); return; }
+      api.dbApply(schoolId, mission, student, false)
+        .then(() => resync())
+        .then(() => toast(`رُشِّح ${name} للمهمة`))
+        .catch((e) => toast(`تعذّر الترشيح: ${e.message || e}`, "danger"));
+      return;
+    }
+    setMissions((list) => list.map((m) => {
+      if (m.id !== missionId || m.candidateIds.includes(candId)) return m;
+      return { ...m, candidateIds: [...m.candidateIds, candId], applicants: m.applicants + 1 };
+    }));
+    toast(`رُشِّح ${name} للمهمة`);
+  };
+
+  const updateMission: Store["updateMission"] = (missionId, patch) => {
+    if (isLive && schoolId) {
+      api.dbUpdateMission(missionId, patch)
+        .then(() => resync())
+        .then(() => toast("حُفظت تعديلات المهمة"))
+        .catch((e) => toast(`تعذّر الحفظ: ${e.message || e}`, "danger"));
+      return;
+    }
+    setMissions((list) => list.map((m) => {
+      if (m.id !== missionId) return m;
+      const scopeLabel = patch.scopeType
+        ? (patch.scopeType === "school" ? "كامل المدرسة" : patch.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد")
+        : m.scopeLabel;
+      return { ...m, ...patch, scopeType: patch.scopeType ?? m.scopeType, scopeLabel, weights: patch.weights ?? m.weights } as Mission;
+    }));
+    toast("حُفظت تعديلات المهمة");
+  };
+
+  const requestRetake: Store["requestRetake"] = () => {
+    if (isLive && schoolId) {
+      api.dbRequestRetake(schoolId, meId)
+        .then(() => resync())
+        .then(() => toast("أُرسل طلب إعادة المقياس — بانتظار موافقة المدرسة", "info"))
+        .catch((e) => toast(`تعذّر إرسال الطلب: ${e.message || e}`, "danger"));
+      return;
+    }
+    toast("أُرسل طلب إعادة المقياس — بانتظار موافقة المدرسة", "info");
   };
 
   const saveDevPlan: Store["saveDevPlan"] = (missionId, studentId, plan) => {
@@ -350,7 +417,9 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     <Ctx.Provider value={{
       live: isLive, schoolId,
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
-      toast, dismissToast, addMission, assignCandidate, devPlans, saveDevPlan, resolveIndReq, saveSettings,
+      toast, dismissToast, addMission, assignCandidate, unassignCandidate, nominateStudent, updateMission, requestRetake,
+      devPlans, saveDevPlan, resolveIndReq, saveSettings,
+      me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
       students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,
     }}>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSlis } from "@/store";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { AXES, type ScopeLevel, type OperatingMode, type AxisScores, type AxisKey } from "@/data/mock";
+import { AXES, type ScopeLevel, type OperatingMode, type AxisScores, type AxisKey, type Mission } from "@/data/mock";
 import { X, Target, Plus, SlidersHorizontal } from "lucide-react";
 
 const SCOPES: { k: ScopeLevel; l: string }[] = [
@@ -17,14 +17,15 @@ const PRESETS: { l: string; w: AxisScores }[] = [
   { l: "تواصلي", w: { org: 15, lead: 20, comm: 35, firm: 10, init: 20 } },
 ];
 
-export function CreateMissionModal({ onClose }: { onClose: () => void }) {
-  const { addMission, mode, hybrid } = useSlis();
-  const [title, setTitle] = useState("");
-  const [scopeType, setScopeType] = useState<ScopeLevel>("school");
-  const [seats, setSeats] = useState(1);
-  const [mMode, setMMode] = useState<OperatingMode>(mode);
-  const [showPriorities, setShowPriorities] = useState(false);
-  const [weights, setWeights] = useState<AxisScores>({ ...EVEN_W });
+export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edit?: Mission }) {
+  const { addMission, updateMission, mode, hybrid } = useSlis();
+  const isEdit = !!edit;
+  const [title, setTitle] = useState(edit?.title ?? "");
+  const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType ?? "school");
+  const [seats, setSeats] = useState(edit?.seats ?? 1);
+  const [mMode, setMMode] = useState<OperatingMode>(edit?.mode ?? mode);
+  const [showPriorities, setShowPriorities] = useState(isEdit);
+  const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
   const valid = title.trim().length >= 3;
 
   const wSum = AXES.reduce((s, a) => s + weights[a.key], 0);
@@ -39,7 +40,9 @@ export function CreateMissionModal({ onClose }: { onClose: () => void }) {
 
   const submit = () => {
     if (!valid) return;
-    addMission({ title: title.trim(), scopeType, seats, mode: hybrid ? mMode : mode, weights: normalize(weights) });
+    const payload = { title: title.trim(), scopeType, seats, mode: hybrid ? mMode : mode, weights: normalize(weights) };
+    if (isEdit) updateMission(edit!.id, payload);
+    else addMission(payload);
     onClose();
   };
 
@@ -49,7 +52,7 @@ export function CreateMissionModal({ onClose }: { onClose: () => void }) {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-white"><Target className="h-5 w-5" /></div>
-            <h2 className="font-display text-lg font-extrabold">إنشاء مهمة قيادية</h2>
+            <h2 className="font-display text-lg font-extrabold">{isEdit ? "تعديل المهمة" : "إنشاء مهمة قيادية"}</h2>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
@@ -133,7 +136,7 @@ export function CreateMissionModal({ onClose }: { onClose: () => void }) {
         <div className="mt-5 flex gap-2">
           <button onClick={submit} disabled={!valid}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand h-11 text-sm font-semibold text-white disabled:opacity-40 hover:bg-brand/90">
-            <Plus className="h-4 w-4" /> إنشاء المهمة
+            <Plus className="h-4 w-4" /> {isEdit ? "حفظ التعديلات" : "إنشاء المهمة"}
           </button>
           <button onClick={onClose} className="rounded-lg border px-5 h-11 text-sm font-semibold hover:bg-accent">إلغاء</button>
         </div>

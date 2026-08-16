@@ -66,6 +66,39 @@ export async function dbAddMission(schoolId: string, m: {
   return data;
 }
 
+// تعديل مهمة قائمة
+export async function dbUpdateMission(missionId: string, patch: {
+  title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode;
+  weights?: AxisScores; status?: string;
+}) {
+  const upd: Record<string, unknown> = {};
+  if (patch.title !== undefined) upd.title = patch.title;
+  if (patch.seats !== undefined) upd.seats = patch.seats;
+  if (patch.mode !== undefined) upd.operating_mode = patch.mode;
+  if (patch.weights !== undefined) upd.weights = patch.weights;
+  if (patch.status !== undefined) upd.status = patch.status;
+  if (patch.scopeType !== undefined) {
+    upd.scope_type = patch.scopeType;
+    upd.scope_label = patch.scopeType === "school" ? "كامل المدرسة"
+      : patch.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
+  }
+  const { error } = await supabase.from("missions").update(upd).eq("id", missionId);
+  if (error) throw error;
+}
+
+// إلغاء اعتماد مرشّح (إرجاعه لحالة مُرشَّح)
+export async function dbUnassign(missionId: string, studentId: string) {
+  const a = await supabase.from("mission_applications")
+    .update({ status: "nominated" }).eq("mission_id", missionId).eq("student_id", studentId);
+  if (a.error) throw a.error;
+  // إن لم يبقَ أي مُعتمَد، تُعاد المهمة إلى «مفتوحة»
+  const { data: remaining } = await supabase.from("mission_applications")
+    .select("id").eq("mission_id", missionId).eq("status", "assigned");
+  if (!remaining || remaining.length === 0) {
+    await supabase.from("missions").update({ status: "open" }).eq("id", missionId);
+  }
+}
+
 // ترشيح طالب لمهمة (يحسب المواءمة ويحفظها)
 export async function dbApply(schoolId: string, mission: Mission, student: Candidate, auto: boolean) {
   const match = computeMatch(student, mission);
@@ -101,13 +134,45 @@ export async function dbSaveDevelopmentPlan(missionId: string, studentId: string
 }
 
 export async function dbResolveIndReq(id: string, approved: boolean, schoolId?: string) {
+  // اقرأ الطلب أولًا لمعرفة الغرض والطالب
+  const { data: reqRow } = await supabase.from("individual_requests")
+    .select("purpose,student_id").eq("id", id).maybeSingle();
   const { error } = await supabase.from("individual_requests")
     .update({ status: approved ? "approved" : "denied" }).eq("id", id);
   if (error) throw error;
-  // الموافقة تمنح اختبارًا فرديًا → تُخصم وحدة من الحصة الفردية
-  if (approved && schoolId) {
-    try { await consumeQuota(schoolId, "individual"); } catch { /* لا تُفشل الموافقة إن تعذّر الخصم */ }
+  if (approved) {
+    const isRetake = (reqRow?.purpose || "").includes("إعادة") || (reqRow?.purpose || "").toLowerCase().includes("retake");
+    // الموافقة على إعادة المقياس تُعيد تفعيل الاختبار للطالب
+    if (isRetake && reqRow?.student_id) {
+      await supabase.from("students").update({ assessed: false }).eq("id", reqRow.student_id);
+    }
+    // تُخصم وحدة من الحصة الفردية
+    if (schoolId) {
+      try { await consumeQuota(schoolId, "individual"); } catch { /* لا تُفشل الموافقة إن تعذّر الخصم */ }
+    }
   }
+}
+
+// طلب إعادة المقياس من الطالب (ينشئ طلبًا فرديًا بانتظار موافقة المدرسة)
+export async function dbRequestRetake(schoolId: string, studentId: string) {
+  const { error } = await supabase.from("individual_requests")
+    .insert({ school_id: schoolId, student_id: studentId, purpose: "إعادة المقياس", status: "pending" });
+  if (error) throw error;
+}
+
+// ============ التسجيل الذاتي (عام) ============
+export async function registerSchool(input: { schoolName: string; city: string; adminName: string; email: string; password: string }) {
+  const { data, error } = await supabase.functions.invoke("public-signup", { body: { action: "register_school", ...input } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; email: string; tenantCode: string; schoolId: string };
+}
+
+export async function registerStudent(input: { tenantCode: string; name: string; grade: string; email: string; password: string }) {
+  const { data, error } = await supabase.functions.invoke("public-signup", { body: { action: "register_student", ...input } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; email: string; schoolName: string };
 }
 
 // ============ إدارة الحسابات (عبر Edge Function بصلاحيات إدارية) ============
