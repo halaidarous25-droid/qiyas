@@ -12,20 +12,21 @@ import { Quota } from "@/pages/Quota";
 import { Governance } from "@/pages/Governance";
 import { Reports } from "@/pages/Reports";
 import { Settings as SettingsPage } from "@/pages/Settings";
+import { Profile } from "@/pages/Profile";
 import { CentralApp } from "@/pages/central/CentralApp";
 import { Login } from "@/pages/Login";
 import { SlisProvider, type StoreSeed } from "@/store";
 import { Toaster } from "@/components/Toaster";
 import { AuthProvider, useAuth, type LiveRole } from "@/lib/auth";
 import { fetchSchoolSeed, fetchCentralSeed, type CentralSeed } from "@/lib/live";
-import { dbResolveAppeal, dbReviewAppeal } from "@/lib/api";
+import { dbResolveAppeal, dbReviewAppeal, dbSetSchoolStatus } from "@/lib/api";
 import { useSlis } from "@/store";
 import { Loader2, LogOut, AlertCircle } from "lucide-react";
 
 const CRUMBS: Record<PageKey, string> = {
   dashboard: "لوحة المدرسة", missions: "المهام القيادية", students: "الطلاب",
   school: "إدارة المدرسة", questions: "مستودع الأسئلة", reports: "التقارير", quota: "الحصص",
-  governance: "الحوكمة", settings: "الإعدادات",
+  governance: "الحوكمة", settings: "الإعدادات", profile: "ملفي الشخصي",
 };
 
 // ===== لوحة الإدارة المركزية الحيّة (كل المدارس) =====
@@ -51,6 +52,10 @@ function LiveCentral({ userName }: { userName?: string }) {
     try { await dbReviewAppeal(id, decider); await load(); toast("استُلم التظلّم للمراجعة", "info"); }
     catch (e: any) { toast(`تعذّرت المعالجة: ${e.message || e}`, "danger"); }
   };
+  const onSetSchoolStatus = async (schoolId: string, status: string) => {
+    try { await dbSetSchoolStatus(schoolId, status); await load(); toast(status === "active" ? "اعتُمدت المدرسة" : "حُدّثت حالة المدرسة"); }
+    catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
+  };
 
   if (loading) return (
     <div className="grid min-h-screen place-items-center bg-background">
@@ -70,12 +75,12 @@ function LiveCentral({ userName }: { userName?: string }) {
     </div>
   );
 
-  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} />;
+  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} />;
 }
 
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
-function Shell({ initialRole, locked, onSignOut, userName }:
-  { initialRole: Role; locked: boolean; onSignOut?: () => void; userName?: string }) {
+function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
+  { initialRole: Role; locked: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null }) {
   const [page, setPage] = useState<PageKey>("dashboard");
   const [role, setRole] = useState<Role>(initialRole);
   const [missionId, setMissionId] = useState<string | null>(null);
@@ -106,7 +111,7 @@ function Shell({ initialRole, locked, onSignOut, userName }:
     <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar page={page} onNavigate={goto} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} />
+        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} />
         <main className="flex-1 p-4 md:p-6 soft-grid">
           <div className="mx-auto max-w-6xl">
             {page === "dashboard" && <Dashboard onOpenMissions={() => setPage("missions")} />}
@@ -121,6 +126,7 @@ function Shell({ initialRole, locked, onSignOut, userName }:
             {page === "governance" && <Governance />}
             {page === "reports" && <Reports />}
             {page === "settings" && <SettingsPage />}
+            {page === "profile" && <Profile />}
           </div>
         </main>
       </div>
@@ -168,8 +174,8 @@ function LiveApp() {
   );
 
   return (
-    <SlisProvider seed={seed} live meStudentId={identity?.studentId}>
-      <Shell initialRole={ROLE_MAP[identity!.role]} locked onSignOut={signOut} userName={identity?.name || email || ""} />
+    <SlisProvider seed={seed} live meStudentId={identity?.studentId} role={(identity?.memberRole as any) || undefined}>
+      <Shell initialRole={ROLE_MAP[identity!.role]} locked onSignOut={signOut} userName={identity?.name || email || ""} avatarUrl={identity?.avatarUrl} />
     </SlisProvider>
   );
 }

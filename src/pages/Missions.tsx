@@ -68,10 +68,18 @@ function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }
 }
 
 export function Missions({ onOpenMission }: { onOpenMission: (id: string) => void }) {
-  const { missions } = useSlis();
+  const { missions, assigned, can } = useSlis();
   const [filter, setFilter] = useState<MissionStatus | "all">("all");
   const [creating, setCreating] = useState(false);
   const list = filter === "all" ? missions : missions.filter((m) => m.status === filter);
+
+  // مهمة مغلقة = اكتمل تعيين كل مقاعدها أو حالتها «مُسندة/مغلقة»
+  const isClosed = (m: typeof missions[number]) => {
+    const filled = (assigned[m.id] || []).length;
+    return ["assigned", "closed", "archived"].includes(m.status) || (m.seats > 0 && filled >= m.seats);
+  };
+  const openList = list.filter((m) => !isClosed(m));
+  const closedList = list.filter((m) => isClosed(m));
 
   return (
     <div className="space-y-5">
@@ -82,10 +90,12 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
             كل مهمة فرصة قيادية مستقلة لها نطاق ومتطلبات وقائمة مرشّحين مرتّبة.
           </p>
         </div>
-        <button onClick={() => setCreating(true)}
-          className="flex items-center gap-2 rounded-lg bg-brand px-4 h-10 text-sm font-semibold text-white shadow-sm hover:bg-brand/90">
-          <Plus className="h-4 w-4" /> إنشاء مهمة
-        </button>
+        {can("missions") && (
+          <button onClick={() => setCreating(true)}
+            className="flex items-center gap-2 rounded-lg bg-brand px-4 h-10 text-sm font-semibold text-white shadow-sm hover:bg-brand/90">
+            <Plus className="h-4 w-4" /> إنشاء مهمة
+          </button>
+        )}
       </div>
 
       {creating && <CreateMissionModal onClose={() => setCreating(false)} />}
@@ -101,9 +111,31 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {list.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} />)}
+      {/* مهام مفتوحة */}
+      <div>
+        <div className="mb-2 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-success" />
+          <h2 className="font-display font-bold">مهام مفتوحة (<En>{openList.length}</En>)</h2>
+        </div>
+        {openList.length === 0
+          ? <div className="rounded-xl border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">لا مهام مفتوحة حاليًا.</div>
+          : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {openList.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} />)}
+            </div>}
       </div>
+
+      {/* مهام مغلقة (اكتمل التعيين) */}
+      {closedList.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/50" />
+            <h2 className="font-display font-bold text-muted-foreground">مهام مغلقة — اكتمل التعيين (<En>{closedList.length}</En>)</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 opacity-80">
+            {closedList.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

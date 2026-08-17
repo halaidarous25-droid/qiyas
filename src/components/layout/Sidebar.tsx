@@ -8,7 +8,7 @@ import {
 
 export type PageKey =
   | "dashboard" | "missions" | "students" | "school" | "questions" | "reports"
-  | "quota" | "governance" | "settings";
+  | "quota" | "governance" | "settings" | "profile";
 
 const NAV: { key: PageKey; label: string; icon: any; soon?: boolean }[] = [
   { key: "dashboard", label: "لوحة المدرسة", icon: LayoutDashboard },
@@ -24,7 +24,8 @@ const NAV: { key: PageKey; label: string; icon: any; soon?: boolean }[] = [
 
 export function Sidebar({ page, onNavigate }:
   { page: PageKey; onNavigate: (p: PageKey) => void }) {
-  const { mode, hybrid } = useSlis();
+  const { mode, hybrid, can } = useSlis();
+  const nav = NAV.filter((item) => can(item.key as any));
   return (
     <aside className="hidden md:flex w-64 shrink-0 flex-col border-l bg-card">
       <div className="flex items-center gap-3 px-5 h-16 border-b">
@@ -38,7 +39,7 @@ export function Sidebar({ page, onNavigate }:
       </div>
 
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = page === item.key;
           return (
             <button key={item.key} onClick={() => !item.soon && onNavigate(item.key)}

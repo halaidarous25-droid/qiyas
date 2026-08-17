@@ -174,6 +174,35 @@ export async function dbRequestRetake(schoolId: string, studentId: string) {
   if (error) throw error;
 }
 
+// ============ اعتماد المدارس (مركزي) ============
+export async function dbSetSchoolStatus(schoolId: string, status: string) {
+  const { error } = await supabase.from("schools").update({ status }).eq("id", schoolId);
+  if (error) throw error;
+}
+
+// ============ بيانات الدخول (يقرأها مشرف المدرسة) ============
+export interface AccountCred { id: string; user_id: string; username: string; password: string; role: string; name: string | null }
+export async function fetchCredentials(schoolId: string): Promise<AccountCred[]> {
+  const { data, error } = await supabase.from("account_credentials")
+    .select("id,user_id,username,password,role,name").eq("school_id", schoolId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []) as AccountCred[];
+}
+
+// ============ الملف الشخصي ============
+export async function updateOwnProfile(userId: string, patch: { full_name?: string; avatar_url?: string }) {
+  const { error } = await supabase.from("profiles").upsert({ id: userId, ...patch });
+  if (error) throw error;
+}
+export async function changeOwnPassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+export async function updateStudentName(studentId: string, name: string) {
+  const { error } = await supabase.from("students").update({ name }).eq("id", studentId);
+  if (error) throw error;
+}
+
 // ============ التسجيل الذاتي (عام) ============
 export async function registerSchool(input: { schoolName: string; city: string; adminName: string; email: string; password: string }) {
   const { data, error } = await supabase.functions.invoke("public-signup", { body: { action: "register_school", ...input } });

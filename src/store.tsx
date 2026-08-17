@@ -8,6 +8,7 @@ import {
 import { fetchSchoolSeed, type LiveSubscription, type DevPlan } from "@/lib/live";
 import * as api from "@/lib/api";
 import { scoreAssessment } from "@/lib/scoring";
+import { can as canDo, type Role, type Cap } from "@/lib/perms";
 
 export interface AppSettings {
   scope: ScopeLevel;
@@ -27,6 +28,8 @@ interface Store {
   // الحالة
   live: boolean;
   schoolId: string | null;
+  role: Role;
+  can: (cap: Cap) => boolean;
   mode: OperatingMode;
   hybrid: boolean;
   settings: AppSettings;
@@ -97,11 +100,13 @@ export interface StoreSeed {
   classes?: SchoolClass[];
 }
 
-export function SlisProvider({ children, seed, live, meStudentId }:
-  { children: ReactNode; seed?: StoreSeed; live?: boolean; meStudentId?: string | null }) {
+export function SlisProvider({ children, seed, live, meStudentId, role }:
+  { children: ReactNode; seed?: StoreSeed; live?: boolean; meStudentId?: string | null; role?: Role }) {
   const isLive = !!live;
   const schoolId = seed?.schoolId ?? null;
   const meId = meStudentId ?? ME_ID;
+  const effRole: Role = role ?? (isLive ? "teacher" : "demo");
+  const can = (cap: Cap) => canDo(effRole, cap);
 
   const [mode, setMode] = useState<OperatingMode>(seed?.mode ?? "B");
   const [hybrid, setHybrid] = useState(seed?.hybrid ?? false);
@@ -444,7 +449,7 @@ export function SlisProvider({ children, seed, live, meStudentId }:
 
   return (
     <Ctx.Provider value={{
-      live: isLive, schoolId,
+      live: isLive, schoolId, role: effRole, can,
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
       toast, dismissToast, addMission, assignCandidate, unassignCandidate, nominateStudent,
       removeCandidate, setCandidateStatus, updateMission, requestRetake,

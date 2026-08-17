@@ -3,6 +3,7 @@ import { Pill, En } from "@/components/common";
 import { type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import { useSlis } from "@/store";
+import { PermissionsMatrix } from "@/components/PermissionsMatrix";
 import {
   SlidersHorizontal, Check, Globe, Users2, Wallet, Shuffle, Info,
 } from "lucide-react";
@@ -150,6 +151,8 @@ export function Settings() {
         <button onClick={save} className="rounded-lg bg-brand px-6 h-11 text-sm font-semibold text-white hover:bg-brand/90">حفظ الإعدادات</button>
         <button onClick={reset} className="rounded-lg border px-6 h-11 text-sm font-semibold hover:bg-accent">استعادة الافتراضي</button>
       </div>
+
+      <PermissionsMatrix />
     </div>
   );
 }

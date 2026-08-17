@@ -5,8 +5,11 @@ export type LiveRole = "central" | "supervisor" | "student";
 
 export interface Identity {
   role: LiveRole;
+  memberRole: string | null;   // الدور التفصيلي داخل المدرسة (principal/coordinator/activity_supervisor/teacher)
   schoolId: string | null;
   studentId: string | null;
+  userId: string;
+  avatarUrl: string | null;
   name: string;
 }
 
@@ -29,14 +32,15 @@ export const useAuth = () => {
 
 async function resolveIdentity(userId: string): Promise<Identity | null> {
   // مركزي؟
-  const { data: prof } = await supabase.from("profiles").select("full_name,is_central_admin").eq("id", userId).maybeSingle();
-  if (prof?.is_central_admin) return { role: "central", schoolId: null, studentId: null, name: prof.full_name || "مدير النظام المركزي" };
-  // عضو مدرسة (مشرف/مدير)؟
+  const { data: prof } = await supabase.from("profiles").select("full_name,is_central_admin,avatar_url").eq("id", userId).maybeSingle();
+  const av = prof?.avatar_url ?? null;
+  if (prof?.is_central_admin) return { role: "central", memberRole: null, schoolId: null, studentId: null, userId, avatarUrl: av, name: prof.full_name || "مدير النظام المركزي" };
+  // عضو مدرسة (مدير/منسّق/مشرف نشاط/معلم)؟
   const { data: mem } = await supabase.from("school_members").select("school_id,role").eq("user_id", userId).maybeSingle();
-  if (mem) return { role: "supervisor", schoolId: mem.school_id, studentId: null, name: prof?.full_name || "المشرف" };
+  if (mem) return { role: "supervisor", memberRole: mem.role, schoolId: mem.school_id, studentId: null, userId, avatarUrl: av, name: prof?.full_name || "عضو المدرسة" };
   // طالب؟
   const { data: st } = await supabase.from("students").select("id,school_id,name").eq("user_id", userId).maybeSingle();
-  if (st) return { role: "student", schoolId: st.school_id, studentId: st.id, name: st.name };
+  if (st) return { role: "student", memberRole: null, schoolId: st.school_id, studentId: st.id, userId, avatarUrl: av, name: st.name };
   return null;
 }
 

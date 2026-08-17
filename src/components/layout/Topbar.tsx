@@ -12,9 +12,9 @@ const ROLES: { key: Role; label: string }[] = [
   { key: "central", label: "مدير النظام المركزي" },
 ];
 
-export function Topbar({ role, onRole, crumb, locked, onSignOut, userName }:
+export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile }:
   { role: Role; onRole: (r: Role) => void; crumb: string;
-    locked?: boolean; onSignOut?: () => void; userName?: string }) {
+    locked?: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null; onProfile?: () => void }) {
   const current = ROLES.find((r) => r.key === role)!;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -46,13 +46,16 @@ export function Topbar({ role, onRole, crumb, locked, onSignOut, userName }:
 
         {locked ? (
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg border bg-background px-2 h-9">
-              <Avatar name={userName || current.label} color="#0f5c66" size={26} />
+            <button onClick={onProfile} title="ملفي الشخصي"
+              className="flex items-center gap-2 rounded-lg border bg-background px-2 h-9 hover:bg-accent">
+              {avatarUrl
+                ? <img src={avatarUrl} alt="" className="h-[26px] w-[26px] rounded-full object-cover" />
+                : <Avatar name={userName || current.label} color="#0f5c66" size={26} />}
               <div className="hidden sm:block text-right leading-tight">
                 <div className="text-xs font-semibold">{userName || current.label}</div>
-                <div className="text-[10px] text-success">متصل بالبيانات الحيّة</div>
+                <div className="text-[10px] text-success">عرض الملف الشخصي</div>
               </div>
-            </div>
+            </button>
             <button onClick={onSignOut} title="تسجيل الخروج"
               className="grid h-9 w-9 place-items-center rounded-lg border bg-background hover:bg-accent">
               <LogOut className="h-[18px] w-[18px]" />

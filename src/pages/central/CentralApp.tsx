@@ -32,11 +32,12 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 
 const pctText = (v: number | null) => (v === null ? "—" : `${v}%`);
 
-export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal }: {
+export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus }: {
   data?: CentralSeed;
   userName?: string;
   onResolveAppeal?: (id: string) => void;
   onReviewAppeal?: (id: string) => void;
+  onSetSchoolStatus?: (schoolId: string, status: string) => void;
 } = {}) {
   const { toast } = useSlis();
   const live = !!data;
@@ -106,7 +107,20 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal }: 
                     </div>
                     <div className="text-left">
                       <Pill tone={st.tone as Tone}>{st.label}</Pill>
-                      <div className="mt-1 text-[11px] text-muted-foreground">{s.note}</div>
+                      {s.status === "onboarding" && onSetSchoolStatus ? (
+                        <div className="mt-1.5 flex gap-1.5">
+                          <button onClick={() => onSetSchoolStatus(s.id, "active")}
+                            className="inline-flex items-center gap-1 rounded-md bg-success px-2.5 h-7 text-[11px] font-semibold text-white hover:opacity-90">
+                            <CheckCircle2 className="h-3 w-3" /> اعتماد
+                          </button>
+                          <button onClick={() => onSetSchoolStatus(s.id, "frozen")}
+                            className="inline-flex items-center gap-1 rounded-md border border-danger/40 text-danger px-2.5 h-7 text-[11px] font-semibold hover:bg-danger/10">
+                            رفض
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[11px] text-muted-foreground">{s.note}</div>
+                      )}
                     </div>
                   </div>
                 );

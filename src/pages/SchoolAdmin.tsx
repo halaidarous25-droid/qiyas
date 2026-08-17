@@ -6,9 +6,10 @@ import { parseStudentsCsv, STUDENTS_CSV_TEMPLATE } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
-  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2,
+  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff,
 } from "lucide-react";
-import { createStudentAccount, inviteMember } from "@/lib/api";
+import { useEffect } from "react";
+import { createStudentAccount, inviteMember, fetchCredentials, type AccountCred } from "@/lib/api";
 
 type Tab = "info" | "classes" | "teachers" | "students" | "accounts";
 const TABS: { k: Tab; l: string; icon: any }[] = [
@@ -246,8 +247,13 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
 const MEMBER_ROLES = [
   { k: "principal", l: "مدير المدرسة" },
   { k: "coordinator", l: "منسّق النظام" },
-  { k: "teacher", l: "معلم/مشرف" },
+  { k: "activity_supervisor", l: "مشرف نشاط" },
+  { k: "teacher", l: "معلم" },
 ];
+const ROLE_AR: Record<string, string> = {
+  principal: "مدير المدرسة", coordinator: "منسّق النظام", activity_supervisor: "مشرف نشاط",
+  teacher: "معلم", student: "طالب",
+};
 
 interface Cred { kind: "student" | "member"; label: string; email: string; password: string }
 
@@ -260,6 +266,16 @@ function AccountsTab({ students, live, schoolId }:
   const [inviteRole, setInviteRole] = useState("coordinator");
   const [inviting, setInviting] = useState(false);
   const [creds, setCreds] = useState<Cred[]>([]);
+  const [stored, setStored] = useState<AccountCred[]>([]);
+  const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    if (live && schoolId) fetchCredentials(schoolId).then(setStored).catch(() => {});
+  }, [live, schoolId, creds.length]);
+
+  const filteredStored = stored.filter((c) =>
+    !q.trim() || (c.name || "").includes(q) || c.username.includes(q));
 
   const withAccount = students.filter((s) => s.hasAccount).length;
   const without = students.filter((s) => !s.hasAccount);
@@ -354,6 +370,50 @@ function AccountsTab({ students, live, schoolId }:
             <p className="mt-2 text-[10px] text-muted-foreground">لتفعيل الطلاب: يظهر «له حساب» بعد إعادة تحميل الصفحة.</p>
           </div>
         )}
+      </div>
+
+      {/* سجل بيانات الدخول (اسم المستخدم + كلمة السر مخفية) */}
+      <div className="lg:col-span-3 rounded-xl border bg-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+          <span className="font-display font-bold flex items-center gap-2"><KeyRound className="h-4 w-4 text-brand" /> بيانات دخول الحسابات (<En>{stored.length}</En>)</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالاسم أو البريد…"
+            className="rounded-lg border bg-background px-3 h-9 text-sm min-w-[200px]" />
+        </div>
+        <div className="max-h-[420px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-card">
+              <tr className="text-xs text-muted-foreground">
+                <th className="border-b p-2.5 text-right font-semibold">الاسم</th>
+                <th className="border-b p-2.5 text-right font-semibold">الدور</th>
+                <th className="border-b p-2.5 text-right font-semibold">اسم المستخدم</th>
+                <th className="border-b p-2.5 text-right font-semibold">كلمة المرور</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStored.map((c) => (
+                <tr key={c.id} className="hover:bg-accent/30">
+                  <td className="border-b p-2.5 font-medium">{c.name || "—"}</td>
+                  <td className="border-b p-2.5"><Pill tone="muted">{ROLE_AR[c.role] || c.role}</Pill></td>
+                  <td className="border-b p-2.5"><span dir="ltr" className="font-mono text-xs flex items-center gap-1">{c.username}<button onClick={() => copy(c.username)}><Copy className="h-3 w-3 text-brand" /></button></span></td>
+                  <td className="border-b p-2.5">
+                    <span dir="ltr" className="font-mono text-xs flex items-center gap-1.5">
+                      {reveal[c.id] ? c.password : "••••••••"}
+                      <button onClick={() => setReveal((r) => ({ ...r, [c.id]: !r[c.id] }))} title={reveal[c.id] ? "إخفاء" : "إظهار"}>
+                        {reveal[c.id] ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Eye className="h-3.5 w-3.5 text-brand" />}
+                      </button>
+                      {reveal[c.id] && <button onClick={() => copy(c.password)}><Copy className="h-3 w-3 text-brand" /></button>}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {filteredStored.length === 0 && (
+                <tr><td colSpan={4} className="p-6 text-center text-sm text-muted-foreground">
+                  لا بيانات دخول مخزّنة بعد. تُحفظ تلقائيًا عند إنشاء حسابات جديدة من هنا أو عبر التسجيل الذاتي.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
