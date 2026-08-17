@@ -20,6 +20,17 @@ export function PublicAssessment({ code }: { code: string }) {
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const FALLBACK_GRADES = ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي", "الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"];
+  // الصفوف: من فصول المدرسة إن وُجدت، وإلا قائمة افتراضية
+  const grades = Array.from(new Set([
+    ...classes.map((c) => c.grade).filter(Boolean),
+    ...FALLBACK_GRADES,
+  ]));
+  // الفصول ضمن الصف المختار (أو كلها إن لم يتطابق)
+  const classOptions = grade
+    ? (classes.filter((c) => c.grade === grade).length ? classes.filter((c) => c.grade === grade) : classes)
+    : classes;
+
   useEffect(() => {
     publicGetSchool(code)
       .then((r) => { setSchoolName(r.schoolName); setClasses(r.classes); setStep("intro"); })
@@ -114,20 +125,29 @@ export function PublicAssessment({ code }: { code: string }) {
             <h2 className="font-display text-lg font-extrabold">بياناتك</h2>
             <p className="mt-1 text-sm text-muted-foreground">تظهر هذه البيانات لمعلمك مع نتيجتك.</p>
             <div className="mt-4 space-y-3">
-              <input className={inp} placeholder="الاسم الكامل" value={name} onChange={(e) => setName(e.target.value)} />
-              <input className={inp} placeholder="الصف (مثال: الثاني الثانوي)" value={grade} onChange={(e) => setGrade(e.target.value)} />
-              {classes.length > 0 ? (
-                <select className={inp} value={className} onChange={(e) => setClassName(e.target.value)}>
-                  <option value="">اختر فصلك (اختياري)…</option>
-                  {classes.map((c) => <option key={c.id} value={c.name}>{c.name}{c.grade ? ` — ${c.grade}` : ""}</option>)}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">الاسم الكامل</label>
+                <input className={inp} placeholder="اكتب اسمك" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">الصف</label>
+                <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
+                  <option value="">اختر الصف…</option>
+                  {grades.map((g) => <option key={g} value={g}>{g}</option>)}
                 </select>
-              ) : (
-                <input className={inp} placeholder="الفصل (اختياري)" value={className} onChange={(e) => setClassName(e.target.value)} />
-              )}
-              <button disabled={name.trim().length < 2} onClick={() => setStep("test")}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">الفصل</label>
+                <select className={inp} value={className} onChange={(e) => setClassName(e.target.value)}>
+                  <option value="">اختر الفصل…</option>
+                  {classOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <button disabled={name.trim().length < 2 || !grade} onClick={() => setStep("test")}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand h-11 font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
                 <Play className="h-4 w-4" /> ابدأ المقياس
               </button>
+              <p className="text-[11px] text-muted-foreground text-center">اختر بياناتك من القوائم لتظهر نتيجتك لمعلمك بشكل صحيح.</p>
             </div>
           </div>
         )}
