@@ -22,13 +22,13 @@ type OpenReport =
   | null;
 
 export function Reports() {
-  const { missions, students, rankMission, studentMissionsFor } = useSlis();
+  const { missions, students, rankMission, studentMissionsFor, schoolInfo } = useSlis();
   const assessed = students.filter((c) => c.assessed);
   const [open, setOpen] = useState<OpenReport>(null);
   const [pickStudent, setPickStudent] = useState("");
   const [pickMission, setPickMission] = useState("");
   const today = new Date().toISOString().slice(0, 10);
-  const schoolName = "مدرستك";
+  const schoolName = schoolInfo.name || "مدرستك";
 
   const missionReadiness = (m: Mission) => {
     const r = rankMission(m);

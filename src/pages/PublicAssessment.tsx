@@ -16,6 +16,8 @@ export function PublicAssessment({ code }: { code: string }) {
   const [classes, setClasses] = useState<{ id: string; name: string; grade: string }[]>([]);
   const [name, setName] = useState("");
   const [nationalId, setNationalId] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [grade, setGrade] = useState("");
   const [className, setClassName] = useState("");
   const [result, setResult] = useState<AssessmentResult | null>(null);
@@ -45,7 +47,7 @@ export function PublicAssessment({ code }: { code: string }) {
   const startTest = async () => {
     setChecking(true); setErr(null);
     try {
-      const el = await publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade });
+      const el = await publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade, phone: phone.trim() });
       if (el.eligible) { setStep("test"); }
       else { setBlock({ lastDate: el.lastDate, pending: el.pending }); setReqSent(!!el.pending); setStep("blocked"); }
     } catch (e: any) { setErr(e.message || "تعذّر التحقق"); }
@@ -66,7 +68,7 @@ export function PublicAssessment({ code }: { code: string }) {
     setResult(r);
     setBusy(true);
     try {
-      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), result: r, answers: a });
+      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), phone: phone.trim(), email: email.trim(), result: r, answers: a });
       setStep("done");
     } catch (e: any) { setErr(e.message || "تعذّر الإرسال"); setStep("done"); }
     finally { setBusy(false); }
@@ -228,6 +230,16 @@ export function PublicAssessment({ code }: { code: string }) {
                 <p className="mt-1 text-[10px] text-muted-foreground">يُستخدم لربط نتيجتك بسجلك ومنع تكرار الاختبار.</p>
               </div>
               <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الجوال</label>
+                <input className={inp} dir="ltr" inputMode="numeric" placeholder="05xxxxxxxx"
+                  value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">البريد الإلكتروني <span className="font-normal text-muted-foreground/70">(اختياري)</span></label>
+                <input className={inp} dir="ltr" type="email" placeholder="name@example.com"
+                  value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1">الصف</label>
                 <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
                   <option value="">اختر الصف…</option>
@@ -242,7 +254,7 @@ export function PublicAssessment({ code }: { code: string }) {
                 </select>
               </div>
               {err && <p className="text-[12px] text-danger text-center">{err}</p>}
-              <button disabled={name.trim().length < 2 || nationalId.trim().length < 5 || !grade || checking} onClick={startTest}
+              <button disabled={name.trim().length < 2 || nationalId.trim().length < 5 || phone.trim().length < 8 || !grade || checking} onClick={startTest}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand h-11 font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
                 {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} ابدأ المقياس
               </button>

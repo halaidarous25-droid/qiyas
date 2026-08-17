@@ -164,7 +164,12 @@ function ClassesTab({ classes, teachers, onAdd }:
 
 function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => void }) {
   const [name, setName] = useState(""); const [role, setRole] = useState(TEACHER_ROLES[0]);
-  const submit = () => { if (name.trim().length < 2) return; onAdd({ name: name.trim(), role }); setName(""); };
+  const [natId, setNatId] = useState(""); const [email, setEmail] = useState(""); const [phone, setPhone] = useState("");
+  const submit = () => {
+    if (name.trim().length < 2) return;
+    onAdd({ name: name.trim(), role, nationalId: natId.trim(), email: email.trim(), phone: phone.trim() });
+    setName(""); setNatId(""); setEmail(""); setPhone("");
+  };
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
@@ -173,7 +178,16 @@ function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => 
           {teachers.map((t) => (
             <div key={t.id} className="flex items-center gap-3 px-5 py-3">
               <Avatar name={t.name} color="#0f5c66" size={36} />
-              <div className="flex-1 font-semibold text-sm">{t.name}</div>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-sm">{t.name}</div>
+                {(t.nationalId || t.phone || t.email) && (
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                    {t.nationalId && <span dir="ltr">هوية: {t.nationalId}</span>}
+                    {t.phone && <span dir="ltr">جوال: {t.phone}</span>}
+                    {t.email && <span dir="ltr">{t.email}</span>}
+                  </div>
+                )}
+              </div>
               <Pill tone="brand">{t.role}</Pill>
             </div>
           ))}
@@ -185,6 +199,9 @@ function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => 
         <div className="space-y-3">
           <Field label="الاسم"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أ. تركي القحطاني" /></Field>
           <Field label="الدور"><select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>{TEACHER_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
+          <Field label="رقم الهوية (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} placeholder="١٠xxxxxxxx" /></Field>
+          <Field label="رقم الجوال (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="05xxxxxxxx" /></Field>
+          <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></Field>
           <button onClick={submit} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">إضافة المعلّم</button>
         </div>
       </div>

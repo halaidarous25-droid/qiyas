@@ -214,7 +214,7 @@ export function studentMissions(studentId: string) {
   return out.sort((a, b) => b.match - a.match);
 }
 
-export interface Teacher { id: string; name: string; role: string }
+export interface Teacher { id: string; name: string; role: string; nationalId?: string; email?: string; phone?: string }
 export const TEACHER_ROLES = ["منسّق النظام", "وكيل المدرسة", "مرشد طلابي", "رائد فصل", "مشرف مهمة"];
 export const TEACHERS: Teacher[] = [
   { id: "t1", name: "أ. سعد المالكي", role: "منسّق النظام" },

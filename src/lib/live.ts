@@ -138,7 +138,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   const teacherById: Record<string, string> = {};
   const teachers: Teacher[] = (teachersRes.data || []).map((t: any) => {
     teacherById[t.id] = t.name;
-    return { id: t.id, name: t.name, role: t.role };
+    return { id: t.id, name: t.name, role: t.role, nationalId: t.national_id || "", email: t.email || "", phone: t.phone || "" };
   });
 
   const classes: SchoolClass[] = (classesRes.data || []).map((c: any) => ({

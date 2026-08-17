@@ -38,9 +38,10 @@ export async function dbBulkAddStudents(schoolId: string, rows: { name: string; 
   return data;
 }
 
-export async function dbAddTeacher(schoolId: string, t: { name: string; role: string }) {
+export async function dbAddTeacher(schoolId: string, t: { name: string; role: string; nationalId?: string; email?: string; phone?: string }) {
   const { data, error } = await supabase.from("teachers")
-    .insert({ school_id: schoolId, name: t.name, role: t.role }).select().single();
+    .insert({ school_id: schoolId, name: t.name, role: t.role,
+      national_id: t.nationalId || null, email: t.email || null, phone: t.phone || null }).select().single();
   if (error) throw error;
   return data;
 }
@@ -205,8 +206,8 @@ export async function publicSubmitAssessment(payload: {
   return data as { ok: boolean; attempts?: number };
 }
 
-// فحص أهلية الطالب للاختبار (قبل الدخول) عبر رقم الهوية
-export async function publicCheckEligibility(payload: { code: string; nationalId: string; name: string; grade: string }) {
+// فحص أهلية الطالب للاختبار (قبل الدخول) عبر رقم الهوية + الجوال
+export async function publicCheckEligibility(payload: { code: string; nationalId: string; name: string; grade: string; phone?: string }) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "check", ...payload } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
