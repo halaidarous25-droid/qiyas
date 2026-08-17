@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   scope: "school", lang: "ar", maxTasks: 3, autoApprove: true, alertPct: 25,
 };
 
+export interface WeightPreset { name: string; weights: AxisScores }
+
 export interface Toast { id: number; text: string; tone: "success" | "info" | "danger" }
 
 interface Store {
@@ -57,6 +59,9 @@ interface Store {
   saveDevPlan: (missionId: string, studentId: string, plan: DevPlan) => void;
   resolveIndReq: (id: string, approved: boolean, name: string) => void;
   saveSettings: (s: { mode: OperatingMode; hybrid: boolean; settings: AppSettings }) => void;
+  presets: WeightPreset[];
+  savePreset: (name: string, weights: AxisScores) => void;
+  deletePreset: (name: string) => void;
   // دورة الطالب المُسجَّل (me)
   me: Candidate | null;
   meAssessed: boolean;
@@ -117,6 +122,9 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
     ...DEFAULT_SETTINGS,
     ...((seed?.settings as Partial<AppSettings>) ?? {}),
   });
+  const [presets, setPresets] = useState<WeightPreset[]>(
+    ((seed?.settings as any)?.presets as WeightPreset[]) ?? [],
+  );
   const [subscription, setSubscription] = useState<LiveSubscription | null>(seed?.subscription ?? null);
   const [missions, setMissions] = useState<Mission[]>(seed?.missions ?? MISSIONS);
   const [assigned, setAssigned] = useState<Record<string, string[]>>(seed?.assigned ?? {});
@@ -143,6 +151,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
     const s = await fetchSchoolSeed(schoolId);
     setMode(s.mode); setHybrid(s.hybrid);
     setSettings({ ...DEFAULT_SETTINGS, ...((s.settings as Partial<AppSettings>) ?? {}) });
+    setPresets(((s.settings as any)?.presets as WeightPreset[]) ?? []);
     setSubscription(s.subscription);
     setMissions(s.missions); setAssigned(s.assigned); setIndReqs(s.indReqs);
     setDevPlans(s.devPlans);
@@ -349,7 +358,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
 
   const saveSettings: Store["saveSettings"] = ({ mode, hybrid, settings }) => {
     if (isLive && schoolId) {
-      api.saveSchoolSettings(schoolId, mode, hybrid, settings)
+      api.saveSchoolSettings(schoolId, mode, hybrid, { ...settings, presets })
         .then(() => { setMode(mode); setHybrid(hybrid); setSettings(settings); })
         .then(() => toast("حُفظت الإعدادات وطُبّقت على المدرسة"))
         .catch((e) => toast(`تعذّر حفظ الإعدادات: ${e.message || e}`, "danger"));
@@ -357,6 +366,25 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
     }
     setMode(mode); setHybrid(hybrid); setSettings(settings);
     toast("حُفظت الإعدادات وطُبّقت على المدرسة");
+  };
+
+  const savePreset: Store["savePreset"] = (name, weights) => {
+    const np = [...presets.filter((p) => p.name !== name), { name, weights }];
+    setPresets(np);
+    if (isLive && schoolId) {
+      api.saveSchoolSettings(schoolId, mode, hybrid, { ...settings, presets: np })
+        .then(() => toast(`حُفظ المعيار «${name}»`))
+        .catch((e) => toast(`تعذّر حفظ المعيار: ${e.message || e}`, "danger"));
+    } else toast(`حُفظ المعيار «${name}»`);
+  };
+
+  const deletePreset: Store["deletePreset"] = (name) => {
+    const np = presets.filter((p) => p.name !== name);
+    setPresets(np);
+    if (isLive && schoolId) {
+      api.saveSchoolSettings(schoolId, mode, hybrid, { ...settings, presets: np }).catch(() => {});
+    }
+    toast(`حُذف المعيار «${name}»`, "info");
   };
 
   // ===== دورة الطالب المُسجَّل =====
@@ -503,7 +531,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
       toast, dismissToast, addMission, autoNominate, assignCandidate, unassignCandidate, nominateStudent,
       removeCandidate, setCandidateStatus, updateMission, requestRetake,
-      devPlans, saveDevPlan, resolveIndReq, saveSettings,
+      devPlans, saveDevPlan, resolveIndReq, saveSettings, presets, savePreset, deletePreset,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
       students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,

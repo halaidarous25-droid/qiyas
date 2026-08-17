@@ -9,14 +9,17 @@ import { matchTone, textTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import {
   Users, Search, ArrowRight, Target, Crown, ShieldCheck,
-  TrendingUp, CircleUser, Filter, Clock,
+  TrendingUp, CircleUser, Filter, Clock, FileText,
 } from "lucide-react";
+import { StudentReportPro } from "./reports/StudentReportPro";
 
 // ===== ملف الطالب =====
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
-  const { studentMissionsFor } = useSlis();
+  const { studentMissionsFor, missions: allMissions } = useSlis();
   const trust = TRUST_META[c.trust];
   const missions = studentMissionsFor(c.id);
+  const [showReport, setShowReport] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   if (!c.assessed) {
     return (
@@ -43,9 +46,19 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
   }
   return (
     <div className="space-y-5">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
-        <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
-      </button>
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+          <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
+        </button>
+        <button onClick={() => setShowReport(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+          <FileText className="h-4 w-4" /> تقرير تفصيلي / طباعة
+        </button>
+      </div>
+
+      {showReport && (
+        <StudentReportPro student={c} missions={allMissions} schoolName="مدرستي" today={today} onClose={() => setShowReport(false)} />
+      )}
 
       <div className="rounded-2xl border bg-card p-5">
         <div className="flex flex-wrap items-center gap-4">

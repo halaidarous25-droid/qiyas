@@ -5,7 +5,7 @@ import type { AppSettings } from "@/store";
 // ============ الكتابة إلى قاعدة البيانات ============
 // كل الدوال تُنفَّذ بصلاحيات المستخدم المصادَق (تحترم RLS: مدرسته فقط).
 
-export async function saveSchoolSettings(schoolId: string, mode: OperatingMode, hybrid: boolean, settings: AppSettings) {
+export async function saveSchoolSettings(schoolId: string, mode: OperatingMode, hybrid: boolean, settings: Record<string, unknown>) {
   const { error } = await supabase.from("schools")
     .update({ operating_mode: mode, hybrid, settings })
     .eq("id", schoolId);

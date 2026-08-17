@@ -18,7 +18,8 @@ const PRESETS: { l: string; w: AxisScores }[] = [
 ];
 
 export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edit?: Mission }) {
-  const { addMission, updateMission, autoNominate, missions, classes, mode, hybrid } = useSlis();
+  const { addMission, updateMission, classes, mode, hybrid, presets, savePreset, deletePreset } = useSlis();
+  const [presetName, setPresetName] = useState("");
   const isEdit = !!edit;
   const [title, setTitle] = useState(edit?.title ?? "");
   const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType ?? "school");
@@ -139,11 +140,27 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           </button>
           {showPriorities && (
             <div className="mt-2 rounded-lg border p-3">
+              <div className="mb-1 text-[11px] font-semibold text-muted-foreground">معايير جاهزة:</div>
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {PRESETS.map((p) => (
                   <button key={p.l} onClick={() => setWeights({ ...p.w })}
                     className="rounded-md border px-2.5 h-7 text-[11px] font-semibold hover:bg-accent">{p.l}</button>
                 ))}
+                {presets.map((p) => (
+                  <span key={p.name} className="inline-flex items-center gap-1 rounded-md border border-brand/40 bg-brand/5 px-2.5 h-7 text-[11px] font-semibold text-brand">
+                    <button onClick={() => setWeights({ ...p.weights })}>{p.name}</button>
+                    <button onClick={() => deletePreset(p.name)} title="حذف" className="text-danger">×</button>
+                  </span>
+                ))}
+              </div>
+              {/* حفظ المعيار الحالي باسم */}
+              <div className="mb-2 flex items-center gap-1.5">
+                <input value={presetName} onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="احفظ الأوزان كمعيار… (مثال: عريف، قائد)"
+                  className="flex-1 rounded-md border bg-background px-2.5 h-8 text-[11px]" />
+                <button disabled={presetName.trim().length < 2}
+                  onClick={() => { savePreset(presetName.trim(), normalize(weights)); setPresetName(""); }}
+                  className="rounded-md bg-brand px-2.5 h-8 text-[11px] font-semibold text-white hover:bg-brand/90 disabled:opacity-50">حفظ المعيار</button>
               </div>
               <div className="space-y-2">
                 {AXES.map((a) => (
