@@ -6,7 +6,7 @@ import { parseStudentsCsv, STUDENTS_CSV_TEMPLATE } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
-  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon,
+  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon, Download,
 } from "lucide-react";
 import { useEffect } from "react";
 import { createStudentAccount, inviteMember, fetchCredentials, type AccountCred } from "@/lib/api";
@@ -196,9 +196,14 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
   { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
   const [name, setName] = useState(""); const [grade, setGrade] = useState(GRADES[0]);
   const [className, setClassName] = useState(classes[0]?.name || "");
+  const [natId, setNatId] = useState(""); const [sEmail, setSEmail] = useState(""); const [sPhone, setSPhone] = useState("");
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const submit = () => { if (name.trim().length < 2) return; onAdd({ name: name.trim(), grade, className }); setName(""); };
+  const submit = () => {
+    if (name.trim().length < 2) return;
+    onAdd({ name: name.trim(), grade, className, nationalId: natId.trim(), email: sEmail.trim(), phone: sPhone.trim() });
+    setName(""); setNatId(""); setSEmail(""); setSPhone("");
+  };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -220,8 +225,34 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
     URL.revokeObjectURL(url);
   };
 
-  const { tenantCode, toast: t2 } = useSlis();
+  const { tenantCode, toast: t2, schoolInfo } = useSlis();
   const assessLink = tenantCode ? `${window.location.origin}/?assess=${tenantCode}` : "";
+
+  // تصدير أسماء الطلاب
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exOpts, setExOpts] = useState({ email: false, phone: false, natId: true });
+  const csvCell = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const exportStudents = () => {
+    const head = ["اسم الطالب", "الصف", "الفصل", "المدرسة"];
+    if (exOpts.natId) head.push("رقم الهوية");
+    if (exOpts.email) head.push("البريد الإلكتروني");
+    if (exOpts.phone) head.push("رقم الجوال");
+    const lines = [head.map(csvCell).join(",")];
+    students.forEach((s: any) => {
+      const row = [s.name, s.grade || "", s.className || "", schoolInfo.name || ""];
+      if (exOpts.natId) row.push(s.nationalId || "");
+      if (exOpts.email) row.push(s.email || "");
+      if (exOpts.phone) row.push(s.phone || "");
+      lines.push(row.map(csvCell).join(","));
+    });
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `طلاب_${schoolInfo.name || "المدرسة"}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    setExportOpen(false);
+    t2("تم تنزيل ملف الطلاب", "info");
+  };
 
   return (
     <div className="grid gap-5 lg:grid-cols-3">
@@ -245,6 +276,26 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
           <span className="font-display font-bold">الطلاب (<En>{students.length}</En>)</span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground"><En>{students.filter((s) => s.assessed).length}</En> أدّوا المقياس</span>
+            <div className="relative">
+              <button onClick={() => setExportOpen((o) => !o)}
+                className="inline-flex items-center gap-1 rounded-md border px-2.5 h-8 text-xs font-semibold hover:bg-accent">
+                <Download className="h-3.5 w-3.5" /> تصدير
+              </button>
+              {exportOpen && (
+                <div className="absolute left-0 top-9 z-30 w-60 rounded-lg border bg-popover p-3 shadow-lg text-right">
+                  <div className="mb-2 text-xs font-semibold text-muted-foreground">حقول ثابتة: الاسم، الصف، الفصل، المدرسة</div>
+                  <div className="space-y-1.5 text-[13px]">
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={exOpts.natId} onChange={(e) => setExOpts((o) => ({ ...o, natId: e.target.checked }))} /> رقم الهوية</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={exOpts.email} onChange={(e) => setExOpts((o) => ({ ...o, email: e.target.checked }))} /> البريد الإلكتروني</label>
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={exOpts.phone} onChange={(e) => setExOpts((o) => ({ ...o, phone: e.target.checked }))} /> رقم الجوال</label>
+                  </div>
+                  <button onClick={exportStudents}
+                    className="mt-3 w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-brand h-8 text-xs font-semibold text-white hover:bg-brand/90">
+                    <Download className="h-3.5 w-3.5" /> تنزيل ملف CSV
+                  </button>
+                </div>
+              )}
+            </div>
             <button onClick={downloadTemplate} className="inline-flex items-center gap-1 rounded-md border px-2.5 h-8 text-xs font-semibold hover:bg-accent">
               <FileDown className="h-3.5 w-3.5" /> قالب
             </button>
@@ -275,8 +326,11 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
           <Field label="الاسم"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الكامل" /></Field>
           <Field label="الصف"><select className={inputCls} value={grade} onChange={(e) => setGrade(e.target.value)}>{GRADES.map((g) => <option key={g}>{g}</option>)}</select></Field>
           <Field label="الفصل"><select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>{classes.map((c) => <option key={c.id}>{c.name}</option>)}</select></Field>
+          <Field label="رقم الهوية (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} placeholder="١٠xxxxxxxx" /></Field>
+          <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={sEmail} onChange={(e) => setSEmail(e.target.value)} placeholder="name@example.com" /></Field>
+          <Field label="رقم الجوال (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={sPhone} onChange={(e) => setSPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="05xxxxxxxx" /></Field>
           <button onClick={submit} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">إضافة الطالب</button>
-          <p className="text-[11px] text-muted-foreground">يُضاف الطالب بحالة «بانتظار المقياس» حتى يؤدّيه من بوابته.</p>
+          <p className="text-[11px] text-muted-foreground">يُضاف الطالب بحالة «بانتظار المقياس» حتى يؤدّيه من بوابته. رقم الهوية يربط نتائج الرابط العام تلقائيًا.</p>
         </div>
       </div>
     </div>

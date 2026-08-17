@@ -171,8 +171,9 @@ export function StudentReportPro({ student, missions, schoolName, today, onClose
           {/* ترويسة */}
           <div className="flex items-start justify-between border-b border-slate-200 pb-3">
             <div>
-              <div className="text-lg font-extrabold text-brand">تقرير الطالب القيادي التفصيلي</div>
-              <div className="text-slate-500">{schoolName}</div>
+              <div className="text-lg font-extrabold text-brand">نظام مؤشر لقياس المهارات الطلابية</div>
+              <div className="font-semibold text-slate-700">{schoolName}</div>
+              <div className="text-[11px] text-slate-500">مركز التدريب والتطوير · تقرير الطالب القيادي التفصيلي</div>
             </div>
             <div className="text-left text-[11px] text-slate-500">
               <div className="font-bold text-slate-700">{student.name}</div>

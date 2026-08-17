@@ -55,6 +55,9 @@ export interface Candidate {
   note?: string;
   attempts?: Attempt[];   // كل محاولات الطالب (الأحدث أولًا)
   assessedAt?: string;    // تاريخ المحاولة الأفضل
+  nationalId?: string;    // رقم الهوية
+  email?: string;
+  phone?: string;
 }
 
 export interface Mission {

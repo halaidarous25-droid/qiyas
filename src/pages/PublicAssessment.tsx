@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Assessment } from "./student/Assessment";
 import { scoreAssessment, leadershipStyle, type Answers, type AssessmentResult } from "@/lib/scoring";
-import { publicGetSchool, publicSubmitAssessment } from "@/lib/api";
+import { publicGetSchool, publicSubmitAssessment, publicCheckEligibility, publicRequestRetake } from "@/lib/api";
 import { AXES } from "@/data/mock";
 import { En, Meter } from "@/components/common";
-import { Gauge, Loader2, AlertCircle, CheckCircle2, Play, Award, School } from "lucide-react";
+import { Gauge, Loader2, AlertCircle, CheckCircle2, Play, Award, School, CalendarClock, BellRing } from "lucide-react";
 
-type Step = "loading" | "invalid" | "intro" | "form" | "test" | "done";
+type Step = "loading" | "invalid" | "intro" | "form" | "blocked" | "test" | "done";
 const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
 
 export function PublicAssessment({ code }: { code: string }) {
@@ -15,10 +15,14 @@ export function PublicAssessment({ code }: { code: string }) {
   const [schoolName, setSchoolName] = useState("");
   const [classes, setClasses] = useState<{ id: string; name: string; grade: string }[]>([]);
   const [name, setName] = useState("");
+  const [nationalId, setNationalId] = useState("");
   const [grade, setGrade] = useState("");
   const [className, setClassName] = useState("");
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [block, setBlock] = useState<{ lastDate?: string; pending?: boolean }>({});
+  const [reqSent, setReqSent] = useState(false);
 
   const FALLBACK_GRADES = ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي", "الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"];
   // الصفوف: من فصول المدرسة إن وُجدت، وإلا قائمة افتراضية
@@ -37,12 +41,32 @@ export function PublicAssessment({ code }: { code: string }) {
       .catch((e) => { setErr(e.message || "رمز غير صحيح"); setStep("invalid"); });
   }, [code]);
 
+  // بدء الاختبار بعد فحص الأهلية عبر رقم الهوية
+  const startTest = async () => {
+    setChecking(true); setErr(null);
+    try {
+      const el = await publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade });
+      if (el.eligible) { setStep("test"); }
+      else { setBlock({ lastDate: el.lastDate, pending: el.pending }); setReqSent(!!el.pending); setStep("blocked"); }
+    } catch (e: any) { setErr(e.message || "تعذّر التحقق"); }
+    finally { setChecking(false); }
+  };
+
+  const requestRetake = async () => {
+    setChecking(true);
+    try {
+      await publicRequestRetake({ code, nationalId: nationalId.trim(), name: name.trim(), grade, className });
+      setReqSent(true);
+    } catch (e: any) { setErr(e.message || "تعذّر إرسال الطلب"); }
+    finally { setChecking(false); }
+  };
+
   const finish = async (a: Answers) => {
     const r = scoreAssessment(a);
     setResult(r);
     setBusy(true);
     try {
-      await publicSubmitAssessment({ code, name: name.trim(), grade, className, result: r, answers: a });
+      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), result: r, answers: a });
       setStep("done");
     } catch (e: any) { setErr(e.message || "تعذّر الإرسال"); setStep("done"); }
     finally { setBusy(false); }
@@ -102,6 +126,36 @@ export function PublicAssessment({ code }: { code: string }) {
             </div>
           </div>
         )}
+      </div>
+    </Center>
+  );
+
+  // مُنع من إعادة الاختبار خلال المدة — يطلب الإذن من المدرسة
+  if (step === "blocked") return (
+    <Center>
+      <div className="w-full max-w-md text-center">
+        <Header />
+        <div className="rounded-2xl border bg-card p-6">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-amber-700"><CalendarClock className="h-7 w-7" /></div>
+          <h1 className="mt-3 font-display text-xl font-extrabold">سبق أن أدّيت الاختبار</h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+            {block.lastDate
+              ? <>تظهر سجلاتنا أنك أدّيت الاختبار بتاريخ <span className="font-semibold text-foreground"><En>{block.lastDate}</En></span>. لا يمكن إعادة الاختبار خلال ثلاثة أشهر إلا بموافقة مدرستك.</>
+              : "لا يمكن إعادة الاختبار خلال ثلاثة أشهر إلا بموافقة مدرستك."}
+          </p>
+          {reqSent ? (
+            <div className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+              <CheckCircle2 className="h-4 w-4" /> تم إرسال طلبك — بانتظار موافقة المدرسة.
+            </div>
+          ) : (
+            <button onClick={requestRetake} disabled={checking}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-6 h-11 font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+              {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />} طلب إعادة الاختبار من المدرسة
+            </button>
+          )}
+          {err && <p className="mt-2 text-[12px] text-danger">{err}</p>}
+          <button onClick={() => { setStep("form"); setErr(null); }} className="mt-3 block w-full text-xs text-muted-foreground hover:text-foreground">→ رجوع</button>
+        </div>
       </div>
     </Center>
   );
@@ -168,6 +222,12 @@ export function PublicAssessment({ code }: { code: string }) {
                 <input className={inp} placeholder="اكتب اسمك" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الهوية</label>
+                <input className={inp} dir="ltr" inputMode="numeric" placeholder="رقم الهوية الوطنية / الإقامة"
+                  value={nationalId} onChange={(e) => setNationalId(e.target.value.replace(/[^0-9]/g, ""))} />
+                <p className="mt-1 text-[10px] text-muted-foreground">يُستخدم لربط نتيجتك بسجلك ومنع تكرار الاختبار.</p>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1">الصف</label>
                 <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
                   <option value="">اختر الصف…</option>
@@ -181,9 +241,10 @@ export function PublicAssessment({ code }: { code: string }) {
                   {classOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
-              <button disabled={name.trim().length < 2 || !grade} onClick={() => setStep("test")}
+              {err && <p className="text-[12px] text-danger text-center">{err}</p>}
+              <button disabled={name.trim().length < 2 || nationalId.trim().length < 5 || !grade || checking} onClick={startTest}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand h-11 font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
-                <Play className="h-4 w-4" /> ابدأ المقياس
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} ابدأ المقياس
               </button>
               <p className="text-[11px] text-muted-foreground text-center">اختر بياناتك من القوائم لتظهر نتيجتك لمعلمك بشكل صحيح.</p>
             </div>

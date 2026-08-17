@@ -131,6 +131,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       trust: best?.trust ?? classifyTrust(0, 0),
       interviewDone: false, assessed: !!s.assessed, hasAccount: !!s.user_id,
       attempts, assessedAt: best ? (best.completed_at || "").slice(0, 10) : undefined,
+      nationalId: s.national_id || "", email: s.email || "", phone: s.phone || "",
     };
   });
 

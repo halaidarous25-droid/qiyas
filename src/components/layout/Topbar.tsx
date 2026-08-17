@@ -12,9 +12,9 @@ const ROLES: { key: Role; label: string }[] = [
   { key: "central", label: "مدير النظام المركزي" },
 ];
 
-export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile }:
+export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile, schoolName }:
   { role: Role; onRole: (r: Role) => void; crumb: string;
-    locked?: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null; onProfile?: () => void }) {
+    locked?: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null; onProfile?: () => void; schoolName?: string }) {
   const current = ROLES.find((r) => r.key === role)!;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -28,7 +28,7 @@ export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avata
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-card/85 px-4 backdrop-blur md:px-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">{SCHOOL.name}</span>
+        <span className="font-semibold text-foreground">{schoolName || SCHOOL.name}</span>
         <span className="text-border">/</span>
         <span>{crumb}</span>
       </div>

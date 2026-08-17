@@ -66,11 +66,6 @@ export function Assessment({ onFinish, onExit }:
       )}
 
       <div className="rounded-2xl border bg-card p-6 shadow-sm">
-        {q.role && (
-          <div className="mb-3 inline-flex rounded-full bg-accent px-3 py-1 text-xs font-semibold text-brand">
-            الدور: {q.role}
-          </div>
-        )}
         <h2 className="font-display text-lg font-bold leading-8">{q.text}</h2>
 
         <div className="mt-5 space-y-2.5">

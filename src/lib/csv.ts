@@ -1,6 +1,6 @@
 // محلّل CSV بسيط يدعم الفواصل (، ؛ tab) وعناوين عربية/إنجليزية
 
-export interface CsvStudentRow { name: string; grade: string; className: string }
+export interface CsvStudentRow { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }
 
 function detectDelimiter(headerLine: string): string {
   const counts: Record<string, number> = {
@@ -47,6 +47,9 @@ export function parseStudentsCsv(text: string): { rows: CsvStudentRow[]; skipped
   const iName = findCol(header, ["name", "الاسم", "اسم", "الطالب", "اسم الطالب"]);
   const iGrade = findCol(header, ["grade", "الصف", "المرحلة", "الصف الدراسي"]);
   const iClass = findCol(header, ["class", "className", "الفصل", "الشعبة", "القسم"]);
+  const iNat = findCol(header, ["nationalId", "الهوية", "رقم الهوية", "الهويةالوطنية", "id"]);
+  const iEmail = findCol(header, ["email", "البريد", "البريدالإلكتروني", "الايميل"]);
+  const iPhone = findCol(header, ["phone", "mobile", "الجوال", "رقم الجوال", "الهاتف", "الجوّال"]);
 
   const rows: CsvStudentRow[] = [];
   let skipped = 0;
@@ -58,6 +61,9 @@ export function parseStudentsCsv(text: string): { rows: CsvStudentRow[]; skipped
       name: name.trim(),
       grade: (iGrade >= 0 ? c[iGrade] : "") || "",
       className: (iClass >= 0 ? c[iClass] : "") || "",
+      nationalId: (iNat >= 0 ? c[iNat] : "") || "",
+      email: (iEmail >= 0 ? c[iEmail] : "") || "",
+      phone: (iPhone >= 0 ? c[iPhone] : "") || "",
     });
   }
   return { rows, skipped };
@@ -65,6 +71,6 @@ export function parseStudentsCsv(text: string): { rows: CsvStudentRow[]; skipped
 
 // قالب CSV للتنزيل
 export const STUDENTS_CSV_TEMPLATE =
-  "الاسم,الصف,الفصل\n" +
-  "محمد أحمد الغامدي,الأول الثانوي,أول ثانوي/١\n" +
-  "سارة خالد المطيري,الثاني الثانوي,ثاني ثانوي/٢\n";
+  "الاسم,الصف,الفصل,رقم الهوية,البريد الإلكتروني,رقم الجوال\n" +
+  "محمد أحمد الغامدي,الأول الثانوي,أول ثانوي/١,1012345678,m@example.com,0501234567\n" +
+  "سارة خالد المطيري,الثاني الثانوي,ثاني ثانوي/٢,1087654321,,\n";

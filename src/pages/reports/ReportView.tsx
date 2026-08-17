@@ -43,7 +43,8 @@ function ReportShell({ title, subtitle, schoolName, today, onClose, children }: 
           <div className="flex items-start justify-between border-b border-slate-200 pb-3">
             <div>
               <div className="text-lg font-extrabold text-brand">نظام مؤشر لقياس المهارات الطلابية</div>
-              <div className="text-slate-500">{schoolName}</div>
+              <div className="font-semibold text-slate-700">{schoolName}</div>
+              <div className="text-[11px] text-slate-500">مركز التدريب والتطوير</div>
             </div>
             <div className="text-left text-[11px] text-slate-500">
               <div>{title}</div>

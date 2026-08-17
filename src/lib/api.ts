@@ -12,24 +12,26 @@ export async function saveSchoolSettings(schoolId: string, mode: OperatingMode, 
   if (error) throw error;
 }
 
-export async function dbAddStudent(schoolId: string, s: { name: string; grade: string; className: string }) {
+export async function dbAddStudent(schoolId: string, s: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }) {
   // إيجاد class_id من الاسم (اختياري)
   const { data: cls } = await supabase.from("classes").select("id").eq("school_id", schoolId).eq("name", s.className).maybeSingle();
   const { data, error } = await supabase.from("students")
-    .insert({ school_id: schoolId, name: s.name, grade: s.grade, class_id: cls?.id ?? null, assessed: false })
+    .insert({ school_id: schoolId, name: s.name, grade: s.grade, class_id: cls?.id ?? null, assessed: false,
+      national_id: s.nationalId || null, email: s.email || null, phone: s.phone || null })
     .select().single();
   if (error) throw error;
   return data;
 }
 
 // استيراد عدد من الطلاب دفعة واحدة
-export async function dbBulkAddStudents(schoolId: string, rows: { name: string; grade: string; className: string }[]) {
+export async function dbBulkAddStudents(schoolId: string, rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) {
   const { data: cls } = await supabase.from("classes").select("id,name").eq("school_id", schoolId);
   const byName: Record<string, string> = {};
   (cls || []).forEach((c: any) => (byName[c.name] = c.id));
   const payload = rows.map((r) => ({
     school_id: schoolId, name: r.name, grade: r.grade || null,
     class_id: r.className && byName[r.className] ? byName[r.className] : null, assessed: false,
+    national_id: r.nationalId || null, email: r.email || null, phone: r.phone || null,
   }));
   const { data, error } = await supabase.from("students").insert(payload).select();
   if (error) throw error;
@@ -195,12 +197,28 @@ export async function publicGetSchool(code: string) {
   return data as { ok: boolean; schoolName: string; classes: { id: string; name: string; grade: string }[] };
 }
 export async function publicSubmitAssessment(payload: {
-  code: string; name: string; grade: string; className: string; result: unknown; answers: unknown;
+  code: string; name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string; result: unknown; answers: unknown;
 }) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "submit", ...payload } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
-  return data as { ok: boolean };
+  return data as { ok: boolean; attempts?: number };
+}
+
+// فحص أهلية الطالب للاختبار (قبل الدخول) عبر رقم الهوية
+export async function publicCheckEligibility(payload: { code: string; nationalId: string; name: string; grade: string }) {
+  const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "check", ...payload } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; eligible: boolean; firstTime?: boolean; lastDate?: string; pending?: boolean };
+}
+
+// طلب إعادة الاختبار من المدرسة (رابط عام)
+export async function publicRequestRetake(payload: { code: string; nationalId: string; name: string; grade: string; className: string }) {
+  const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "request_retest", ...payload } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; already?: boolean };
 }
 
 // ============ اعتماد المدارس (مركزي) ============

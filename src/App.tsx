@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar, type PageKey } from "@/components/layout/Sidebar";
 import { Topbar, type Role } from "@/components/layout/Topbar";
+import { BrandBanner } from "@/components/layout/BrandBanner";
 import { Dashboard } from "@/pages/Dashboard";
 import { Missions } from "@/pages/Missions";
 import { MissionDetail } from "@/pages/MissionDetail";
@@ -89,6 +90,7 @@ function LiveCentral({ userName }: { userName?: string }) {
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
 function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
   { initialRole: Role; locked: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null }) {
+  const { schoolInfo } = useSlis();
   const [page, setPage] = useState<PageKey>("dashboard");
   const [role, setRole] = useState<Role>(initialRole);
   const [missionId, setMissionId] = useState<string | null>(null);
@@ -102,6 +104,7 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
   if (role === "student" || role === "central") {
     return (
       <div>
+        <BrandBanner schoolName={role === "student" ? (schoolInfo.name || undefined) : undefined} />
         <div className="fixed left-3 top-3 z-50">
           {locked
             ? <button onClick={onSignOut} className="flex items-center gap-1.5 rounded-lg border bg-card/90 px-3 h-9 text-xs font-semibold shadow-sm backdrop-blur hover:bg-accent"><LogOut className="h-3.5 w-3.5" /> خروج</button>
@@ -116,10 +119,12 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
+      <BrandBanner schoolName={schoolInfo.name || undefined} />
+      <div className="flex">
       <Sidebar page={page} onNavigate={goto} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} />
+        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} schoolName={schoolInfo.name} />
         <main className="flex-1 p-4 md:p-6 soft-grid">
           <div className="mx-auto max-w-6xl">
             {page === "dashboard" && <Dashboard onOpenMissions={() => setPage("missions")} />}
@@ -136,6 +141,7 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
             {page === "profile" && <Profile />}
           </div>
         </main>
+      </div>
       </div>
       <Toaster />
     </div>

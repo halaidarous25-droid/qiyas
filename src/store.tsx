@@ -75,8 +75,8 @@ interface Store {
   students: Candidate[];
   teachers: Teacher[];
   classes: SchoolClass[];
-  addStudent: (s: { name: string; grade: string; className: string }) => void;
-  bulkAddStudents: (rows: { name: string; grade: string; className: string }[]) => Promise<number>;
+  addStudent: (s: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }) => void;
+  bulkAddStudents: (rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) => Promise<number>;
   addTeacher: (t: { name: string; role: string }) => void;
   addClass: (c: { name: string; grade: string; homeroom: string }) => void;
   rankMission: (m: Mission) => Candidate[];
@@ -484,15 +484,15 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
 
   // ===== إدارة المدرسة =====
   let sid = students.length;
-  const addStudent: Store["addStudent"] = ({ name, grade, className }) => {
+  const addStudent: Store["addStudent"] = ({ name, grade, className, nationalId, email, phone }) => {
     if (isLive && schoolId) {
-      api.dbAddStudent(schoolId, { name, grade, className })
+      api.dbAddStudent(schoolId, { name, grade, className, nationalId, email, phone })
         .then(() => resync())
         .then(() => toast(`أُضيف الطالب ${name} — بانتظار أداء المقياس`))
         .catch((e) => toast(`تعذّرت الإضافة: ${e.message || e}`, "danger"));
       return;
     }
-    const s = newStudent(`ns${sid++}`, name, grade, className);
+    const s = { ...newStudent(`ns${sid++}`, name, grade, className), nationalId, email, phone };
     setStudents((list) => [s, ...list]);
     toast(`أُضيف الطالب ${name} — بانتظار أداء المقياس`);
   };
