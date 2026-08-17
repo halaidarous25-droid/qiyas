@@ -108,13 +108,17 @@ export interface StoreSeed {
   classes?: SchoolClass[];
 }
 
-export function SlisProvider({ children, seed, live, meStudentId, role }:
-  { children: ReactNode; seed?: StoreSeed; live?: boolean; meStudentId?: string | null; role?: Role }) {
+export function SlisProvider({ children, seed, live, meStudentId, role, capsOverride }:
+  { children: ReactNode; seed?: StoreSeed; live?: boolean; meStudentId?: string | null; role?: Role; capsOverride?: Record<string, string[]> | null }) {
   const isLive = !!live;
   const schoolId = seed?.schoolId ?? null;
   const meId = meStudentId ?? ME_ID;
   const effRole: Role = role ?? (isLive ? "teacher" : "demo");
-  const can = (cap: Cap) => canDo(effRole, cap);
+  // تطبيق تجاوز الصلاحيات المركزي إن وُجد لهذا الدور، وإلا الافتراضي
+  const can = (cap: Cap) =>
+    capsOverride && capsOverride[effRole]
+      ? capsOverride[effRole].includes(cap)
+      : canDo(effRole, cap);
 
   const [mode, setMode] = useState<OperatingMode>(seed?.mode ?? "B");
   const [hybrid, setHybrid] = useState(seed?.hybrid ?? false);

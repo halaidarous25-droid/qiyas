@@ -284,3 +284,11 @@ export async function fetchQuestionBank(schoolId: string): Promise<QuestionBank>
     school: rows.filter((r) => r.schoolId !== null),
   };
 }
+
+// جلب الأسئلة العامة فقط (للحساب المركزي — إدارة البنك المحميّ)
+export async function fetchGlobalQuestions(): Promise<QItem[]> {
+  const { data, error } = await supabase.from("question_items")
+    .select("*").is("school_id", null).order("seq", { ascending: true });
+  if (error) throw error;
+  return (data || []).map(mapQItem);
+}

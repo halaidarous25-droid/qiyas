@@ -22,8 +22,9 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 // صلاحيات كل دور (متدرّجة: كل دور أعلى يرث ما تحته)
+// ملاحظة: مستودع الأسئلة محميّ ولا يُتاح لحسابات المدرسة — يُدار من الحساب المركزي فقط.
 const TEACHER: Cap[] = ["dashboard", "missions", "students", "reports"];
-const ACTIVITY: Cap[] = [...TEACHER, "questions"];
+const ACTIVITY: Cap[] = [...TEACHER];
 const COORDINATOR: Cap[] = [...ACTIVITY, "quota", "school"];
 const PRINCIPAL: Cap[] = [...COORDINATOR, "governance", "settings", "accounts"];
 
@@ -44,4 +45,4 @@ export function can(role: Role | undefined, cap: Cap): boolean {
 
 // كل الأدوار المدرسية لعرض المصفوفة
 export const MATRIX_ROLES: Role[] = ["teacher", "activity_supervisor", "coordinator", "principal"];
-export const ALL_CAPS: Cap[] = ["dashboard", "missions", "students", "school", "questions", "reports", "quota", "governance", "settings", "accounts"];
+export const ALL_CAPS: Cap[] = ["dashboard", "missions", "students", "school", "reports", "quota", "governance", "settings", "accounts"];

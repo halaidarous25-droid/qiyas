@@ -1,15 +1,18 @@
+import { useState } from "react";
 import { Pill, Meter, En } from "@/components/common";
 import {
   PLATFORM_SCHOOLS, SCHOOL_STATUS, PLATFORM_KPI, ONBOARDING_STEPS,
   APPEALS, APPEAL_TRACK, type PlatformSchool, type Appeal,
 } from "@/data/mock";
 import type { CentralSeed } from "@/lib/live";
+import { CentralQuestions } from "./CentralQuestions";
+import { CentralPermissions } from "./CentralPermissions";
 import { badgeTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import { useSlis } from "@/store";
 import {
   Building2, ShieldCheck, Scale, TrendingUp, School, CheckCircle2,
-  Server, ListChecks, Globe, ClipboardCheck, Gavel, Hourglass,
+  Server, ListChecks, Globe, ClipboardCheck, Gavel, Hourglass, Pencil, X,
 } from "lucide-react";
 
 function Kpi({ icon: Icon, label, value, sub, tone }:
@@ -32,15 +35,18 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 
 const pctText = (v: number | null) => (v === null ? "—" : `${v}%`);
 
-export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus }: {
+export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus, onUpdateSchool }: {
   data?: CentralSeed;
   userName?: string;
   onResolveAppeal?: (id: string) => void;
   onReviewAppeal?: (id: string) => void;
   onSetSchoolStatus?: (schoolId: string, status: string) => void;
+  onUpdateSchool?: (schoolId: string, patch: { name?: string; city?: string }) => void;
 } = {}) {
   const { toast } = useSlis();
   const live = !!data;
+  const [view, setView] = useState<"dashboard" | "questions" | "permissions">("dashboard");
+  const [editSchool, setEditSchool] = useState<PlatformSchool | null>(null);
 
   // البيانات: حيّة إن توفّرت، وإلا الوضع التجريبي
   const schools: PlatformSchool[] = live ? data!.schools : PLATFORM_SCHOOLS;
@@ -67,14 +73,31 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 h-16">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15"><Server className="h-5 w-5" /></div>
           <div className="leading-tight">
-            <div className="font-display font-extrabold text-[15px]">لوحة النظام المركزي — SLIS</div>
+            <div className="font-display font-extrabold text-[15px]">لوحة النظام المركزي — مؤشر</div>
             <div className="text-[11px] text-white/75">
               {userName ? userName : "مزوّد الخدمة"} · حوكمة المنصة بالكامل{live ? " · بيانات حيّة" : ""}
             </div>
           </div>
+          <div className="mr-auto flex gap-1.5">
+            <button onClick={() => setView("dashboard")}
+              className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "dashboard" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
+              لوحة المنصة
+            </button>
+            <button onClick={() => setView("questions")}
+              className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "questions" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
+              مستودع الأسئلة
+            </button>
+            <button onClick={() => setView("permissions")}
+              className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "permissions" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
+              الصلاحيات
+            </button>
+          </div>
         </div>
       </header>
 
+      {view === "questions" && <CentralQuestions />}
+      {view === "permissions" && <CentralPermissions />}
+      {view === "dashboard" && (
       <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-8 soft-grid">
         {/* مؤشرات المنصة (محسوبة من البيانات الحيّة) */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -100,7 +123,15 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
                   <div key={s.id} className="flex items-center gap-3 px-5 py-3">
                     <div className="grid h-10 w-10 place-items-center rounded-lg bg-brand/8 text-brand"><School className="h-5 w-5" /></div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-[15px]">{s.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="font-semibold text-[15px]">{s.name}</div>
+                        {onUpdateSchool && (
+                          <button onClick={() => setEditSchool(s)} title="تعديل معلومات المدرسة"
+                            className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-brand">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {s.city} · <En>{s.students}</En> طالب · خطة {s.plan}
                       </div>
@@ -212,6 +243,55 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
           </div>
         </div>
       </main>
+      )}
+
+      {editSchool && onUpdateSchool && (
+        <SchoolEditModal
+          school={editSchool}
+          onClose={() => setEditSchool(null)}
+          onSave={(patch) => { onUpdateSchool(editSchool.id, patch); setEditSchool(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function SchoolEditModal({ school, onClose, onSave }: {
+  school: PlatformSchool;
+  onClose: () => void;
+  onSave: (patch: { name?: string; city?: string }) => void;
+}) {
+  const [name, setName] = useState(school.name);
+  const [city, setCity] = useState(school.city);
+  const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
+  const changed = name.trim() !== school.name || city.trim() !== school.city;
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-extrabold">تعديل معلومات المدرسة</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم المدرسة</label>
+            <input className={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم المدرسة" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">المدينة</label>
+            <input className={inp} value={city} onChange={(e) => setCity(e.target.value)} placeholder="المدينة" />
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+          <button
+            disabled={!changed || name.trim().length < 2}
+            onClick={() => onSave({ name: name.trim(), city: city.trim() })}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+            حفظ التعديلات
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -64,7 +64,7 @@ export function Report({ result, onRestart }:
       <div className="overflow-hidden rounded-2xl border bg-gradient-to-tl from-brand to-brand-soft text-white">
         <div className="p-6">
           <div className="flex items-center gap-2 text-sm text-white/80">
-            <Sparkles className="h-4 w-4" /> تقريرك الشخصي — منظومة SLIS
+            <Sparkles className="h-4 w-4" /> تقريرك الشخصي — مؤشر
           </div>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <div>

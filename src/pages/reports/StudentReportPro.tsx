@@ -203,7 +203,7 @@ export function StudentReportPro({ student, missions, schoolName, today, onClose
           </div>
 
           <div className="mt-5 border-t border-slate-200 pt-2 text-[10px] text-slate-400">
-            تقرير آليّ من منصة SLIS — للاستخدام الإداري الداخلي في دعم قرار الترشيح.
+            تقرير آليّ من نظام مؤشر — للاستخدام الإداري الداخلي في دعم قرار الترشيح.
           </div>
         </div>
       </div>

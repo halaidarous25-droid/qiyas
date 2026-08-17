@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { registerSchool, registerStudent } from "@/lib/api";
-import { GraduationCap, LogIn, Loader2, PlayCircle, AlertCircle, School, UserPlus, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Gauge, LogIn, Loader2, PlayCircle, AlertCircle, School, UserPlus, ArrowRight, CheckCircle2 } from "lucide-react";
 
 const DEMO = [
   { label: "المشرف (منسّق النظام)", email: "supervisor@slis.demo" },
@@ -25,9 +25,9 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
       <div className="hidden lg:flex flex-col justify-between bg-gradient-to-tl from-brand to-brand-soft p-10 text-white">
         <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/15"><GraduationCap className="h-6 w-6" /></div>
-          <div><div className="font-display text-lg font-extrabold">منظومة SLIS</div>
-            <div className="text-xs text-white/75">القيادات الطلابية الذكية</div></div>
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-white/15"><Gauge className="h-6 w-6" /></div>
+          <div><div className="font-display text-lg font-extrabold">مؤشر</div>
+            <div className="text-xs text-white/75">لقياس المهارات الطلابية</div></div>
         </div>
         <div>
           <h1 className="font-display text-3xl font-extrabold leading-tight">اكتشف القيادات الطلابية<br />بالقياس لا بالانطباع</h1>
@@ -62,8 +62,8 @@ function LoginForm({ onRegister }: { onRegister: (s: Screen) => void }) {
   return (
     <>
       <div className="lg:hidden mb-6 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-white"><GraduationCap className="h-5 w-5" /></div>
-        <div className="font-display font-extrabold text-brand">منظومة SLIS</div>
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-white"><Gauge className="h-5 w-5" /></div>
+        <div className="font-display font-extrabold text-brand">مؤشر</div>
       </div>
 
       <h2 className="font-display text-2xl font-extrabold">تسجيل الدخول</h2>

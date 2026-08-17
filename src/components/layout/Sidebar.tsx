@@ -3,7 +3,7 @@ import { En } from "@/components/common";
 import { useSlis } from "@/store";
 import {
   LayoutDashboard, Target, Users, BarChart3, Wallet,
-  ShieldCheck, Settings, GraduationCap, Sparkles, Building2, ListChecks,
+  ShieldCheck, Settings, Gauge, Sparkles, Building2,
 } from "lucide-react";
 
 export type PageKey =
@@ -15,7 +15,6 @@ const NAV: { key: PageKey; label: string; icon: any; soon?: boolean }[] = [
   { key: "missions", label: "المهام القيادية", icon: Target },
   { key: "students", label: "الطلاب والملفات", icon: Users },
   { key: "school", label: "إدارة المدرسة", icon: Building2 },
-  { key: "questions", label: "مستودع الأسئلة", icon: ListChecks },
   { key: "reports", label: "التقارير والتحليل", icon: BarChart3 },
   { key: "quota", label: "حصص الاختبارات", icon: Wallet },
   { key: "governance", label: "الحوكمة والتظلّمات", icon: ShieldCheck },
@@ -30,11 +29,11 @@ export function Sidebar({ page, onNavigate }:
     <aside className="hidden md:flex w-64 shrink-0 flex-col border-l bg-card">
       <div className="flex items-center gap-3 px-5 h-16 border-b">
         <div className="grid place-items-center h-10 w-10 rounded-xl bg-brand text-white shadow-sm">
-          <GraduationCap className="h-5 w-5" />
+          <Gauge className="h-5 w-5" />
         </div>
         <div className="leading-tight">
-          <div className="font-display font-extrabold text-brand text-[15px]">منظومة SLIS</div>
-          <div className="text-[11px] text-muted-foreground">القيادات الطلابية الذكية</div>
+          <div className="font-display font-extrabold text-brand text-[15px]">مؤشر</div>
+          <div className="text-[11px] text-muted-foreground">لقياس المهارات الطلابية</div>
         </div>
       </div>
 

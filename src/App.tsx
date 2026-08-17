@@ -7,7 +7,6 @@ import { MissionDetail } from "@/pages/MissionDetail";
 import { StudentApp } from "@/pages/student/StudentApp";
 import { Students } from "@/pages/Students";
 import { SchoolAdmin } from "@/pages/SchoolAdmin";
-import { QuestionsBank } from "@/pages/QuestionsBank";
 import { Quota } from "@/pages/Quota";
 import { Governance } from "@/pages/Governance";
 import { Reports } from "@/pages/Reports";
@@ -20,7 +19,7 @@ import { SlisProvider, type StoreSeed } from "@/store";
 import { Toaster } from "@/components/Toaster";
 import { AuthProvider, useAuth, type LiveRole } from "@/lib/auth";
 import { fetchSchoolSeed, fetchCentralSeed, type CentralSeed } from "@/lib/live";
-import { dbResolveAppeal, dbReviewAppeal, dbSetSchoolStatus } from "@/lib/api";
+import { dbResolveAppeal, dbReviewAppeal, dbSetSchoolStatus, fetchRoleCaps, dbUpdateSchool } from "@/lib/api";
 import { useSlis } from "@/store";
 import { Loader2, LogOut, AlertCircle } from "lucide-react";
 
@@ -57,6 +56,10 @@ function LiveCentral({ userName }: { userName?: string }) {
     try { await dbSetSchoolStatus(schoolId, status); await load(); toast(status === "active" ? "اعتُمدت المدرسة" : "حُدّثت حالة المدرسة"); }
     catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
   };
+  const onUpdateSchool = async (schoolId: string, patch: { name?: string; city?: string }) => {
+    try { await dbUpdateSchool(schoolId, patch); await load(); toast("حُدّثت معلومات المدرسة"); }
+    catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
+  };
 
   if (loading) return (
     <div className="grid min-h-screen place-items-center bg-background">
@@ -76,7 +79,7 @@ function LiveCentral({ userName }: { userName?: string }) {
     </div>
   );
 
-  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} />;
+  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} onUpdateSchool={onUpdateSchool} />;
 }
 
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
@@ -122,7 +125,6 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
             )}
             {page === "students" && <Students initialStudentId={studentId} onConsumed={() => setStudentId(null)} />}
             {page === "school" && <SchoolAdmin />}
-            {page === "questions" && <QuestionsBank />}
             {page === "quota" && <Quota />}
             {page === "governance" && <Governance />}
             {page === "reports" && <Reports />}
@@ -141,6 +143,7 @@ const ROLE_MAP: Record<LiveRole, Role> = { central: "central", supervisor: "supe
 function LiveApp() {
   const { identity, signOut, email } = useAuth();
   const [seed, setSeed] = useState<StoreSeed | undefined>(undefined);
+  const [caps, setCaps] = useState<Record<string, string[]> | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -149,6 +152,8 @@ function LiveApp() {
       try {
         if (identity?.schoolId) setSeed(await fetchSchoolSeed(identity.schoolId));
         else setSeed({});
+        // مصفوفة الصلاحيات التي يضبطها المركزي (تُجاوز الافتراضية عند وجودها)
+        try { setCaps(await fetchRoleCaps()); } catch { /* الافتراضي عند التعذّر */ }
       } catch (e: any) { setErr(e?.message || "تعذّر تحميل البيانات"); }
       finally { setLoading(false); }
     })();
@@ -175,7 +180,7 @@ function LiveApp() {
   );
 
   return (
-    <SlisProvider seed={seed} live meStudentId={identity?.studentId} role={(identity?.memberRole as any) || undefined}>
+    <SlisProvider seed={seed} live meStudentId={identity?.studentId} role={(identity?.memberRole as any) || undefined} capsOverride={caps}>
       <Shell initialRole={ROLE_MAP[identity!.role]} locked onSignOut={signOut} userName={identity?.name || email || ""} avatarUrl={identity?.avatarUrl} />
     </SlisProvider>
   );

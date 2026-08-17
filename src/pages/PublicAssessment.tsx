@@ -4,7 +4,7 @@ import { scoreAssessment, leadershipStyle, type Answers, type AssessmentResult }
 import { publicGetSchool, publicSubmitAssessment } from "@/lib/api";
 import { AXES } from "@/data/mock";
 import { En, Meter } from "@/components/common";
-import { GraduationCap, Loader2, AlertCircle, CheckCircle2, Play, Award } from "lucide-react";
+import { Gauge, Loader2, AlertCircle, CheckCircle2, Play, Award, School } from "lucide-react";
 
 type Step = "loading" | "invalid" | "intro" | "form" | "test" | "done";
 const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
@@ -50,8 +50,8 @@ export function PublicAssessment({ code }: { code: string }) {
 
   const Header = () => (
     <div className="mb-6 flex items-center gap-3">
-      <div className="grid h-11 w-11 place-items-center rounded-xl bg-brand text-white"><GraduationCap className="h-6 w-6" /></div>
-      <div><div className="font-display font-extrabold text-brand">منظومة SLIS</div>
+      <div className="grid h-11 w-11 place-items-center rounded-xl bg-brand text-white"><Gauge className="h-6 w-6" /></div>
+      <div><div className="font-display font-extrabold text-brand">مؤشر</div>
         <div className="text-xs text-muted-foreground">{schoolName || "مقياس القيادة"}</div></div>
     </div>
   );
@@ -106,21 +106,59 @@ export function PublicAssessment({ code }: { code: string }) {
     </Center>
   );
 
-  // intro + form
+  // صفحة الترحيب (جذّابة) قبل الدخول للاختبار
+  if (step === "intro") return (
+    <div className="min-h-screen bg-background soft-grid grid place-items-center p-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-3xl border bg-white shadow-xl">
+        {/* رأس بالهوية */}
+        <div className="relative bg-gradient-to-tl from-brand to-brand-soft p-8 text-center text-white">
+          <div className="mx-auto grid h-20 w-20 place-items-center rounded-2xl bg-white/15 ring-4 ring-white/10">
+            <Gauge className="h-11 w-11" />
+          </div>
+          <h1 className="mt-4 font-display text-2xl font-extrabold">نظام مؤشر</h1>
+          <div className="text-sm text-white/85">لقياس المهارات الطلابية</div>
+          <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-semibold">
+            <School className="h-4 w-4" /> {schoolName}
+          </div>
+          <div className="mt-2 text-xs font-semibold text-white/80">مركز التدريب والتطوير</div>
+        </div>
+
+        {/* محتوى */}
+        <div className="p-6 text-center">
+          <h2 className="font-display text-xl font-extrabold text-slate-800">مقياس القيادة والسلوك</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+            مرحبًا بك! هذا المقياس يساعد مدرستك على اكتشاف مهاراتك القيادية وترشيحك للأدوار الأنسب لك بالقياس العلمي لا بالانطباع.
+          </p>
+          <div className="mx-auto mt-4 grid max-w-md gap-2 sm:grid-cols-3">
+            {[
+              { n: "٣٥", l: "موقفًا واقعيًا" },
+              { n: "٥", l: "محاور قيادية" },
+              { n: "~١٢", l: "دقيقة" },
+            ].map((c) => (
+              <div key={c.l} className="rounded-xl border bg-slate-50 p-3">
+                <div className="font-display text-xl font-extrabold text-brand">{c.n}</div>
+                <div className="text-[11px] text-slate-500">{c.l}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mx-auto mt-3 flex max-w-md items-center justify-center gap-1.5 rounded-lg bg-brand/5 px-3 py-2 text-[12px] text-brand">
+            <Award className="h-3.5 w-3.5" /> لا توجد إجابة صحيحة أو خاطئة — اختر الأقرب إليك بصدق.
+          </div>
+          <button onClick={() => setStep("form")}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand px-8 h-12 font-bold text-white shadow-sm hover:bg-brand/90">
+            <Play className="h-5 w-5" /> المتابعة
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // نموذج البيانات
   return (
     <Center>
       <div className="w-full max-w-sm">
         <Header />
-        {step === "intro" ? (
-          <div className="rounded-2xl border bg-gradient-to-tl from-brand to-brand-soft p-6 text-white">
-            <h1 className="font-display text-2xl font-extrabold">مقياس القيادة والسلوك</h1>
-            <p className="mt-2 text-sm text-white/85">٣٥ موقفًا (~١٢ دقيقة) لاكتشاف ملفك القيادي. أدخل بياناتك ثم ابدأ.</p>
-            <button onClick={() => setStep("form")}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-6 h-12 font-bold text-brand hover:bg-white/90">
-              <Play className="h-5 w-5" /> المتابعة
-            </button>
-          </div>
-        ) : (
+        {step === "form" && (
           <div className="rounded-2xl border bg-card p-5">
             <h2 className="font-display text-lg font-extrabold">بياناتك</h2>
             <p className="mt-1 text-sm text-muted-foreground">تظهر هذه البيانات لمعلمك مع نتيجتك.</p>

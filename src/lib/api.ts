@@ -176,6 +176,17 @@ export async function dbRequestRetake(schoolId: string, studentId: string) {
   if (error) throw error;
 }
 
+// ============ إعدادات المنصة: مصفوفة صلاحيات الأدوار (مركزي يتحكم، الجميع يقرأ) ============
+export async function fetchRoleCaps(): Promise<Record<string, string[]> | null> {
+  const { data } = await supabase.from("platform_config").select("value").eq("key", "role_caps").maybeSingle();
+  return (data?.value as Record<string, string[]>) ?? null;
+}
+export async function saveRoleCaps(map: Record<string, string[]>) {
+  const { error } = await supabase.from("platform_config")
+    .upsert({ key: "role_caps", value: map, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
 // ============ رابط الاختبار العام (بلا حساب) ============
 export async function publicGetSchool(code: string) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "get_school", code } });
@@ -195,6 +206,15 @@ export async function publicSubmitAssessment(payload: {
 // ============ اعتماد المدارس (مركزي) ============
 export async function dbSetSchoolStatus(schoolId: string, status: string) {
   const { error } = await supabase.from("schools").update({ status }).eq("id", schoolId);
+  if (error) throw error;
+}
+// تعديل معلومات المدرسة (مركزي)
+export async function dbUpdateSchool(schoolId: string, patch: { name?: string; city?: string; status?: string }) {
+  const upd: Record<string, unknown> = {};
+  if (patch.name !== undefined) upd.name = patch.name;
+  if (patch.city !== undefined) upd.city = patch.city;
+  if (patch.status !== undefined) upd.status = patch.status;
+  const { error } = await supabase.from("schools").update(upd).eq("id", schoolId);
   if (error) throw error;
 }
 
@@ -308,6 +328,22 @@ export async function dbAddQuestion(schoolId: string, q: {
 export async function dbUpdateQuestionOptions(id: string, options: { text: string; score: number }[]) {
   const { error } = await supabase.from("question_items").update({ options }).eq("id", id);
   if (error) throw error;
+}
+
+// إضافة سؤال عام للبنك المحميّ (الحساب المركزي فقط — يحترم RLS)
+export async function dbAddGlobalQuestion(q: {
+  type: string; axis: string | null; section: number | null; role: string | null;
+  text: string; options: { text: string; score: number }[];
+}) {
+  const { data: last } = await supabase.from("question_items")
+    .select("seq").is("school_id", null).order("seq", { ascending: false }).limit(1).maybeSingle();
+  const nextSeq = (last?.seq ?? 0) + 1;
+  const { data, error } = await supabase.from("question_items").insert({
+    school_id: null, seq: nextSeq, type: q.type, axis: q.axis,
+    section: q.section, role: q.role, text: q.text, options: q.options, active: true,
+  }).select().single();
+  if (error) throw error;
+  return data;
 }
 
 export async function dbSetQuestionActive(id: string, active: boolean) {

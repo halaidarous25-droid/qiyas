@@ -9,7 +9,7 @@ import { StudentReport } from "@/pages/reports/ReportView";
 import { useSlis } from "@/store";
 import { cn } from "@/lib/utils";
 import {
-  GraduationCap, Play, ClipboardCheck, Target, Sparkles, Clock, Award,
+  Gauge, Play, ClipboardCheck, Target, Sparkles, Clock, Award,
   CheckCircle2, Hourglass, Trophy,
 } from "lucide-react";
 
@@ -54,9 +54,9 @@ export function StudentApp() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 h-16">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-white"><GraduationCap className="h-5 w-5" /></div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-white"><Gauge className="h-5 w-5" /></div>
           <div className="leading-tight">
-            <div className="font-display font-extrabold text-brand text-[15px]">بوابة الطالب — SLIS</div>
+            <div className="font-display font-extrabold text-brand text-[15px]">بوابة الطالب — مؤشر</div>
             <div className="text-[11px] text-muted-foreground">ناصر سعد القحطاني · الثاني الثانوي ٢/ب</div>
           </div>
           <div className="mr-auto">

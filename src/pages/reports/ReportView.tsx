@@ -42,7 +42,7 @@ function ReportShell({ title, subtitle, schoolName, today, onClose, children }: 
         <div className="slis-print-area rounded-xl border bg-white p-6 text-[13px] leading-6 text-slate-800 shadow-xl" dir="rtl">
           <div className="flex items-start justify-between border-b border-slate-200 pb-3">
             <div>
-              <div className="text-lg font-extrabold text-brand">منظومة القيادات الطلابية الذكية — SLIS</div>
+              <div className="text-lg font-extrabold text-brand">نظام مؤشر لقياس المهارات الطلابية</div>
               <div className="text-slate-500">{schoolName}</div>
             </div>
             <div className="text-left text-[11px] text-slate-500">
@@ -54,7 +54,7 @@ function ReportShell({ title, subtitle, schoolName, today, onClose, children }: 
           <div className="text-slate-500">{subtitle}</div>
           <div className="mt-4">{children}</div>
           <div className="mt-6 border-t border-slate-200 pt-2 text-[10px] text-slate-400">
-            تقرير آليّ من منصة SLIS — للاستخدام الإداري الداخلي.
+            تقرير آليّ من نظام مؤشر — للاستخدام الإداري الداخلي.
           </div>
         </div>
       </div>
