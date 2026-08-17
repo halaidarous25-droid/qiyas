@@ -53,12 +53,13 @@ export async function dbAddClass(schoolId: string, c: { name: string; grade: str
 
 export async function dbAddMission(schoolId: string, m: {
   title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
-  weights?: AxisScores;
+  weights?: AxisScores; scopeRef?: string;
 }) {
   const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
-    : m.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
+    : m.scopeType === "stage" ? "المرحلة الثانوية" : (m.scopeRef ? `فصل: ${m.scopeRef}` : "صف/فصل محدّد");
   const { data, error } = await supabase.from("missions").insert({
     school_id: schoolId, title: m.title, scope_type: m.scopeType, scope_label: scopeLabel,
+    scope_ref: m.scopeRef || null,
     operating_mode: m.mode, seats: m.seats, status: "open",
     weights: m.weights ?? { org: 20, lead: 20, comm: 20, firm: 20, init: 20 },
   }).select().single();
@@ -69,7 +70,7 @@ export async function dbAddMission(schoolId: string, m: {
 // تعديل مهمة قائمة
 export async function dbUpdateMission(missionId: string, patch: {
   title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode;
-  weights?: AxisScores; status?: string;
+  weights?: AxisScores; status?: string; scopeRef?: string;
 }) {
   const upd: Record<string, unknown> = {};
   if (patch.title !== undefined) upd.title = patch.title;
@@ -77,10 +78,11 @@ export async function dbUpdateMission(missionId: string, patch: {
   if (patch.mode !== undefined) upd.operating_mode = patch.mode;
   if (patch.weights !== undefined) upd.weights = patch.weights;
   if (patch.status !== undefined) upd.status = patch.status;
+  if (patch.scopeRef !== undefined) upd.scope_ref = patch.scopeRef || null;
   if (patch.scopeType !== undefined) {
     upd.scope_type = patch.scopeType;
     upd.scope_label = patch.scopeType === "school" ? "كامل المدرسة"
-      : patch.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
+      : patch.scopeType === "stage" ? "المرحلة الثانوية" : (patch.scopeRef ? `فصل: ${patch.scopeRef}` : "صف/فصل محدّد");
   }
   const { error } = await supabase.from("missions").update(upd).eq("id", missionId);
   if (error) throw error;
@@ -172,6 +174,22 @@ export async function dbRequestRetake(schoolId: string, studentId: string) {
   const { error } = await supabase.from("individual_requests")
     .insert({ school_id: schoolId, student_id: studentId, purpose: "إعادة المقياس", status: "pending" });
   if (error) throw error;
+}
+
+// ============ رابط الاختبار العام (بلا حساب) ============
+export async function publicGetSchool(code: string) {
+  const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "get_school", code } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; schoolName: string; classes: { id: string; name: string; grade: string }[] };
+}
+export async function publicSubmitAssessment(payload: {
+  code: string; name: string; grade: string; className: string; result: unknown; answers: unknown;
+}) {
+  const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "submit", ...payload } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean };
 }
 
 // ============ اعتماد المدارس (مركزي) ============

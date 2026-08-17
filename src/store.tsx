@@ -28,6 +28,7 @@ interface Store {
   // الحالة
   live: boolean;
   schoolId: string | null;
+  tenantCode: string | null;
   role: Role;
   can: (cap: Cap) => boolean;
   mode: OperatingMode;
@@ -42,14 +43,15 @@ interface Store {
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
   addMission: (m: {
-    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores;
+    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores; scopeRef?: string; autoNominate?: boolean;
   }) => void;
+  autoNominate: (missionId: string) => void;
   assignCandidate: (missionId: string, candId: string, name: string) => void;
   unassignCandidate: (missionId: string, candId: string, name: string) => void;
   nominateStudent: (missionId: string, candId: string, name: string) => void;
   removeCandidate: (missionId: string, candId: string, name: string) => void;
   setCandidateStatus: (missionId: string, candId: string, status: string) => void;
-  updateMission: (missionId: string, patch: { title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode; weights?: AxisScores; status?: string }) => void;
+  updateMission: (missionId: string, patch: { title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode; weights?: AxisScores; status?: string; scopeRef?: string }) => void;
   requestRetake: () => void;
   devPlans: Record<string, DevPlan>;
   saveDevPlan: (missionId: string, studentId: string, plan: DevPlan) => void;
@@ -87,6 +89,7 @@ let tid = 1;
 
 export interface StoreSeed {
   schoolId?: string;
+  tenantCode?: string | null;
   mode?: OperatingMode;
   hybrid?: boolean;
   settings?: Record<string, unknown> | null;
@@ -147,24 +150,41 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
     setMeAssessed(s.students.find((x) => x.id === meId)?.assessed ?? false);
   }, [isLive, schoolId, meId]);
 
+  // الطلاب المؤهّلون (أدّوا المقياس) ضمن نطاق معيّن
+  const eligibleByScope = (scopeType: ScopeLevel, scopeRef?: string) =>
+    students.filter((s) => s.assessed && (
+      scopeType === "school" || scopeType === "stage"
+        ? true
+        : (scopeRef ? (s.className === scopeRef || s.grade === scopeRef) : true)
+    ));
+
   const addMission: Store["addMission"] = (m) => {
     if (isLive && schoolId) {
       api.dbAddMission(schoolId, m)
-        .then(() => resync())
-        .then(() => toast(`أُنشئت المهمة «${m.title}» بنجاح`))
+        .then(async (created: any) => {
+          let count = 0;
+          if (m.autoNominate && created) {
+            const missionObj = { id: created.id, weights: created.weights } as Mission;
+            const elig = eligibleByScope(m.scopeType, m.scopeRef);
+            for (const s of elig) { await api.dbApply(schoolId, missionObj, s, true); count++; }
+          }
+          await resync();
+          toast(count > 0 ? `أُنشئت المهمة ورُشِّح ${count} طالبًا تلقائيًا` : `أُنشئت المهمة «${m.title}» بنجاح`);
+        })
         .catch((e) => toast(`تعذّر إنشاء المهمة: ${e.message || e}`, "danger"));
       return;
     }
     const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
-      : m.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
+      : m.scopeType === "stage" ? "المرحلة الثانوية" : (m.scopeRef ? `فصل: ${m.scopeRef}` : "صف/فصل محدّد");
+    const elig = m.autoNominate ? eligibleByScope(m.scopeType, m.scopeRef) : [];
     const nm: Mission = {
-      id: `m${mid++}`, title: m.title, scopeType: m.scopeType, scopeLabel,
+      id: `m${mid++}`, title: m.title, scopeType: m.scopeType, scopeLabel, scopeRef: m.scopeRef,
       mode: m.mode, seats: m.seats, supervisor: "أ. سعد المالكي", status: "open",
-      applicants: 0, eligible: 214, createdAt: "1446/03/01",
-      weights: m.weights ?? { ...EVEN }, candidateIds: [],
+      applicants: elig.length, eligible: 214, createdAt: "1446/03/01",
+      weights: m.weights ?? { ...EVEN }, candidateIds: elig.map((s) => s.id),
     };
     setMissions((list) => [nm, ...list]);
-    toast(`أُنشئت المهمة «${m.title}» بنجاح`);
+    toast(elig.length > 0 ? `أُنشئت المهمة ورُشِّح ${elig.length} طالبًا تلقائيًا` : `أُنشئت المهمة «${m.title}» بنجاح`);
   };
 
   const assignCandidate: Store["assignCandidate"] = (missionId, candId, name) => {
@@ -212,6 +232,36 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
       return { ...m, candidateIds: [...m.candidateIds, candId], applicants: m.applicants + 1 };
     }));
     toast(`رُشِّح ${name} للمهمة`);
+  };
+
+  // الطلاب المؤهّلون ضمن نطاق المهمة (والذين أدّوا المقياس)
+  const eligibleFor = (m: Mission) => students.filter((s) => {
+    if (!s.assessed) return false;
+    if (m.scopeType === "school" || m.scopeType === "stage") return true;
+    // نطاق صف/فصل: يطابق اسم الفصل أو الصف
+    if (m.scopeRef) return s.className === m.scopeRef || s.grade === m.scopeRef;
+    return true;
+  });
+
+  const autoNominate: Store["autoNominate"] = (missionId) => {
+    const m = missions.find((x) => x.id === missionId);
+    if (!m) return;
+    const eligible = eligibleFor(m).filter((s) => !m.candidateIds.includes(s.id));
+    if (eligible.length === 0) { toast("لا طلاب مؤهّلين للترشيح ضمن هذا النطاق (تأكد من أداء الطلاب للمقياس)", "info"); return; }
+    if (isLive && schoolId) {
+      (async () => {
+        try {
+          for (const s of eligible) await api.dbApply(schoolId, m, s, true);
+          await resync();
+          toast(`رُشِّح ${eligible.length} طالبًا تلقائيًا حسب النطاق`);
+        } catch (e: any) { toast(`تعذّر الترشيح التلقائي: ${e.message || e}`, "danger"); }
+      })();
+      return;
+    }
+    setMissions((list) => list.map((x) => x.id === missionId
+      ? { ...x, candidateIds: [...new Set([...x.candidateIds, ...eligible.map((s) => s.id)])], applicants: x.applicants + eligible.length }
+      : x));
+    toast(`رُشِّح ${eligible.length} طالبًا تلقائيًا حسب النطاق`);
   };
 
   const removeCandidate: Store["removeCandidate"] = (missionId, candId, name) => {
@@ -449,9 +499,9 @@ export function SlisProvider({ children, seed, live, meStudentId, role }:
 
   return (
     <Ctx.Provider value={{
-      live: isLive, schoolId, role: effRole, can,
+      live: isLive, schoolId, tenantCode: seed?.tenantCode ?? null, role: effRole, can,
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
-      toast, dismissToast, addMission, assignCandidate, unassignCandidate, nominateStudent,
+      toast, dismissToast, addMission, autoNominate, assignCandidate, unassignCandidate, nominateStudent,
       removeCandidate, setCandidateStatus, updateMission, requestRetake,
       devPlans, saveDevPlan, resolveIndReq, saveSettings,
       me: students.find((s) => s.id === meId) ?? null,

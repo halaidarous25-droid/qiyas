@@ -13,6 +13,7 @@ import { Governance } from "@/pages/Governance";
 import { Reports } from "@/pages/Reports";
 import { Settings as SettingsPage } from "@/pages/Settings";
 import { Profile } from "@/pages/Profile";
+import { PublicAssessment } from "@/pages/PublicAssessment";
 import { CentralApp } from "@/pages/central/CentralApp";
 import { Login } from "@/pages/Login";
 import { SlisProvider, type StoreSeed } from "@/store";
@@ -193,6 +194,11 @@ function Root() {
 }
 
 export default function App() {
+  // رابط اختبار عام: ?assess=CODE — يُفتح بلا تسجيل دخول
+  const params = new URLSearchParams(window.location.search);
+  const assessCode = params.get("assess");
+  if (assessCode) return <PublicAssessment code={assessCode} />;
+
   return (
     <AuthProvider>
       <Root />

@@ -21,6 +21,7 @@ export interface LiveSubscription {
 
 export interface Seed {
   schoolId: string;
+  tenantCode: string | null;
   mode: OperatingMode;
   hybrid: boolean;
   settings: Record<string, unknown> | null;
@@ -77,7 +78,7 @@ const scopeLabel = (t: string) =>
 export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes, subRes] =
     await Promise.all([
-      supabase.from("schools").select("operating_mode,hybrid,settings").eq("id", schoolId).single(),
+      supabase.from("schools").select("operating_mode,hybrid,settings,tenant_code").eq("id", schoolId).single(),
       supabase.from("students").select("*").eq("school_id", schoolId),
       supabase.from("assessments").select("*").eq("school_id", schoolId).order("completed_at", { ascending: false }),
       supabase.from("teachers").select("*").eq("school_id", schoolId),
@@ -141,6 +142,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
     return {
       id: m.id, title: m.title, scopeType: m.scope_type,
       scopeLabel: m.scope_label || scopeLabel(m.scope_type),
+      scopeRef: m.scope_ref || undefined,
       mode: m.operating_mode, seats: m.seats,
       supervisor: m.supervisor_id ? teacherById[m.supervisor_id] || "—" : "—",
       status: m.status, applicants: apps.length, eligible: 214,
@@ -158,6 +160,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
 
   return {
     schoolId,
+    tenantCode: (schoolRes.data?.tenant_code as string) ?? null,
     mode: (schoolRes.data?.operating_mode as OperatingMode) || "B",
     hybrid: !!schoolRes.data?.hybrid,
     settings: (schoolRes.data?.settings as Record<string, unknown>) ?? null,

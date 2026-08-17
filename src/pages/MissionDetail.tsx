@@ -9,7 +9,7 @@ import { matchTone, textTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
-  CheckCircle2, CircleUser, Trophy, ClipboardList, Plus, X, Save, Flag,
+  CheckCircle2, Trophy, ClipboardList, Plus, X, Save, Flag,
   XCircle, Pencil, UserPlus, Trash2,
 } from "lucide-react";
 import type { DevPlan } from "@/lib/live";
@@ -268,7 +268,7 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, removeCandidate, setCandidateStatus, rankMission, students } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, setCandidateStatus, rankMission, students } = useSlis();
   const m = missions.find((x) => x.id === missionId)!;
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
@@ -332,12 +332,13 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
 
       {/* قائمة المرشّحين */}
       <div>
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <Trophy className="h-[18px] w-[18px] text-gold" />
           <h2 className="font-display text-lg font-bold">قائمة المرشّحين مرتّبة حسب المواءمة</h2>
-          <Pill tone="muted" className="mr-auto">
-            <CircleUser className="h-3 w-3" /> المقارنة داخل النطاق فقط
-          </Pill>
+          <button onClick={() => autoNominate(m.id)}
+            className="mr-auto inline-flex items-center gap-1.5 rounded-lg border border-brand/40 text-brand px-3 h-8 text-xs font-semibold hover:bg-brand/10">
+            <UserPlus className="h-3.5 w-3.5" /> ترشيح تلقائي حسب النطاق
+          </button>
         </div>
         <div className="space-y-2.5">
           {ranked.length === 0 && (

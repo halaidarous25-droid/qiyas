@@ -18,14 +18,16 @@ const PRESETS: { l: string; w: AxisScores }[] = [
 ];
 
 export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edit?: Mission }) {
-  const { addMission, updateMission, mode, hybrid } = useSlis();
+  const { addMission, updateMission, autoNominate, missions, classes, mode, hybrid } = useSlis();
   const isEdit = !!edit;
   const [title, setTitle] = useState(edit?.title ?? "");
   const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType ?? "school");
+  const [scopeRef, setScopeRef] = useState(edit?.scopeRef ?? "");
   const [seats, setSeats] = useState(edit?.seats ?? 1);
   const [mMode, setMMode] = useState<OperatingMode>(edit?.mode ?? mode);
   const [showPriorities, setShowPriorities] = useState(isEdit);
   const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
+  const [autoNom, setAutoNom] = useState(true);
   const valid = title.trim().length >= 3;
 
   const wSum = AXES.reduce((s, a) => s + weights[a.key], 0);
@@ -40,9 +42,9 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
 
   const submit = () => {
     if (!valid) return;
-    const payload = { title: title.trim(), scopeType, seats, mode: hybrid ? mMode : mode, weights: normalize(weights) };
-    if (isEdit) updateMission(edit!.id, payload);
-    else addMission(payload);
+    const base = { title: title.trim(), scopeType, scopeRef: scopeType === "grade" ? scopeRef : "", seats, mode: hybrid ? mMode : mode, weights: normalize(weights) };
+    if (isEdit) updateMission(edit!.id, base);
+    else addMission({ ...base, autoNominate: autoNom });
     onClose();
   };
 
@@ -83,6 +85,32 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
             </div>
           </div>
         </div>
+
+        {/* اختيار الفصل عند نطاق صف/فصل */}
+        {scopeType === "grade" && (
+          <div className="mt-4">
+            <label className="block text-sm font-semibold">الفصل/الصف المستهدف</label>
+            {classes.length > 0 ? (
+              <select value={scopeRef} onChange={(e) => setScopeRef(e.target.value)}
+                className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm">
+                <option value="">اختر الفصل…</option>
+                {classes.map((c) => <option key={c.id} value={c.name}>{c.name}{c.grade ? ` — ${c.grade}` : ""}</option>)}
+              </select>
+            ) : (
+              <input value={scopeRef} onChange={(e) => setScopeRef(e.target.value)} placeholder="اسم الفصل أو الصف"
+                className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm" />
+            )}
+          </div>
+        )}
+
+        {/* الترشيح التلقائي */}
+        {!isEdit && (
+          <label className="mt-4 flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 cursor-pointer">
+            <input type="checkbox" checked={autoNom} onChange={(e) => setAutoNom(e.target.checked)} className="accent-[hsl(191_72%_30%)]" />
+            <span className="text-sm font-semibold">ترشيح تلقائي بعد الإنشاء</span>
+            <span className="mr-auto text-[11px] text-muted-foreground">يرشّح الطلاب المؤهّلين ضمن النطاق حسب المواءمة</span>
+          </label>
+        )}
 
         <div className="mt-4">
           <label className="block text-sm font-semibold">وضع التشغيل</label>

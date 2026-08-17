@@ -46,6 +46,7 @@ export interface Mission {
   title: string;
   scopeType: ScopeLevel;
   scopeLabel: string;
+  scopeRef?: string;   // مرجع النطاق: اسم الفصل/الصف عند نطاق «صف/فصل»
   mode: OperatingMode;
   seats: number;
   supervisor: string;

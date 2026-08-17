@@ -6,7 +6,7 @@ import { parseStudentsCsv, STUDENTS_CSV_TEMPLATE } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
-  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff,
+  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon,
 } from "lucide-react";
 import { useEffect } from "react";
 import { createStudentAccount, inviteMember, fetchCredentials, type AccountCred } from "@/lib/api";
@@ -198,8 +198,26 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
     URL.revokeObjectURL(url);
   };
 
+  const { tenantCode, toast: t2 } = useSlis();
+  const assessLink = tenantCode ? `${window.location.origin}/?assess=${tenantCode}` : "";
+
   return (
     <div className="grid gap-5 lg:grid-cols-3">
+      {/* رابط الاختبار العام (بلا حساب طالب) */}
+      {tenantCode && (
+        <div className="lg:col-span-3 rounded-xl border border-brand/30 bg-brand/5 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-brand"><LinkIcon className="h-4 w-4" /> رابط اختبار الطلاب (بلا حساب)</div>
+          <p className="mt-1 text-xs text-muted-foreground">أرسل هذا الرابط للطلاب — يفتحونه، يعبّئون بياناتهم، يؤدّون الاختبار، وتظهر نتائجهم هنا في قائمة الطلاب.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input readOnly value={assessLink} dir="ltr" className="flex-1 min-w-[240px] rounded-lg border bg-background px-3 h-9 text-xs font-mono" />
+            <button onClick={() => { navigator.clipboard?.writeText(assessLink); t2("نُسِخ الرابط", "info"); }}
+              className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+              <Copy className="h-4 w-4" /> نسخ الرابط
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
           <span className="font-display font-bold">الطلاب (<En>{students.length}</En>)</span>
