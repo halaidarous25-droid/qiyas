@@ -15,7 +15,7 @@ import { StudentReportPro } from "./reports/StudentReportPro";
 
 // ===== ملف الطالب =====
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
-  const { studentMissionsFor, missions: allMissions } = useSlis();
+  const { studentMissionsFor, missions: allMissions, schoolInfo } = useSlis();
   const trust = TRUST_META[c.trust];
   const missions = studentMissionsFor(c.id);
   const [showReport, setShowReport] = useState(false);
@@ -57,7 +57,7 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
       </div>
 
       {showReport && (
-        <StudentReportPro student={c} missions={allMissions} schoolName="مدرستي" today={today} onClose={() => setShowReport(false)} />
+        <StudentReportPro student={c} missions={allMissions} schoolName={schoolInfo.name || "مدرستي"} today={today} onClose={() => setShowReport(false)} />
       )}
 
       <div className="rounded-2xl border bg-card p-5">

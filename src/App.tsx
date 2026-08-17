@@ -56,9 +56,13 @@ function LiveCentral({ userName }: { userName?: string }) {
     try { await dbSetSchoolStatus(schoolId, status); await load(); toast(status === "active" ? "اعتُمدت المدرسة" : "حُدّثت حالة المدرسة"); }
     catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
   };
-  const onUpdateSchool = async (schoolId: string, patch: { name?: string; city?: string }) => {
+  const onUpdateSchool = async (schoolId: string, patch: { name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string }) => {
     try { await dbUpdateSchool(schoolId, patch); await load(); toast("حُدّثت معلومات المدرسة"); }
     catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
+  };
+  const onDeleteSchool = async (schoolId: string) => {
+    try { await dbSetSchoolStatus(schoolId, "deleted"); await load(); toast("حُذفت المدرسة (يمكن استرجاعها من قاعدة البيانات)"); }
+    catch (e: any) { toast(`تعذّر الحذف: ${e.message || e}`, "danger"); }
   };
 
   if (loading) return (
@@ -79,7 +83,7 @@ function LiveCentral({ userName }: { userName?: string }) {
     </div>
   );
 
-  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} onUpdateSchool={onUpdateSchool} />;
+  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} onUpdateSchool={onUpdateSchool} onDeleteSchool={onDeleteSchool} />;
 }
 
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====

@@ -208,11 +208,17 @@ export async function dbSetSchoolStatus(schoolId: string, status: string) {
   const { error } = await supabase.from("schools").update({ status }).eq("id", schoolId);
   if (error) throw error;
 }
-// تعديل معلومات المدرسة (مركزي)
-export async function dbUpdateSchool(schoolId: string, patch: { name?: string; city?: string; status?: string }) {
+// تعديل معلومات المدرسة (مركزي أو المدرسة لبياناتها الأساسية)
+export async function dbUpdateSchool(schoolId: string, patch: {
+  name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string; status?: string;
+}) {
   const upd: Record<string, unknown> = {};
   if (patch.name !== undefined) upd.name = patch.name;
   if (patch.city !== undefined) upd.city = patch.city;
+  if (patch.address !== undefined) upd.address = patch.address;
+  if (patch.email !== undefined) upd.email = patch.email;
+  if (patch.phone !== undefined) upd.phone = patch.phone;
+  if (patch.stage !== undefined) upd.stage = patch.stage;
   if (patch.status !== undefined) upd.status = patch.status;
   const { error } = await supabase.from("schools").update(upd).eq("id", schoolId);
   if (error) throw error;

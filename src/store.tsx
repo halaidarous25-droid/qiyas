@@ -59,6 +59,8 @@ interface Store {
   saveDevPlan: (missionId: string, studentId: string, plan: DevPlan) => void;
   resolveIndReq: (id: string, approved: boolean, name: string) => void;
   saveSettings: (s: { mode: OperatingMode; hybrid: boolean; settings: AppSettings }) => void;
+  schoolInfo: { name: string; city: string; stage: string; address: string; email: string; phone: string };
+  updateSchoolInfo: (patch: Partial<{ name: string; city: string; stage: string; address: string; email: string; phone: string }>) => void;
   presets: WeightPreset[];
   savePreset: (name: string, weights: AxisScores) => void;
   deletePreset: (name: string) => void;
@@ -94,6 +96,12 @@ let tid = 1;
 
 export interface StoreSeed {
   schoolId?: string;
+  schoolName?: string;
+  schoolCity?: string;
+  schoolStage?: string;
+  schoolAddress?: string;
+  schoolEmail?: string;
+  schoolPhone?: string;
   tenantCode?: string | null;
   mode?: OperatingMode;
   hybrid?: boolean;
@@ -122,6 +130,11 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
 
   const [mode, setMode] = useState<OperatingMode>(seed?.mode ?? "B");
   const [hybrid, setHybrid] = useState(seed?.hybrid ?? false);
+  const [schoolInfo, setSchoolInfo] = useState({
+    name: seed?.schoolName ?? "", city: seed?.schoolCity ?? "",
+    stage: seed?.schoolStage ?? "الثانوية", address: seed?.schoolAddress ?? "",
+    email: seed?.schoolEmail ?? "", phone: seed?.schoolPhone ?? "",
+  });
   const [settings, setSettings] = useState<AppSettings>({
     ...DEFAULT_SETTINGS,
     ...((seed?.settings as Partial<AppSettings>) ?? {}),
@@ -372,6 +385,18 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     toast("حُفظت الإعدادات وطُبّقت على المدرسة");
   };
 
+  const updateSchoolInfo: Store["updateSchoolInfo"] = (patch) => {
+    const next = { ...schoolInfo, ...patch };
+    setSchoolInfo(next);
+    if (isLive && schoolId) {
+      api.dbUpdateSchool(schoolId, patch)
+        .then(() => toast("حُفظت بيانات المدرسة"))
+        .catch((e) => toast(`تعذّر حفظ البيانات: ${e.message || e}`, "danger"));
+      return;
+    }
+    toast("حُفظت بيانات المدرسة");
+  };
+
   const savePreset: Store["savePreset"] = (name, weights) => {
     const np = [...presets.filter((p) => p.name !== name), { name, weights }];
     setPresets(np);
@@ -535,7 +560,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
       toast, dismissToast, addMission, autoNominate, assignCandidate, unassignCandidate, nominateStudent,
       removeCandidate, setCandidateStatus, updateMission, requestRetake,
-      devPlans, saveDevPlan, resolveIndReq, saveSettings, presets, savePreset, deletePreset,
+      devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
       students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,

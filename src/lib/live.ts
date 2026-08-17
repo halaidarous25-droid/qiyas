@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { classifyTrust, type Candidate, type Mission, type Teacher, type SchoolClass, type IndReq, type OperatingMode, type AxisScores, type PlatformSchool, type Appeal, type AppealTrack, type AppealStatus } from "@/data/mock";
+import { classifyTrust, type Candidate, type Attempt, type Mission, type Teacher, type SchoolClass, type IndReq, type OperatingMode, type AxisScores, type PlatformSchool, type Appeal, type AppealTrack, type AppealStatus } from "@/data/mock";
 
 // اشتراك المدرسة بالشكل الذي تستهلكه شاشة الحصص
 export interface LiveSubscription {
@@ -21,6 +21,12 @@ export interface LiveSubscription {
 
 export interface Seed {
   schoolId: string;
+  schoolName: string;
+  schoolCity: string;
+  schoolStage: string;
+  schoolAddress: string;
+  schoolEmail: string;
+  schoolPhone: string;
   tenantCode: string | null;
   mode: OperatingMode;
   hybrid: boolean;
@@ -78,7 +84,7 @@ const scopeLabel = (t: string) =>
 export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes, subRes] =
     await Promise.all([
-      supabase.from("schools").select("operating_mode,hybrid,settings,tenant_code").eq("id", schoolId).single(),
+      supabase.from("schools").select("name,city,stage,address,email,phone,operating_mode,hybrid,settings,tenant_code").eq("id", schoolId).single(),
       supabase.from("students").select("*").eq("school_id", schoolId),
       supabase.from("assessments").select("*").eq("school_id", schoolId).order("completed_at", { ascending: false }),
       supabase.from("teachers").select("*").eq("school_id", schoolId),
@@ -93,24 +99,38 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
   (classesRes.data || []).forEach((c: any) => (classById[c.id] = c.name));
 
   // أحدث تقييم لكل طالب
-  const latestByStudent: Record<string, any> = {};
+  // كل المحاولات لكل طالب (assessRes مُرتّب تنازليًا حسب completed_at)
+  const attemptsByStudent: Record<string, any[]> = {};
   (assessRes.data || []).forEach((a: any) => {
-    if (!latestByStudent[a.student_id]) latestByStudent[a.student_id] = a;
+    (attemptsByStudent[a.student_id] ||= []).push(a);
   });
 
   const students: Candidate[] = (studentsRes.data || []).map((s: any) => {
-    const a = latestByStudent[s.id];
-    const axes: AxisScores = a?.axes || { org: 0, lead: 0, comm: 0, firm: 0, init: 0 };
+    const raw = attemptsByStudent[s.id] || [];
+    // المؤشر المركّب لكل محاولة + تحديد الأفضل (الأعلى مركّبًا، وعند التساوي الأحدث)
+    const composite = (a: any) => Math.round(((a.competency ?? 0) + (a.behavior ?? 0)) / 2);
+    let bestIdx = -1, bestScore = -1;
+    raw.forEach((a, i) => { const c = composite(a); if (c > bestScore) { bestScore = c; bestIdx = i; } });
+    const attempts: Attempt[] = raw.map((a, i) => ({
+      id: a.id, date: (a.completed_at || "").slice(0, 10),
+      competency: a.competency ?? 0, behavior: a.behavior ?? 0,
+      axes: a.axes || { org: 0, lead: 0, comm: 0, firm: 0, init: 0 },
+      contradiction: a.contradiction ?? 0, socialDesirability: a.social_desirability ?? 0,
+      trust: a.trust ?? classifyTrust(0, 0), composite: composite(a), best: i === bestIdx,
+    }));
+    const best = bestIdx >= 0 ? raw[bestIdx] : undefined;
+    const axes: AxisScores = best?.axes || { org: 0, lead: 0, comm: 0, firm: 0, init: 0 };
     return {
       id: s.id, name: s.name, grade: s.grade,
       className: s.class_id ? classById[s.class_id] || "" : "",
       avatarColor: s.avatar_color || "#0f5c66",
       axes,
-      competency: a?.competency ?? 0, behavior: a?.behavior ?? 0, match: 0,
+      competency: best?.competency ?? 0, behavior: best?.behavior ?? 0, match: 0,
       wishRank: null,
-      contradiction: a?.contradiction ?? 0, socialDesirability: a?.social_desirability ?? 0,
-      trust: a?.trust ?? classifyTrust(0, 0),
+      contradiction: best?.contradiction ?? 0, socialDesirability: best?.social_desirability ?? 0,
+      trust: best?.trust ?? classifyTrust(0, 0),
       interviewDone: false, assessed: !!s.assessed, hasAccount: !!s.user_id,
+      attempts, assessedAt: best ? (best.completed_at || "").slice(0, 10) : undefined,
     };
   });
 
@@ -160,6 +180,12 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
 
   return {
     schoolId,
+    schoolName: (schoolRes.data?.name as string) ?? "",
+    schoolCity: (schoolRes.data?.city as string) ?? "",
+    schoolStage: (schoolRes.data?.stage as string) ?? "الثانوية",
+    schoolAddress: (schoolRes.data?.address as string) ?? "",
+    schoolEmail: (schoolRes.data?.email as string) ?? "",
+    schoolPhone: (schoolRes.data?.phone as string) ?? "",
     tenantCode: (schoolRes.data?.tenant_code as string) ?? null,
     mode: (schoolRes.data?.operating_mode as OperatingMode) || "B",
     hybrid: !!schoolRes.data?.hybrid,
@@ -186,13 +212,13 @@ export interface CentralSeed {
 }
 
 const statusNote: Record<PlatformSchool["status"], string> = {
-  active: "نشطة", onboarding: "قيد الانضمام", frozen: "مُجمّدة",
+  active: "نشطة", onboarding: "قيد الانضمام", frozen: "مُجمّدة (معلّقة)", deleted: "محذوفة",
 };
 
 // جلب بيانات كل المنصة للمدير المركزي (يحترم RLS: is_central_admin)
 export async function fetchCentralSeed(): Promise<CentralSeed> {
   const [schoolsRes, subsRes, studentsRes, appealsRes] = await Promise.all([
-    supabase.from("schools").select("id,name,city,status"),
+    supabase.from("schools").select("id,name,city,stage,address,email,phone,status").neq("status", "deleted"),
     supabase.from("subscriptions").select("school_id,plan,active"),
     supabase.from("students").select("id,school_id,assessed"),
     supabase.from("appeals").select("*").order("days_elapsed", { ascending: false }),
@@ -212,6 +238,7 @@ export async function fetchCentralSeed(): Promise<CentralSeed> {
     const st = (["active", "onboarding", "frozen"].includes(s.status) ? s.status : "active") as PlatformSchool["status"];
     return {
       id: s.id, name: s.name, city: s.city || "—",
+      stage: s.stage || "الثانوية", address: s.address || "", email: s.email || "", phone: s.phone || "",
       students: countBySchool[s.id] || 0,
       plan: subBySchool[s.id]?.plan || "—",
       status: st, note: statusNote[st],

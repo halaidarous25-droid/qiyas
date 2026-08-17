@@ -21,6 +21,20 @@ export type AxisKey = (typeof AXES)[number]["key"];
 
 export type AxisScores = Record<AxisKey, number>; // 0..100
 
+// محاولة اختبار واحدة (لعرض تاريخ المحاولات والفروقات)
+export interface Attempt {
+  id: string;
+  date: string;            // YYYY-MM-DD
+  competency: number;
+  behavior: number;
+  axes: AxisScores;
+  contradiction: number;
+  socialDesirability: number;
+  trust: Trust;
+  composite: number;       // مؤشر مركّب = (الكفاية+السلوك)/2
+  best: boolean;           // هل هي الأفضل؟
+}
+
 export interface Candidate {
   id: string;
   name: string;
@@ -39,6 +53,8 @@ export interface Candidate {
   assessed: boolean;   // هل أدّى المقياس؟ (المضافون حديثًا: false)
   hasAccount?: boolean; // هل يملك حساب دخول مرتبط؟
   note?: string;
+  attempts?: Attempt[];   // كل محاولات الطالب (الأحدث أولًا)
+  assessedAt?: string;    // تاريخ المحاولة الأفضل
 }
 
 export interface Mission {
@@ -313,7 +329,8 @@ export const GOV_LEVELS = [
 // ===== طبقة المنصة المركزية =====
 export interface PlatformSchool {
   id: string; name: string; city: string; students: number;
-  plan: string; status: "active" | "frozen" | "onboarding"; note: string;
+  plan: string; status: "active" | "frozen" | "onboarding" | "deleted"; note: string;
+  stage?: string; address?: string; email?: string; phone?: string;
 }
 export const PLATFORM_SCHOOLS: PlatformSchool[] = [
   { id:"s1", name:"ثانوية الملك عبدالعزيز", city:"الرياض", students:214, plan:"المتوسطة", status:"active", note:"نشطة" },
@@ -324,7 +341,8 @@ export const PLATFORM_SCHOOLS: PlatformSchool[] = [
 export const SCHOOL_STATUS: Record<PlatformSchool["status"], { label: string; tone: string }> = {
   active: { label:"نشطة", tone:"success" },
   onboarding: { label:"قيد الانضمام", tone:"info" },
-  frozen: { label:"مُجمّدة", tone:"warning" },
+  frozen: { label:"مُعلّقة", tone:"warning" },
+  deleted: { label:"محذوفة", tone:"danger" },
 };
 export const PLATFORM_KPI = {
   schools: 4, active: 2, disputesOpen: 3,

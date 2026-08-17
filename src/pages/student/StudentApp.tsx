@@ -16,7 +16,7 @@ import {
 type View = "home" | "test" | "report";
 
 export function StudentApp() {
-  const { mode, missions, me, meAssessed, applyToMission, completeAssessment, requestRetake, studentMissionsFor, isMeIn, isMeAssigned, toast } = useSlis();
+  const { mode, missions, me, meAssessed, applyToMission, completeAssessment, requestRetake, studentMissionsFor, isMeIn, isMeAssigned, toast, schoolInfo } = useSlis();
   const [view, setView] = useState<View>("home");
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [pendingApply, setPendingApply] = useState<string | null>(null);
@@ -232,7 +232,7 @@ export function StudentApp() {
 
       {showReport && me && (
         <StudentReport student={me} missions={studentMissionsFor(me.id)}
-          schoolName="مدرستي" today={today} onClose={() => setShowReport(false)} />
+          schoolName={schoolInfo.name || "مدرستي"} today={today} onClose={() => setShowReport(false)} />
       )}
     </div>
   );

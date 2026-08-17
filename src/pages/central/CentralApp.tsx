@@ -13,6 +13,7 @@ import { useSlis } from "@/store";
 import {
   Building2, ShieldCheck, Scale, TrendingUp, School, CheckCircle2,
   Server, ListChecks, Globe, ClipboardCheck, Gavel, Hourglass, Pencil, X,
+  PauseCircle, Trash2, AlertTriangle,
 } from "lucide-react";
 
 function Kpi({ icon: Icon, label, value, sub, tone }:
@@ -35,18 +36,20 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 
 const pctText = (v: number | null) => (v === null ? "—" : `${v}%`);
 
-export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus, onUpdateSchool }: {
+export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus, onUpdateSchool, onDeleteSchool }: {
   data?: CentralSeed;
   userName?: string;
   onResolveAppeal?: (id: string) => void;
   onReviewAppeal?: (id: string) => void;
   onSetSchoolStatus?: (schoolId: string, status: string) => void;
-  onUpdateSchool?: (schoolId: string, patch: { name?: string; city?: string }) => void;
+  onUpdateSchool?: (schoolId: string, patch: { name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string }) => void;
+  onDeleteSchool?: (schoolId: string) => void;
 } = {}) {
   const { toast } = useSlis();
   const live = !!data;
   const [view, setView] = useState<"dashboard" | "questions" | "permissions">("dashboard");
   const [editSchool, setEditSchool] = useState<PlatformSchool | null>(null);
+  const [confirmDel, setConfirmDel] = useState<PlatformSchool | null>(null);
 
   // البيانات: حيّة إن توفّرت، وإلا الوضع التجريبي
   const schools: PlatformSchool[] = live ? data!.schools : PLATFORM_SCHOOLS;
@@ -148,6 +151,27 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
                             className="inline-flex items-center gap-1 rounded-md border border-danger/40 text-danger px-2.5 h-7 text-[11px] font-semibold hover:bg-danger/10">
                             رفض
                           </button>
+                        </div>
+                      ) : (onSetSchoolStatus || onDeleteSchool) ? (
+                        <div className="mt-1.5 flex justify-end gap-1.5">
+                          {onSetSchoolStatus && (s.status === "frozen" ? (
+                            <button onClick={() => onSetSchoolStatus(s.id, "active")}
+                              className="inline-flex items-center gap-1 rounded-md bg-success px-2.5 h-7 text-[11px] font-semibold text-white hover:opacity-90">
+                              <CheckCircle2 className="h-3 w-3" /> تفعيل
+                            </button>
+                          ) : (
+                            <button onClick={() => onSetSchoolStatus(s.id, "frozen")}
+                              title="تعليق حساب المدرسة مؤقتًا"
+                              className="inline-flex items-center gap-1 rounded-md border px-2.5 h-7 text-[11px] font-semibold text-amber-700 border-amber-300 hover:bg-amber-50">
+                              <PauseCircle className="h-3 w-3" /> تعليق
+                            </button>
+                          ))}
+                          {onDeleteSchool && (
+                            <button onClick={() => setConfirmDel(s)} title="حذف المدرسة"
+                              className="inline-flex items-center gap-1 rounded-md border border-danger/40 text-danger px-2.5 h-7 text-[11px] font-semibold hover:bg-danger/10">
+                              <Trash2 className="h-3 w-3" /> حذف
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <div className="mt-1 text-[11px] text-muted-foreground">{s.note}</div>
@@ -252,6 +276,25 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
           onSave={(patch) => { onUpdateSchool(editSchool.id, patch); setEditSchool(null); }}
         />
       )}
+
+      {confirmDel && onDeleteSchool && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setConfirmDel(null)}>
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"><AlertTriangle className="h-6 w-6" /></div>
+            <h3 className="mt-3 font-display text-lg font-extrabold">حذف المدرسة</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              سيتم حذف «{confirmDel.name}» وإخفاؤها من المنصة. لن يستطيع منسوبوها الدخول. يمكن استرجاعها لاحقًا من قاعدة البيانات.
+            </p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setConfirmDel(null)} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+              <button onClick={() => { onDeleteSchool(confirmDel.id); setConfirmDel(null); }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-5 h-10 text-sm font-semibold text-white hover:opacity-90">
+                <Trash2 className="h-4 w-4" /> تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -259,21 +302,25 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
 function SchoolEditModal({ school, onClose, onSave }: {
   school: PlatformSchool;
   onClose: () => void;
-  onSave: (patch: { name?: string; city?: string }) => void;
+  onSave: (patch: { name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string }) => void;
 }) {
   const [name, setName] = useState(school.name);
-  const [city, setCity] = useState(school.city);
+  const [city, setCity] = useState(school.city === "—" ? "" : school.city);
+  const [stage, setStage] = useState(school.stage || "الثانوية");
+  const [address, setAddress] = useState(school.address || "");
+  const [email, setEmail] = useState(school.email || "");
+  const [phone, setPhone] = useState(school.phone || "");
   const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
-  const changed = name.trim() !== school.name || city.trim() !== school.city;
+  const STAGES = ["الابتدائية", "المتوسطة", "الثانوية"];
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-extrabold">تعديل معلومات المدرسة</h3>
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><X className="h-4 w-4" /></button>
         </div>
-        <div className="space-y-3">
-          <div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم المدرسة</label>
             <input className={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم المدرسة" />
           </div>
@@ -281,12 +328,30 @@ function SchoolEditModal({ school, onClose, onSave }: {
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">المدينة</label>
             <input className={inp} value={city} onChange={(e) => setCity(e.target.value)} placeholder="المدينة" />
           </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">المرحلة</label>
+            <select className={inp} value={stage} onChange={(e) => setStage(e.target.value)}>
+              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">العنوان التفصيلي</label>
+            <input className={inp} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="الحي، الشارع…" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">البريد الإلكتروني</label>
+            <input className={inp} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="school@example.com" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted-foreground">رقم التواصل</label>
+            <input className={inp} dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05xxxxxxxx" />
+          </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
           <button
-            disabled={!changed || name.trim().length < 2}
-            onClick={() => onSave({ name: name.trim(), city: city.trim() })}
+            disabled={name.trim().length < 2}
+            onClick={() => onSave({ name: name.trim(), city: city.trim(), stage, address: address.trim(), email: email.trim(), phone: phone.trim() })}
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
             حفظ التعديلات
           </button>

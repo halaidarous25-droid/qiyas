@@ -54,7 +54,7 @@ export function SchoolAdmin() {
         ))}
       </div>
 
-      {tab === "info" && <SchoolInfo studentsN={students.length} classesN={classes.length} teachersN={teachers.length} mode={mode} />}
+      {tab === "info" && <SchoolInfo studentsN={students.length} classesN={classes.length} teachersN={teachers.length} mode={mode} live={live} />}
       {tab === "classes" && <ClassesTab classes={classes} teachers={teachers} onAdd={addClass} />}
       {tab === "teachers" && <TeachersTab teachers={teachers} onAdd={addTeacher} />}
       {tab === "students" && <StudentsTab students={students} classes={classes} onAdd={addStudent} onBulk={bulkAddStudents} />}
@@ -63,20 +63,42 @@ export function SchoolAdmin() {
   );
 }
 
-function SchoolInfo({ studentsN, classesN, teachersN, mode }:
-  { studentsN: number; classesN: number; teachersN: number; mode: string }) {
+function SchoolInfo({ studentsN, classesN, teachersN, mode, live }:
+  { studentsN: number; classesN: number; teachersN: number; mode: string; live: boolean }) {
+  const { schoolInfo, updateSchoolInfo, tenantCode } = useSlis();
+  const [name, setName] = useState(schoolInfo.name || (live ? "" : SCHOOL.name));
+  const [city, setCity] = useState(schoolInfo.city || (live ? "" : "الرياض"));
+  const [stage, setStage] = useState(schoolInfo.stage || "الثانوية");
+  const [address, setAddress] = useState(schoolInfo.address || "");
+  const [email, setEmail] = useState(schoolInfo.email || "");
+  const [phone, setPhone] = useState(schoolInfo.phone || "");
+  const STAGES = ["الابتدائية", "المتوسطة", "الثانوية"];
+  const dirty = name.trim() !== schoolInfo.name || city.trim() !== schoolInfo.city || stage !== schoolInfo.stage
+    || address.trim() !== schoolInfo.address || email.trim() !== schoolInfo.email || phone.trim() !== schoolInfo.phone;
+  const save = () => updateSchoolInfo({ name: name.trim(), city: city.trim(), stage, address: address.trim(), email: email.trim(), phone: phone.trim() });
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="lg:col-span-2 rounded-xl border bg-card p-5">
         <div className="mb-4 flex items-center gap-2"><School className="h-[18px] w-[18px] text-brand" />
           <h2 className="font-display font-bold">بيانات المدرسة</h2></div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="اسم المدرسة"><input className={inputCls} defaultValue={SCHOOL.name} /></Field>
-          <Field label="المدينة"><input className={inputCls} defaultValue="الرياض" /></Field>
-          <Field label="المرحلة"><input className={inputCls} defaultValue="الثانوية" /></Field>
-          <Field label="مُعرّف المدرسة (Tenant)"><input className={inputCls} defaultValue={SCHOOL.tenant} disabled /></Field>
+          <Field label="اسم المدرسة"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="المدينة"><input className={inputCls} value={city} onChange={(e) => setCity(e.target.value)} /></Field>
+          <Field label="المرحلة">
+            <select className={inputCls} value={stage} onChange={(e) => setStage(e.target.value)}>
+              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="مُعرّف المدرسة (Tenant)"><input className={inputCls} value={tenantCode || SCHOOL.tenant} disabled /></Field>
+          <Field label="البريد الإلكتروني"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="school@example.com" /></Field>
+          <Field label="رقم التواصل"><input className={inputCls} dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05xxxxxxxx" /></Field>
+          <div className="sm:col-span-2">
+            <Field label="العنوان التفصيلي"><input className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="الحي، الشارع…" /></Field>
+          </div>
         </div>
-        <button className="mt-4 rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90">حفظ البيانات</button>
+        <button onClick={save} disabled={!live || !dirty || name.trim().length < 2}
+          className="mt-4 rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">حفظ البيانات</button>
+        {!live && <p className="mt-2 text-[11px] text-muted-foreground">حفظ البيانات متاح عند الدخول بحساب مدرسة حقيقي.</p>}
       </div>
       <div className="space-y-4">
         <div className="rounded-xl border bg-card p-5">
