@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
   CheckCircle2, CircleUser, Trophy, ClipboardList, Plus, X, Save, Flag,
-  XCircle, Pencil, UserPlus,
+  XCircle, Pencil, UserPlus, Trash2,
 } from "lucide-react";
 import type { DevPlan } from "@/lib/live";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
@@ -29,9 +29,15 @@ function WeightBar({ m }: { m: Mission }) {
   );
 }
 
-function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onOpenStudent }:
+const APP_STATUS: { k: string; l: string }[] = [
+  { k: "applied", l: "متقدّم" }, { k: "nominated", l: "مرشّح" },
+  { k: "assigned", l: "معتمَد" }, { k: "rejected", l: "مرفوض" },
+];
+
+function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onRemove, onSetStatus, onOpenStudent }:
   { c: Candidate; rank: number; mission: Mission; assigned: boolean;
-    onAssign: () => void; onUnassign: () => void; onOpenStudent: () => void }) {
+    onAssign: () => void; onUnassign: () => void; onRemove: () => void;
+    onSetStatus: (s: string) => void; onOpenStudent: () => void }) {
   const [open, setOpen] = useState(rank === 1);
   const trust = TRUST_META[c.trust];
   const isSeat = rank <= mission.seats;
@@ -156,6 +162,18 @@ function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onOpen
                   عرض الملف
                 </button>
               </div>
+              {/* أدوات المشرف: تغيير الحالة + حذف */}
+              <div className="flex items-center gap-2 border-t pt-2">
+                <span className="text-[11px] text-muted-foreground">الحالة</span>
+                <select value={assigned ? "assigned" : "nominated"} onChange={(e) => onSetStatus(e.target.value)}
+                  className="rounded-lg border bg-background px-2 h-8 text-xs">
+                  {APP_STATUS.map((s) => <option key={s.k} value={s.k}>{s.l}</option>)}
+                </select>
+                <button onClick={onRemove} title="حذف من المهمة"
+                  className="mr-auto inline-flex items-center gap-1 rounded-lg border border-danger/40 text-danger px-2.5 h-8 text-xs font-semibold hover:bg-danger/10">
+                  <Trash2 className="h-3.5 w-3.5" /> حذف
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -250,7 +268,7 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, rankMission, students } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, removeCandidate, setCandidateStatus, rankMission, students } = useSlis();
   const m = missions.find((x) => x.id === missionId)!;
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
@@ -332,6 +350,8 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
               assigned={assignedIds.includes(c.id)}
               onAssign={() => assignCandidate(m.id, c.id, c.name)}
               onUnassign={() => unassignCandidate(m.id, c.id, c.name)}
+              onRemove={() => removeCandidate(m.id, c.id, c.name)}
+              onSetStatus={(s) => setCandidateStatus(m.id, c.id, s)}
               onOpenStudent={() => onOpenStudent(c.id)} />
           ))}
         </div>

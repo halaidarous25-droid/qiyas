@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { QUESTIONS, SECTION_META, FREQ_LABELS } from "@/data/questions";
+import { useState, useMemo } from "react";
+import { QUESTIONS, SECTION_META, FREQ_LABELS, type Item } from "@/data/questions";
+import { POOL } from "@/data/questionPool";
+import { AXES } from "@/data/mock";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { type Answers } from "@/lib/scoring";
@@ -7,15 +9,37 @@ import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export const FREQ = FREQ_LABELS;
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let k = a.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    [a[k], a[j]] = [a[j], a[k]];
+  }
+  return a;
+}
+
+// يبني مجموعة الاختبار: ١٥ سيناريو عشوائي من المستودع (٣ لكل محور) + البنود المساندة الثابتة = ٣٥
+function buildQuestionSet(): Item[] {
+  const scenarios: Item[] = [];
+  AXES.forEach((a) => {
+    const pool = POOL.filter((q) => q.axis === a.key);
+    scenarios.push(...shuffle(pool).slice(0, 3));
+  });
+  const support = QUESTIONS.filter((q) => q.type !== "scenario"); // موازية/مواقف/فخاخ/مؤشرات
+  // إعادة ترقيم تسلسلي لِما يراه الطالب
+  return [...shuffle(scenarios), ...support].map((q, idx) => ({ ...q, n: idx + 1 }));
+}
+
 export function Assessment({ onFinish, onExit }:
   { onFinish: (a: Answers) => void; onExit: () => void }) {
+  const questions = useMemo(() => buildQuestionSet(), []);
   const [i, setI] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
-  const q = QUESTIONS[i];
-  const total = QUESTIONS.length;
+  const q = questions[i];
+  const total = questions.length;
   const progress = Math.round(((i) / total) * 100);
   const answered = answers[q.id] !== undefined;
-  const showSectionIntro = i === 0 || QUESTIONS[i - 1].section !== q.section;
+  const showSectionIntro = i === 0 || questions[i - 1].section !== q.section;
 
   const set = (val: number | boolean) => setAnswers((a) => ({ ...a, [q.id]: val }));
   const next = () => { if (i + 1 < total) setI(i + 1); else onFinish(answers); };

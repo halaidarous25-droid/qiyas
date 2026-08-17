@@ -4,6 +4,7 @@ import { useSlis } from "@/store";
 import { fetchQuestionBank, type QItem } from "@/lib/live";
 import { dbAddQuestion, dbSetQuestionActive, dbDeleteQuestion, dbUpdateQuestionOptions } from "@/lib/api";
 import { QUESTIONS } from "@/data/questions";
+import { POOL } from "@/data/questionPool";
 import { cn } from "@/lib/utils";
 import {
   ListChecks, Plus, Trash2, Loader2, BookOpen, Building2,
@@ -188,13 +189,18 @@ export function QuestionsBank() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  // الوضع التجريبي: عرض الأسئلة المحلّية للقراءة فقط
-  const demoBase: QItem[] = QUESTIONS.map((q) => ({
+  // مستودع الأسئلة الأساسي: الأساسية + المستودع الموسّع (١٠٠ سؤال) — يُختار منها ٣٥ عشوائيًا لكل اختبار
+  const poolItems: QItem[] = POOL.map((q) => ({
     id: q.id, schoolId: null, seq: q.n, type: q.type, axis: q.axis ?? null,
-    section: q.section, role: q.role ?? null, text: q.text, options: q.options ?? [], active: true,
+    section: q.section ?? null, role: q.role ?? null, text: q.text, options: q.options ?? [], active: true,
   }));
-
-  const base = live ? (bank?.global ?? []) : demoBase;
+  const coreItems: QItem[] = live
+    ? (bank?.global ?? [])
+    : QUESTIONS.map((q) => ({
+        id: q.id, schoolId: null, seq: q.n, type: q.type, axis: q.axis ?? null,
+        section: q.section, role: q.role ?? null, text: q.text, options: q.options ?? [], active: true,
+      }));
+  const base = [...coreItems, ...poolItems];
   const extra = live ? (bank?.school ?? []) : [];
 
   const addQuestion = async (q: any) => {
@@ -232,7 +238,7 @@ export function QuestionsBank() {
         <div>
           <h1 className="font-display text-2xl font-extrabold">مستودع الأسئلة</h1>
           <p className="text-sm text-muted-foreground">
-            الأسئلة الأساسية مشتركة لكل المدارس، ويمكن لمدرستك إضافة أسئلة خاصة بها وتفعيلها أو إيقافها.
+            المستودع يضم أكثر من ١٠٠ سؤال، ويُختار منها ٣٥ سؤالًا عشوائيًا في كل اختبار حتى لا تتكرّر الأسئلة. ويمكن لمدرستك إضافة أسئلة خاصة بها.
           </p>
         </div>
         {live && (

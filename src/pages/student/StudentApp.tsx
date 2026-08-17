@@ -5,6 +5,7 @@ import { Report } from "./Report";
 import { scoreAssessment, type Answers, type AssessmentResult } from "@/lib/scoring";
 import { QUESTIONS } from "@/data/questions";
 import { AXES } from "@/data/mock";
+import { StudentReport } from "@/pages/reports/ReportView";
 import { useSlis } from "@/store";
 import { cn } from "@/lib/utils";
 import {
@@ -15,10 +16,12 @@ import {
 type View = "home" | "test" | "report";
 
 export function StudentApp() {
-  const { mode, missions, me, meAssessed, applyToMission, completeAssessment, requestRetake, isMeIn, isMeAssigned, toast } = useSlis();
+  const { mode, missions, me, meAssessed, applyToMission, completeAssessment, requestRetake, studentMissionsFor, isMeIn, isMeAssigned, toast } = useSlis();
   const [view, setView] = useState<View>("home");
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [pendingApply, setPendingApply] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
 
   const openMissions = missions.filter((m) => ["open", "screening", "trial"].includes(m.status));
   const myMissions = missions.filter((m) => isMeIn(m.id));
@@ -97,7 +100,11 @@ export function StudentApp() {
         {meAssessed && me && (
           <div className="rounded-2xl border bg-card p-5">
             <div className="mb-3 flex items-center gap-2"><Award className="h-[18px] w-[18px] text-gold" />
-              <h2 className="font-display font-bold">نتيجتي القيادية المحفوظة</h2></div>
+              <h2 className="font-display font-bold">نتيجتي القيادية المحفوظة</h2>
+              <button onClick={() => setShowReport(true)}
+                className="mr-auto inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+                <ClipboardCheck className="h-4 w-4" /> عرض التقرير / تحميل
+              </button></div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex gap-3">
                 <div className="flex-1 rounded-xl border p-3 text-center">
@@ -222,6 +229,11 @@ export function StudentApp() {
           ))}
         </div>
       </main>
+
+      {showReport && me && (
+        <StudentReport student={me} missions={studentMissionsFor(me.id)}
+          schoolName="مدرستي" today={today} onClose={() => setShowReport(false)} />
+      )}
     </div>
   );
 }

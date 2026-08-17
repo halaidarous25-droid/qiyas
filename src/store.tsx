@@ -44,6 +44,8 @@ interface Store {
   assignCandidate: (missionId: string, candId: string, name: string) => void;
   unassignCandidate: (missionId: string, candId: string, name: string) => void;
   nominateStudent: (missionId: string, candId: string, name: string) => void;
+  removeCandidate: (missionId: string, candId: string, name: string) => void;
+  setCandidateStatus: (missionId: string, candId: string, status: string) => void;
   updateMission: (missionId: string, patch: { title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode; weights?: AxisScores; status?: string }) => void;
   requestRetake: () => void;
   devPlans: Record<string, DevPlan>;
@@ -205,6 +207,33 @@ export function SlisProvider({ children, seed, live, meStudentId }:
       return { ...m, candidateIds: [...m.candidateIds, candId], applicants: m.applicants + 1 };
     }));
     toast(`رُشِّح ${name} للمهمة`);
+  };
+
+  const removeCandidate: Store["removeCandidate"] = (missionId, candId, name) => {
+    if (isLive && schoolId) {
+      api.dbRemoveApplication(missionId, candId)
+        .then(() => resync())
+        .then(() => toast(`حُذف ${name} من المهمة`, "info"))
+        .catch((e) => toast(`تعذّر الحذف: ${e.message || e}`, "danger"));
+      return;
+    }
+    setMissions((list) => list.map((m) => m.id === missionId
+      ? { ...m, candidateIds: m.candidateIds.filter((x) => x !== candId), applicants: Math.max(0, m.applicants - 1) } : m));
+    setAssigned((a) => ({ ...a, [missionId]: (a[missionId] || []).filter((x) => x !== candId) }));
+    toast(`حُذف ${name} من المهمة`, "info");
+  };
+
+  const setCandidateStatus: Store["setCandidateStatus"] = (missionId, candId, status) => {
+    if (isLive && schoolId) {
+      api.dbSetApplicationStatus(missionId, candId, status)
+        .then(() => resync())
+        .then(() => toast("حُدّثت حالة المرشّح"))
+        .catch((e) => toast(`تعذّر التحديث: ${e.message || e}`, "danger"));
+      return;
+    }
+    if (status === "assigned") setAssigned((a) => ({ ...a, [missionId]: [...new Set([...(a[missionId] || []), candId])] }));
+    else setAssigned((a) => ({ ...a, [missionId]: (a[missionId] || []).filter((x) => x !== candId) }));
+    toast("حُدّثت حالة المرشّح");
   };
 
   const updateMission: Store["updateMission"] = (missionId, patch) => {
@@ -417,7 +446,8 @@ export function SlisProvider({ children, seed, live, meStudentId }:
     <Ctx.Provider value={{
       live: isLive, schoolId,
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
-      toast, dismissToast, addMission, assignCandidate, unassignCandidate, nominateStudent, updateMission, requestRetake,
+      toast, dismissToast, addMission, assignCandidate, unassignCandidate, nominateStudent,
+      removeCandidate, setCandidateStatus, updateMission, requestRetake,
       devPlans, saveDevPlan, resolveIndReq, saveSettings,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,

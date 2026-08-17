@@ -86,6 +86,20 @@ export async function dbUpdateMission(missionId: string, patch: {
   if (error) throw error;
 }
 
+// حذف مرشّح من المهمة نهائيًا
+export async function dbRemoveApplication(missionId: string, studentId: string) {
+  const { error } = await supabase.from("mission_applications")
+    .delete().eq("mission_id", missionId).eq("student_id", studentId);
+  if (error) throw error;
+}
+
+// تغيير حالة مرشّح (applied | nominated | assigned | rejected)
+export async function dbSetApplicationStatus(missionId: string, studentId: string, status: string) {
+  const { error } = await supabase.from("mission_applications")
+    .update({ status }).eq("mission_id", missionId).eq("student_id", studentId);
+  if (error) throw error;
+}
+
 // إلغاء اعتماد مرشّح (إرجاعه لحالة مُرشَّح)
 export async function dbUnassign(missionId: string, studentId: string) {
   const a = await supabase.from("mission_applications")
