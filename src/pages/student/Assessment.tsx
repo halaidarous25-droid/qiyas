@@ -1,13 +1,14 @@
 import { useState, useMemo } from "react";
 import { QUESTIONS, SECTION_META, FREQ_LABELS, type Item } from "@/data/questions";
-import { POOL } from "@/data/questionPool";
-import { AXES } from "@/data/mock";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { type Answers } from "@/lib/scoring";
 import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export const FREQ = FREQ_LABELS;
+
+// عنصر مبنيّ للعرض: قد يحمل خريطة تُعيد ترتيب الخيارات إلى مواضعها الأصلية للتصحيح
+type Built = Item & { _map?: number[] };
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -18,16 +19,24 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// يبني مجموعة الاختبار: ١٥ سيناريو عشوائي من المستودع (٣ لكل محور) + البنود المساندة الثابتة = ٣٥
-function buildQuestionSet(): Item[] {
-  const scenarios: Item[] = [];
-  AXES.forEach((a) => {
-    const pool = POOL.filter((q) => q.axis === a.key);
-    scenarios.push(...shuffle(pool).slice(0, 3));
-  });
-  const support = QUESTIONS.filter((q) => q.type !== "scenario"); // موازية/مواقف/فخاخ/مؤشرات
-  // إعادة ترقيم تسلسلي لِما يراه الطالب
-  return [...shuffle(scenarios), ...support].map((q, idx) => ({ ...q, n: idx + 1 }));
+// خلط مواضع خيارات السيناريو/الموقف/المؤشر مع حفظ الفهرس الأصلي (_map) للتصحيح الصحيح
+function shuffleOptions(it: Item): Built {
+  const canShuffle = (it.type === "scenario" || it.type === "situation" || it.type === "indicator") && it.options.length > 1;
+  if (!canShuffle) return it;
+  const order = shuffle(it.options.map((_, i) => i));
+  return { ...it, options: order.map((i) => it.options[i]), _map: order };
+}
+
+// يبني الاختبار المعتمد (35 عنصرًا):
+// القسم الأول ثابت الترتيب (اقتران البنود الموازية والفخاخ)، والقسمان الثاني والثالث
+// يُدوَّر ترتيبهما، وتُخلط مواضع الخيارات في كل محاولة — تنويع آمن لا يكسر القياس.
+function buildQuestionSet(): Built[] {
+  const sec1 = QUESTIONS.filter((q) => q.section === 1);            // ثابت (25)
+  const sec2 = shuffle(QUESTIONS.filter((q) => q.section === 2));   // مواقف (6) — مُدوّرة
+  const sec3 = shuffle(QUESTIONS.filter((q) => q.section === 3));   // مؤشرات (4) — مُدوّرة
+  return [...sec1, ...sec2, ...sec3]
+    .map(shuffleOptions)
+    .map((q, idx) => ({ ...q, n: idx + 1 }));
 }
 
 export function Assessment({ onFinish, onExit }:
@@ -71,15 +80,16 @@ export function Assessment({ onFinish, onExit }:
         <div className="mt-5 space-y-2.5">
           {/* سيناريو / موقف / مؤشر */}
           {(q.type === "scenario" || q.type === "situation" || q.type === "indicator") &&
-            q.options.map((o, idx) => {
-              const sel = answers[q.id] === idx;
+            q.options.map((o, di) => {
+              const orig = q._map ? q._map[di] : di;   // الفهرس الأصلي للخيار (للتصحيح)
+              const sel = answers[q.id] === orig;
               return (
-                <button key={idx} onClick={() => set(idx)}
+                <button key={di} onClick={() => set(orig)}
                   className={cn("flex w-full items-center gap-3 rounded-xl border p-3.5 text-right text-[15px] transition-all",
                     sel ? "border-brand bg-brand/6 ring-1 ring-brand" : "hover:border-brand/40 hover:bg-accent/50")}>
                   <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs font-bold",
                     sel ? "border-brand bg-brand text-white" : "text-muted-foreground")}>
-                    {["أ","ب","ج","د"][idx]}
+                    {["أ","ب","ج","د"][di]}
                   </span>
                   <span className="flex-1">{o.text}</span>
                   {sel && <CheckCircle2 className="h-5 w-5 text-brand" />}
