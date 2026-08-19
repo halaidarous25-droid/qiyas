@@ -3,7 +3,8 @@ import { Pill } from "@/components/common";
 import { En } from "@/components/common";
 import { fetchGlobalQuestions, type QItem } from "@/lib/live";
 import { dbAddGlobalQuestion, dbSetQuestionActive, dbDeleteQuestion, dbUpdateQuestionOptions } from "@/lib/api";
-import { POOL } from "@/data/questionPool";
+import { QUESTIONS } from "@/data/questions";
+import { BANK_B } from "@/data/questionBankB";
 import { cn } from "@/lib/utils";
 import {
   ListChecks, Plus, Trash2, Loader2, ShieldCheck, ToggleLeft, ToggleRight,
@@ -131,10 +132,12 @@ function AddForm({ onAdd, onClose, busy }: { onAdd: (q: any) => void; onClose: (
 export function CentralQuestions() {
   const [globals, setGlobals] = useState<QItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"base" | "pool">("base");
+  const [tab, setTab] = useState<"bank" | "base">("bank");
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [axisF, setAxisF] = useState<string>("all");
+  const [typeF, setTypeF] = useState<string>("all");
 
   const load = async () => {
     try { setGlobals(await fetchGlobalQuestions()); } catch { /* */ } finally { setLoading(false); }
@@ -143,10 +146,13 @@ export function CentralQuestions() {
 
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(null), 2500); };
 
-  const poolItems: QItem[] = POOL.map((q) => ({
-    id: q.id, schoolId: null, seq: q.n, type: q.type, axis: q.axis ?? null,
+  // البنك المعتمد الفعلي المستخدَم في الاختبار: النموذج أ + النموذج ب (١٣٥ بندًا)
+  const bankAll: QItem[] = [...QUESTIONS, ...BANK_B].map((q, i) => ({
+    id: q.id, schoolId: null, seq: i + 1, type: q.type, axis: q.axis ?? null,
     section: q.section ?? null, role: q.role ?? null, text: q.text, options: q.options ?? [], active: true,
   }));
+  const bankItems = bankAll.filter((q) =>
+    (axisF === "all" || q.axis === axisF) && (typeF === "all" || q.type === typeF));
 
   const add = async (q: any) => {
     setBusy(true);
@@ -175,11 +181,11 @@ export function CentralQuestions() {
       {msg && <div className="rounded-lg border border-brand/30 bg-brand/5 px-4 py-2 text-sm text-brand">{msg}</div>}
 
       <div className="flex gap-2">
-        <button onClick={() => setTab("base")} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold", tab === "base" ? "bg-brand text-white" : "hover:bg-accent")}>
-          <ListChecks className="h-4 w-4" /> الأساسية القابلة للإدارة <span className="opacity-80"><En>{globals.length}</En></span>
+        <button onClick={() => setTab("bank")} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold", tab === "bank" ? "bg-brand text-white" : "hover:bg-accent")}>
+          <BookOpen className="h-4 w-4" /> البنك المعتمد (أ + ب) <span className="opacity-80"><En>{bankAll.length}</En></span>
         </button>
-        <button onClick={() => setTab("pool")} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold", tab === "pool" ? "bg-brand text-white" : "hover:bg-accent")}>
-          <BookOpen className="h-4 w-4" /> المستودع الموسّع <span className="opacity-80"><En>{poolItems.length}</En></span>
+        <button onClick={() => setTab("base")} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold", tab === "base" ? "bg-brand text-white" : "hover:bg-accent")}>
+          <ListChecks className="h-4 w-4" /> أسئلة مضافة (قاعدة البيانات) <span className="opacity-80"><En>{globals.length}</En></span>
         </button>
       </div>
 
@@ -188,13 +194,45 @@ export function CentralQuestions() {
       ) : tab === "base" ? (
         <div className="grid gap-3 lg:grid-cols-2">
           {globals.map((q) => <Card key={q.id} q={q} editable onToggle={toggle} onDelete={del} onSaveOptions={saveOpts} />)}
-          {globals.length === 0 && <div className="lg:col-span-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">لا أسئلة عامة في قاعدة البيانات بعد — أضف سؤالك الأول.</div>}
+          {globals.length === 0 && <div className="lg:col-span-2 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">لا أسئلة إضافية في قاعدة البيانات بعد — أضف سؤالك الأول.</div>}
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {poolItems.map((q) => <Card key={q.id} q={q} editable={false} />)}
-        </div>
+        <>
+          {/* مرشّحات البنك */}
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3">
+            <span className="text-xs font-semibold text-muted-foreground">تصفية:</span>
+            <div className="flex flex-wrap gap-1">
+              <FilterChip label="كل الأنواع" active={typeF === "all"} onClick={() => setTypeF("all")} />
+              {Object.entries(TYPE_LABEL).map(([k, l]) => (
+                <FilterChip key={k} label={l} active={typeF === k} onClick={() => setTypeF(k)} />
+              ))}
+            </div>
+            <div className="mx-1 h-5 w-px bg-border" />
+            <div className="flex flex-wrap gap-1">
+              <FilterChip label="كل المحاور" active={axisF === "all"} onClick={() => setAxisF("all")} />
+              {AXES.map((a) => (
+                <FilterChip key={a.key} label={a.label} active={axisF === a.key} onClick={() => setAxisF(a.key)} />
+              ))}
+            </div>
+            <span className="mr-auto text-xs text-muted-foreground">المعروض: <En>{bankItems.length}</En> من <En>{bankAll.length}</En></span>
+          </div>
+          <p className="text-[12px] text-muted-foreground">
+            هذا هو البنك الفعلي المستخدَم في الاختبار (النموذج أ ٣٥ + النموذج ب ١٠٠ = ١٣٥ بندًا). يُنتقى منه ٣٥ بندًا عشوائيًا لكل طالب مع توازن المحاور وعدم التكرار المتتالي.
+          </p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {bankItems.map((q) => <Card key={q.id} q={q} editable={false} />)}
+          </div>
+        </>
       )}
     </div>
+  );
+}
+
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className={cn("rounded-full border px-3 h-7 text-xs font-semibold transition", active ? "bg-brand text-white border-brand" : "hover:bg-accent")}>
+      {label}
+    </button>
   );
 }
