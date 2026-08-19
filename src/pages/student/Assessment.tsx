@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { QUESTIONS, SECTION_META, FREQ_LABELS, type Item } from "@/data/questions";
+import { BANK_B } from "@/data/questionBankB";
+import { AXES } from "@/data/mock";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { type Answers } from "@/lib/scoring";
@@ -10,6 +12,19 @@ export const FREQ = FREQ_LABELS;
 // عنصر مبنيّ للعرض: قد يحمل خريطة تُعيد ترتيب الخيارات إلى مواضعها الأصلية للتصحيح
 type Built = Item & { _map?: number[] };
 
+// البنك الكامل = النموذج أ + النموذج ب (135 بندًا)
+const BANK: Item[] = [...QUESTIONS, ...BANK_B];
+const SCEN = BANK.filter((q) => q.type === "scenario");
+const PARA = BANK.filter((q) => q.type === "parallel");
+const TRAP = BANK.filter((q) => q.type === "trap");
+const SITU = BANK.filter((q) => q.type === "situation");
+const INTEG = BANK.filter((q) => q.type === "indicator" && q.indicator === "integrity");
+const EMOT = BANK.filter((q) => q.type === "indicator" && q.indicator === "emotional");
+
+// قالب ترتيب القسم الأول (٢٥ بندًا) — سيناريوهات مع فخاخ وبنود موازية مبثوثة بمسافات
+// s = سيناريو، t = فخّ، p = موازٍ  (١٥ سيناريو + ٥ فخاخ + ٥ موازية)
+const SEC1_TEMPLATE = ["s","s","s","t","s","s","s","p","s","t","s","p","s","s","t","s","s","p","s","s","t","s","p","p","t"];
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let k = a.length - 1; k > 0; k--) {
@@ -17,6 +32,22 @@ function shuffle<T>(arr: T[]): T[] {
     [a[k], a[j]] = [a[j], a[k]];
   }
   return a;
+}
+
+// ذاكرة آخر محاولة (لمنع تكرار الأسئلة بشكل متتالٍ) — تُحفظ محليًا إن أمكن
+const RECENT_KEY = "qiyas_recent_ids";
+function loadRecent(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(RECENT_KEY) || "[]")); } catch { return new Set(); }
+}
+function saveRecent(ids: string[]) {
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(ids)); } catch { /* تجاهل */ }
+}
+
+// يختار n عناصر عشوائيًا مع تفضيل ما لم يُستخدَم في المحاولة السابقة
+function pick<T extends Item>(pool: T[], n: number, recent: Set<string>): T[] {
+  const fresh = shuffle(pool.filter((q) => !recent.has(q.id)));
+  const used = shuffle(pool.filter((q) => recent.has(q.id)));
+  return [...fresh, ...used].slice(0, n);
 }
 
 // خلط مواضع خيارات السيناريو/الموقف/المؤشر مع حفظ الفهرس الأصلي (_map) للتصحيح الصحيح
@@ -27,16 +58,36 @@ function shuffleOptions(it: Item): Built {
   return { ...it, options: order.map((i) => it.options[i]), _map: order };
 }
 
-// يبني الاختبار المعتمد (35 عنصرًا):
-// القسم الأول ثابت الترتيب (اقتران البنود الموازية والفخاخ)، والقسمان الثاني والثالث
-// يُدوَّر ترتيبهما، وتُخلط مواضع الخيارات في كل محاولة — تنويع آمن لا يكسر القياس.
+// يبني اختبارًا معتمَدًا (٣٥ عنصرًا) بانتقاء عشوائي من البنك (١٣٥) دون الإخلال بالمعايير:
+// ١٥ سيناريو (٣ لكل محور) + ٥ موازية (واحد لكل محور) + ٥ فخاخ + ٦ مواقف + ٤ مؤشرات (٢ نزاهة + ٢ انفعالي)
+// ويُراعى عدم تكرار الأسئلة نفسها في المحاولة التالية مباشرةً.
 function buildQuestionSet(): Built[] {
-  const sec1 = QUESTIONS.filter((q) => q.section === 1);            // ثابت (25)
-  const sec2 = shuffle(QUESTIONS.filter((q) => q.section === 2));   // مواقف (6) — مُدوّرة
-  const sec3 = shuffle(QUESTIONS.filter((q) => q.section === 3));   // مؤشرات (4) — مُدوّرة
-  return [...sec1, ...sec2, ...sec3]
-    .map(shuffleOptions)
-    .map((q, idx) => ({ ...q, n: idx + 1 }));
+  const recent = loadRecent();
+
+  // سيناريوهات: ٣ لكل محور، موزّعة بالتناوب حتى لا تتجاور محاور متشابهة
+  const perAxisScen: Record<string, Item[]> = {};
+  AXES.forEach((a) => { perAxisScen[a.key] = pick(SCEN.filter((q) => q.axis === a.key), 3, recent); });
+  const scenSeq: Item[] = [];
+  for (let r = 0; r < 3; r++) for (const a of shuffle([...AXES])) scenSeq.push(perAxisScen[a.key][r]);
+
+  // موازية: واحد لكل محور
+  const paras = shuffle(AXES.map((a) => pick(PARA.filter((q) => q.axis === a.key), 1, recent)[0]).filter(Boolean));
+  const traps = pick(TRAP, 5, recent);
+
+  // تعبئة قالب القسم الأول
+  let si = 0, pi = 0, ti = 0;
+  const sec1: Item[] = SEC1_TEMPLATE.map((slot) =>
+    slot === "s" ? scenSeq[si++] : slot === "p" ? paras[pi++] : traps[ti++]
+  ).filter(Boolean);
+
+  // القسم الثاني: ٦ مواقف — والثالث: ٢ نزاهة + ٢ انفعالي
+  const sec2 = pick(SITU, 6, recent);
+  const sec3 = shuffle([...pick(INTEG, 2, recent), ...pick(EMOT, 2, recent)]);
+
+  const all = [...sec1, ...sec2, ...sec3];
+  saveRecent(all.map((q) => q.id));
+
+  return all.map(shuffleOptions).map((q, idx) => ({ ...q, n: idx + 1 }));
 }
 
 export function Assessment({ onFinish, onExit }:

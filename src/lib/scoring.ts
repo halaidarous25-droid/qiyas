@@ -1,11 +1,11 @@
 // محرك التقييم — يحوّل إجابات الطالب إلى المؤشرات التي تستهلكها المنصة
 // (الكفايات ٧٠٪ + السلوك ٣٠٪ + مؤشرات الموثوقية) وفق معادلات المستشار النفسي.
 import { QUESTIONS, type Item } from "@/data/questions";
-import { POOL } from "@/data/questionPool";
+import { BANK_B } from "@/data/questionBankB";
 import { AXES, classifyTrust, type AxisKey, type AxisScores, type Trust } from "@/data/mock";
 
-// سجل موحّد لكل الأسئلة (الأساسية + المستودع الموسّع) — يسمح بتقييم أي مجموعة معروضة
-const ALL: Item[] = [...QUESTIONS, ...POOL];
+// سجل موحّد لكل الأسئلة (النموذج أ + النموذج ب) — يسمح بتقييم أي مجموعة معروضة
+const ALL: Item[] = [...QUESTIONS, ...BANK_B];
 
 export type Answers = Record<string, number | boolean>;
 
