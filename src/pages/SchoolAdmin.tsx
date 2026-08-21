@@ -346,6 +346,8 @@ function EditTeacherModal({ t, onClose, onSave }: { t: any; onClose: () => void;
 
 function StudentsTab({ students, classes, onAdd, onBulk }:
   { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
+  const [editS, setEditS] = useState<any | null>(null);
+  const [delS, setDelS] = useState<any | null>(null);
   const [name, setName] = useState(""); const [grade, setGrade] = useState(GRADES[0]);
   const gradeClasses = classes.filter((c) => c.grade === grade);
   const [className, setClassName] = useState("");
@@ -379,7 +381,7 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
     URL.revokeObjectURL(url);
   };
 
-  const { tenantCode, toast: t2, schoolInfo } = useSlis();
+  const { tenantCode, toast: t2, schoolInfo, updateStudent, removeStudent } = useSlis();
   const assessLink = tenantCode ? `${window.location.origin}/?assess=${tenantCode}` : "";
 
   // تصدير أسماء الطلاب
@@ -469,6 +471,8 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
               {s.assessed
                 ? <Pill tone="success"><Check className="h-3 w-3" /> مُقيَّم</Pill>
                 : <Pill tone="warning"><Clock className="h-3 w-3" /> بانتظار المقياس</Pill>}
+              <button onClick={() => setEditS(s)} className="grid h-8 w-8 place-items-center rounded-md border hover:bg-accent"><Pencil className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setDelS(s)} className="grid h-8 w-8 place-items-center rounded-md border text-danger hover:bg-danger/10"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           ))}
         </div>
@@ -490,6 +494,62 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
           <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={sEmail} onChange={(e) => setSEmail(e.target.value)} placeholder="name@example.com" /></Field>
           <button onClick={submit} disabled={!nameOk || !className} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">إضافة الطالب</button>
           <p className="text-[11px] text-muted-foreground">الاسم الرباعي إلزامي. يُضاف الطالب بحالة «بانتظار المقياس». رقم الهوية يربط نتائج الرابط العام تلقائيًا.</p>
+        </div>
+      </div>
+
+      {editS && <EditStudentModal s={editS} classes={classes} onClose={() => setEditS(null)}
+        onSave={(patch) => { updateStudent(editS.id, patch); setEditS(null); }} />}
+      {delS && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={() => setDelS(null)}>
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"><Trash2 className="h-6 w-6" /></div>
+            <h3 className="mt-3 font-display text-lg font-extrabold">حذف الطالب</h3>
+            <p className="mt-1 text-sm text-muted-foreground">سيتم حذف «{delS.name}» وكل نتائجه وترشيحاته نهائيًا.</p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setDelS(null)} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+              <button onClick={() => { removeStudent(delS.id); setDelS(null); }} className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-5 h-10 text-sm font-semibold text-white hover:opacity-90"><Trash2 className="h-4 w-4" /> تأكيد الحذف</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditStudentModal({ s, classes, onClose, onSave }:
+  { s: any; classes: SchoolClass[]; onClose: () => void; onSave: (patch: any) => void }) {
+  const [name, setName] = useState(s.name || "");
+  const [grade, setGrade] = useState(s.grade || GRADES[0]);
+  const [className, setClassName] = useState(s.className || "");
+  const [natId, setNatId] = useState(s.nationalId || "");
+  const [phone, setPhone] = useState(s.phone || "");
+  const [email, setEmail] = useState(s.email || "");
+  const gradeClasses = classes.filter((c) => c.grade === grade);
+  const nameOk = name.trim().split(/\s+/).filter(Boolean).length >= 3;
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center overflow-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-lg font-extrabold">تعديل بيانات الطالب</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><span className="text-lg">×</span></button></div>
+        <div className="space-y-3">
+          <Field label="الاسم الرباعي"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+            <Field label="الفصل"><select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>
+              <option value="">اختر الفصل…</option>
+              {gradeClasses.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select></Field>
+          </div>
+          <Field label="رقم الهوية"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="رقم الجوال"><input className={inputCls} dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} /></Field>
+            <Field label="البريد"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+          <button disabled={!nameOk} onClick={() => onSave({ name: name.trim(), grade, className, nationalId: natId.trim(), email: email.trim(), phone: phone.trim() })}
+            className="rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">حفظ التعديلات</button>
         </div>
       </div>
     </div>

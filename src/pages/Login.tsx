@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { cn } from "@/lib/utils";
 import { requestPasswordReset } from "@/lib/api";
-import { Gauge, LogIn, Loader2, PlayCircle, AlertCircle, ArrowRight, CheckCircle2, KeyRound } from "lucide-react";
-
-const DEMO = [
-  { label: "المشرف (منسّق النظام)", email: "supervisor@slis.demo" },
-  { label: "مدير النظام المركزي", email: "central@slis.demo" },
-  { label: "الطالب", email: "student@slis.demo" },
-];
+import { Gauge, LogIn, Loader2, AlertCircle, ArrowRight, CheckCircle2, KeyRound } from "lucide-react";
 
 type Screen = "login" | "forgot";
 const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
@@ -44,7 +37,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function LoginForm({ onForgot }: { onForgot: () => void }) {
-  const { signIn, enterDemo } = useAuth();
+  const { signIn } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -94,25 +87,7 @@ function LoginForm({ onForgot }: { onForgot: () => void }) {
         <KeyRound className="h-4 w-4" /> نسيت كلمة المرور؟
       </button>
 
-      <button onClick={enterDemo}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border h-11 text-sm font-semibold hover:bg-accent">
-        <PlayCircle className="h-4 w-4 text-brand" /> استعراض تجريبي (بيانات وهمية)
-      </button>
-
-      <div className="mt-4 rounded-lg border bg-muted/40 p-3">
-        <div className="mb-2 text-xs font-semibold text-muted-foreground">حسابات تجريبية (كلمة المرور: Slis12345!)</div>
-        <div className="space-y-1.5">
-          {DEMO.map((d) => (
-            <button key={d.email} onClick={() => { setUsername(d.email); setPassword("Slis12345!"); }}
-              className={cn("flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-xs hover:bg-accent",
-                username === d.email && "bg-accent")}>
-              <span className="font-medium">{d.label}</span>
-              <span dir="ltr" className="en text-muted-foreground">{d.email}</span>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[10px] text-muted-foreground">تُسجَّل المدارس من الحساب المركزي، وتُسلَّم بيانات الدخول لمسؤول المدرسة.</p>
-      </div>
+      <p className="mt-6 text-center text-[11px] text-muted-foreground">تُسجَّل المدارس من الحساب المركزي، وتُسلَّم بيانات الدخول لمسؤول المدرسة.</p>
     </>
   );
 }
