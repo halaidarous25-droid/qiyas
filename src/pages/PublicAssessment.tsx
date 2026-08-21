@@ -220,17 +220,32 @@ export function PublicAssessment({ code }: { code: string }) {
             <p className="mt-1 text-sm text-muted-foreground">تظهر هذه البيانات لمعلمك مع نتيجتك.</p>
             <div className="mt-4 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">الاسم الكامل</label>
-                <input className={inp} placeholder="اكتب اسمك" value={name} onChange={(e) => setName(e.target.value)} />
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">الاسم الرباعي</label>
+                <input className={inp} placeholder="الاسم الأول واسم الأب والجد والعائلة" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">الصف</label>
+                  <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
+                    <option value="">اختر الصف…</option>
+                    {grades.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">الفصل</label>
+                  <select className={inp} value={className} onChange={(e) => setClassName(e.target.value)}>
+                    <option value="">اختر الفصل…</option>
+                    {classOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الهوية</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الهوية <span className="font-normal text-muted-foreground/70">(اختياري)</span></label>
                 <input className={inp} dir="ltr" inputMode="numeric" placeholder="رقم الهوية الوطنية / الإقامة"
                   value={nationalId} onChange={(e) => setNationalId(e.target.value.replace(/[^0-9]/g, ""))} />
-                <p className="mt-1 text-[10px] text-muted-foreground">يُستخدم لربط نتيجتك بسجلك ومنع تكرار الاختبار.</p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الجوال</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الجوال <span className="font-normal text-muted-foreground/70">(اختياري)</span></label>
                 <input className={inp} dir="ltr" inputMode="numeric" placeholder="05xxxxxxxx"
                   value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} />
               </div>
@@ -239,26 +254,11 @@ export function PublicAssessment({ code }: { code: string }) {
                 <input className={inp} dir="ltr" type="email" placeholder="name@example.com"
                   value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">الصف</label>
-                <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
-                  <option value="">اختر الصف…</option>
-                  {grades.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1">الفصل</label>
-                <select className={inp} value={className} onChange={(e) => setClassName(e.target.value)}>
-                  <option value="">اختر الفصل…</option>
-                  {classOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-              </div>
               {err && <p className="text-[12px] text-danger text-center">{err}</p>}
-              <button disabled={name.trim().length < 2 || nationalId.trim().length < 5 || phone.trim().length < 8 || !grade || checking} onClick={startTest}
+              <button disabled={name.trim().split(/\s+/).filter(Boolean).length < 3 || checking} onClick={startTest}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand h-11 font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
                 {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} ابدأ المقياس
               </button>
-              <p className="text-[11px] text-muted-foreground text-center">اختر بياناتك من القوائم لتظهر نتيجتك لمعلمك بشكل صحيح.</p>
             </div>
           </div>
         )}

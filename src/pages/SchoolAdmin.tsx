@@ -532,19 +532,17 @@ function EditStudentModal({ s, classes, onClose, onSave }:
         <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-lg font-extrabold">تعديل بيانات الطالب</h3>
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><span className="text-lg">×</span></button></div>
         <div className="space-y-3">
-          <Field label="الاسم الرباعي"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
-            <Field label="الفصل"><select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>
-              <option value="">اختر الفصل…</option>
+          <Field label="الاسم الرباعي"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الأول واسم الأب والجد والعائلة" /></Field>
+          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+          <Field label="الفصل">
+            <select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>
+              <option value="">{gradeClasses.length ? "اختر الفصل…" : "أضف فصلًا لهذا الصف أولًا"}</option>
               {gradeClasses.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select></Field>
-          </div>
-          <Field label="رقم الهوية"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="رقم الجوال"><input className={inputCls} dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} /></Field>
-            <Field label="البريد"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-          </div>
+            </select>
+          </Field>
+          <Field label="رقم الهوية (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} placeholder="١٠xxxxxxxx" /></Field>
+          <Field label="رقم الجوال (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="05xxxxxxxx" /></Field>
+          <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></Field>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
