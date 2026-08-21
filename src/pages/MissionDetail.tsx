@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { DevPlan } from "@/lib/live";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
+import { StudentNotes } from "@/components/StudentNotes";
 
 function WeightBar({ m }: { m: Mission }) {
   return (
@@ -173,6 +174,10 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
                 </button>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <StudentNotes studentId={c.id} value={c.supervisorNotes} title="تقييم وملاحظات المدرسة عن الطالب" />
           </div>
         </div>
       )}

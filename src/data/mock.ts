@@ -58,6 +58,7 @@ export interface Candidate {
   nationalId?: string;    // رقم الهوية
   email?: string;
   phone?: string;
+  supervisorNotes?: string; // تقييم وملاحظات المشرف/المدرسة عن الطالب (مرجع دائم)
   experience?: number;    // 0..3 مؤشر الخبرة القيادية (السؤال ٣٦)
 }
 

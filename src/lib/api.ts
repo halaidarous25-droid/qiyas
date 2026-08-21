@@ -42,6 +42,12 @@ export async function dbUpdateStudent(schoolId: string, studentId: string, patch
   if (error) throw error;
 }
 
+// حفظ تقييم/ملاحظات المشرف عن الطالب (مرجع دائم)
+export async function dbUpdateStudentNotes(studentId: string, notes: string) {
+  const { error } = await supabase.from("students").update({ supervisor_notes: notes || null }).eq("id", studentId);
+  if (error) throw error;
+}
+
 // حذف طالب مع تبعيّاته (ترشيحات/تقييمات/طلبات) بالترتيب الصحيح
 export async function dbDeleteStudent(studentId: string) {
   await supabase.from("mission_applications").delete().eq("student_id", studentId);

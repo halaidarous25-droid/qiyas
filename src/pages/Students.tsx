@@ -12,6 +12,7 @@ import {
   TrendingUp, CircleUser, Filter, Clock, FileText,
 } from "lucide-react";
 import { StudentReportPro } from "./reports/StudentReportPro";
+import { StudentNotes } from "@/components/StudentNotes";
 
 // ===== ملف الطالب =====
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
@@ -41,10 +42,12 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
             <Pill tone="warning"><Clock className="h-3 w-3" /> بانتظار أداء المقياس</Pill>
           </div>
           <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            لم يؤدِّ هذا الطالب المقياس بعد، لذلك لا يوجد ملف قيادي أو نتائج.
+            لم يؤدِّ هذا الطالب المقياس بعد, لذلك لا يوجد ملف قيادي أو نتائج.
             <br />يظهر ملفه الكامل هنا فور إكماله المقياس من بوابة الطالب.
           </div>
         </div>
+
+        <StudentNotes studentId={c.id} value={c.supervisorNotes} />
       </div>
     );
   }
@@ -153,6 +156,8 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
           )}
         </div>
       </div>
+
+      <StudentNotes studentId={c.id} value={c.supervisorNotes} />
     </div>
   );
 }

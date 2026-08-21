@@ -90,6 +90,7 @@ interface Store {
   addStudent: (s: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }) => void;
   updateStudent: (id: string, patch: { name?: string; grade?: string; className?: string; nationalId?: string; email?: string; phone?: string }) => void;
   removeStudent: (id: string) => void;
+  saveStudentNotes: (id: string, notes: string) => void;
   updateTeacher: (id: string, patch: { name?: string; role?: string; nationalId?: string; email?: string; phone?: string }) => void;
   removeTeacher: (id: string) => void;
   deleteMission: (id: string) => void;
@@ -573,6 +574,18 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     toast("حُذف الطالب");
   };
 
+  const saveStudentNotes: Store["saveStudentNotes"] = (id, notes) => {
+    if (isLive && schoolId) {
+      api.dbUpdateStudentNotes(id, notes)
+        .then(() => resync())
+        .then(() => toast("حُفظت ملاحظات الطالب"))
+        .catch((e) => toast(`تعذّر الحفظ: ${e.message || e}`, "danger"));
+      return;
+    }
+    setStudents((list) => list.map((s) => s.id === id ? { ...s, supervisorNotes: notes } as Candidate : s));
+    toast("حُفظت ملاحظات الطالب");
+  };
+
   const updateTeacher: Store["updateTeacher"] = (id, patch) => {
     if (isLive && schoolId) {
       api.dbUpdateTeacher(id, patch)
@@ -711,7 +724,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, removeStudent, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor, studentMissionStats,
+      students, teachers, classes, addStudent, updateStudent, removeStudent, saveStudentNotes, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor, studentMissionStats,
     }}>
       {children}
     </Ctx.Provider>

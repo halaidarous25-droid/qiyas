@@ -11,11 +11,15 @@ export function Updates({ onOpenStudent, onOpenMission }:
   { onOpenStudent: (id: string) => void; onOpenMission: (id: string) => void }) {
   const { students, indReqs, resolveIndReq, missions, assigned, toast } = useSlis();
 
-  // أحدث الاختبارات: الطلاب الذين أدّوا المقياس مرتّبين بالأحدث
+  // أحدث الاختبارات: الطلاب الذين أدّوا المقياس مرتّبين من الأحدث إلى الأقدم
+  const latestDate = (s: any) => {
+    const dates = [s.assessedAt, ...((s.attempts || []).map((a: any) => a.date))].filter(Boolean);
+    return dates.sort().slice(-1)[0] || ""; // أحدث تاريخ متاح
+  };
   const recentAssessed = students
     .filter((s) => s.assessed)
     .slice()
-    .sort((a, b) => String(b.assessedAt || "").localeCompare(String(a.assessedAt || "")))
+    .sort((a, b) => latestDate(b).localeCompare(latestDate(a)))
     .slice(0, 12);
 
   // مهام بانتظار الإسناد: مفتوحة/قيد الفرز، لها مرشّحون، ولم تكتمل مقاعدها
