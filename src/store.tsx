@@ -97,6 +97,8 @@ interface Store {
   addTeacher: (t: { name: string; role: string; nationalId?: string; email?: string; phone?: string }) => void;
   reload: () => void;   // إعادة تحميل بيانات المدرسة من قاعدة البيانات
   addClass: (c: { name: string; grade: string; homeroom: string }) => void;
+  updateClass: (id: string, patch: { name?: string; grade?: string; homeroom?: string }) => void;
+  removeClass: (id: string) => void;
   rankMission: (m: Mission) => Candidate[];
   studentMissionsFor: (studentId: string) => { mission: Mission; rank: number; match: number; seat: boolean }[];
 }
@@ -631,6 +633,28 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     setClasses((list) => [{ id: `nc${list.length}`, name, grade, homeroom, students: 0 }, ...list]);
     toast(`أُضيف الفصل ${name}`);
   };
+  const updateClass: Store["updateClass"] = (id, patch) => {
+    if (isLive && schoolId) {
+      api.dbUpdateClass(schoolId, id, patch)
+        .then(() => resync())
+        .then(() => toast("حُدّثت بيانات الفصل"))
+        .catch((e) => toast(`تعذّر التعديل: ${e.message || e}`, "danger"));
+      return;
+    }
+    setClasses((list) => list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    toast("حُدّثت بيانات الفصل");
+  };
+  const removeClass: Store["removeClass"] = (id) => {
+    if (isLive && schoolId) {
+      api.dbDeleteClass(id)
+        .then(() => resync())
+        .then(() => toast("حُذف الفصل"))
+        .catch((e) => toast(`تعذّر الحذف: ${e.message || e}`, "danger"));
+      return;
+    }
+    setClasses((list) => list.filter((c) => c.id !== id));
+    toast("حُذف الفصل");
+  };
 
   const rankMission: Store["rankMission"] = (m) =>
     m.candidateIds
@@ -659,7 +683,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, removeStudent, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, rankMission, studentMissionsFor,
+      students, teachers, classes, addStudent, updateStudent, removeStudent, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor,
     }}>
       {children}
     </Ctx.Provider>

@@ -110,6 +110,26 @@ export async function dbAddClass(schoolId: string, c: { name: string; grade: str
   return data;
 }
 
+// تعديل بيانات فصل
+export async function dbUpdateClass(schoolId: string, classId: string, patch: { name?: string; grade?: string; homeroom?: string }) {
+  const upd: Record<string, unknown> = {};
+  if (patch.name !== undefined) upd.name = patch.name;
+  if (patch.grade !== undefined) upd.grade = patch.grade || null;
+  if (patch.homeroom !== undefined) {
+    const { data: t } = await supabase.from("teachers").select("id").eq("school_id", schoolId).eq("name", patch.homeroom).maybeSingle();
+    upd.homeroom_teacher_id = t?.id ?? null;
+  }
+  const { error } = await supabase.from("classes").update(upd).eq("id", classId);
+  if (error) throw error;
+}
+
+// حذف فصل (مع فكّ ارتباط طلابه)
+export async function dbDeleteClass(classId: string) {
+  await supabase.from("students").update({ class_id: null }).eq("class_id", classId);
+  const { error } = await supabase.from("classes").delete().eq("id", classId);
+  if (error) throw error;
+}
+
 export async function dbAddMission(schoolId: string, m: {
   title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
   weights?: AxisScores; scopeRef?: string;

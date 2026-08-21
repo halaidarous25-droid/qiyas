@@ -161,6 +161,9 @@ function ChangePassword() {
 
 function ClassesTab({ classes, teachers, onAdd }:
   { classes: SchoolClass[]; teachers: any[]; onAdd: (c: any) => void }) {
+  const { updateClass, removeClass } = useSlis();
+  const [editC, setEditC] = useState<SchoolClass | null>(null);
+  const [delC, setDelC] = useState<SchoolClass | null>(null);
   const [grade, setGrade] = useState(GRADES[0]);
   const [num, setNum] = useState(CLASS_NUMS[0]);
   const [homeroom, setHomeroom] = useState(teachers[0]?.name || "");
@@ -183,6 +186,8 @@ function ClassesTab({ classes, teachers, onAdd }:
               <div className="flex-1"><div className="font-semibold text-sm">{c.name}</div>
                 <div className="text-xs text-muted-foreground">رائد الفصل: {c.homeroom || "—"}</div></div>
               <Pill tone="muted"><En>{c.students}</En> طالب</Pill>
+              <button onClick={() => setEditC(c)} className="grid h-8 w-8 place-items-center rounded-md border hover:bg-accent"><Pencil className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setDelC(c)} className="grid h-8 w-8 place-items-center rounded-md border text-danger hover:bg-danger/10"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           ))}
           {classes.length === 0 && <div className="px-5 py-4 text-sm text-muted-foreground">لا فصول بعد.</div>}
@@ -204,6 +209,55 @@ function ClassesTab({ classes, teachers, onAdd }:
           <button onClick={submit} disabled={exists} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
             {exists ? "هذا الفصل موجود مسبقًا" : "إضافة الفصل"}
           </button>
+        </div>
+      </div>
+
+      {editC && <EditClassModal c={editC} classes={classes} teachers={teachers} onClose={() => setEditC(null)}
+        onSave={(patch) => { updateClass(editC.id, patch); setEditC(null); }} />}
+      {delC && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={() => setDelC(null)}>
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"><Trash2 className="h-6 w-6" /></div>
+            <h3 className="mt-3 font-display text-lg font-extrabold">حذف الفصل</h3>
+            <p className="mt-1 text-sm text-muted-foreground">سيتم حذف الفصل «{delC.name}» وفكّ ارتباط طلابه به.</p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setDelC(null)} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+              <button onClick={() => { removeClass(delC.id); setDelC(null); }} className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-5 h-10 text-sm font-semibold text-white hover:opacity-90"><Trash2 className="h-4 w-4" /> تأكيد الحذف</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditClassModal({ c, classes, teachers, onClose, onSave }:
+  { c: SchoolClass; classes: SchoolClass[]; teachers: any[]; onClose: () => void; onSave: (patch: any) => void }) {
+  const [grade, setGrade] = useState(c.grade || GRADES[0]);
+  const [num, setNum] = useState(c.name.includes("/") ? c.name.split("/")[1] : CLASS_NUMS[0]);
+  const [homeroom, setHomeroom] = useState(c.homeroom || teachers[0]?.name || "");
+  const className = `${grade}/${num}`;
+  const exists = classes.some((x) => x.id !== c.id && x.name === className);
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-lg font-extrabold">تعديل بيانات الفصل</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><span className="text-lg">×</span></button></div>
+        <div className="space-y-3">
+          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => setGrade(e.target.value)}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+          <Field label="رقم الفصل"><select className={inputCls} value={num} onChange={(e) => setNum(e.target.value)}>{CLASS_NUMS.map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
+          <Field label="رائد الفصل">
+            <select className={inputCls} value={homeroom} onChange={(e) => setHomeroom(e.target.value)}>
+              {teachers.length === 0 && <option value="">لا يوجد معلمون بعد</option>}
+              {teachers.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+          </Field>
+          <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">اسم الفصل: <span className="font-semibold text-foreground">{className}</span></div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+          <button disabled={exists} onClick={() => onSave({ name: className, grade, homeroom })}
+            className="rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">{exists ? "الفصل موجود مسبقًا" : "حفظ التعديلات"}</button>
         </div>
       </div>
     </div>
