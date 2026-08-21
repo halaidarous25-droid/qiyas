@@ -83,8 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (login: string, pw: string) => {
     const em = usernameToEmail(login);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
-    if (error) return "اسم المستخدم أو كلمة المرور غير صحيحة";
+    let { data, error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
+    // احتياط: إن أُدخل الاسم مع «@» بالخطأ أو تعذّر، جرّب الصيغة الاصطناعية أيضًا
+    if (error && !login.includes("@")) {
+      const alt = `${login.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "")}@qiyas.local`;
+      if (alt !== em) { const r = await supabase.auth.signInWithPassword({ email: alt, password: pw }); data = r.data; error = r.error; }
+    }
+    if (error) {
+      const m = (error.message || "").toLowerCase();
+      if (m.includes("invalid")) return "اسم المستخدم أو كلمة المرور غير صحيحة";
+      if (m.includes("not confirmed")) return "الحساب غير مُفعّل — تواصل مع مدير النظام";
+      if (m.includes("disabled")) return "تسجيل الدخول معطّل مؤقتًا — تواصل مع الدعم";
+      return `تعذّر الدخول: ${error.message}`;
+    }
     if (data.user) {
       const id = await resolveIdentity(data.user.id);
       if (!id) return "تم تسجيل الدخول لكن لا يوجد دور مرتبط بهذا الحساب.";

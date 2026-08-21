@@ -268,7 +268,7 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, setCandidateStatus, rankMission, students } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, setCandidateStatus, rankMission, students, deleteMission } = useSlis();
   const m = missions.find((x) => x.id === missionId)!;
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
@@ -277,6 +277,7 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
     .map((id) => students.find((s) => s.id === id) || ranked.find((c) => c.id === id))
     .filter((c): c is Candidate => !!c);
   const [editing, setEditing] = useState(false);
+  const [confirmDelM, setConfirmDelM] = useState(false);
   const [nomId, setNomId] = useState("");
   const notNominated = students.filter((s) => !m.candidateIds.includes(s.id));
 
@@ -308,8 +309,26 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
               className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent">
               <Pencil className="h-3.5 w-3.5" /> تعديل المهمة
             </button>
+            <button onClick={() => setConfirmDelM(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-danger/40 text-danger px-3 h-8 text-xs font-semibold hover:bg-danger/10">
+              <Trash2 className="h-3.5 w-3.5" /> حذف
+            </button>
           </div>
         </div>
+
+        {confirmDelM && (
+          <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={() => setConfirmDelM(false)}>
+            <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"><Trash2 className="h-6 w-6" /></div>
+              <h3 className="mt-3 font-display text-lg font-extrabold">حذف المهمة</h3>
+              <p className="mt-1 text-sm text-muted-foreground">سيتم حذف «{m.title}» وكل ترشيحاتها نهائيًا.</p>
+              <div className="mt-5 flex justify-center gap-2">
+                <button onClick={() => setConfirmDelM(false)} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+                <button onClick={() => { deleteMission(m.id); setConfirmDelM(false); onBack(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-5 h-10 text-sm font-semibold text-white hover:opacity-90"><Trash2 className="h-4 w-4" /> تأكيد الحذف</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto]">
           <div>

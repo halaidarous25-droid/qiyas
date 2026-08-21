@@ -211,7 +211,9 @@ function ClassesTab({ classes, teachers, onAdd }:
 }
 
 function TeachersTab({ teachers, onAdd, live, schoolId }: { teachers: any[]; onAdd: (t: any) => void; live: boolean; schoolId: string | null }) {
-  const { toast, reload } = useSlis();
+  const { toast, reload, updateTeacher, removeTeacher } = useSlis();
+  const [editT, setEditT] = useState<any | null>(null);
+  const [delT, setDelT] = useState<any | null>(null);
   const [name, setName] = useState(""); const [role, setRole] = useState(TEACHER_ROLES[0]);
   const [natId, setNatId] = useState(""); const [email, setEmail] = useState(""); const [phone, setPhone] = useState("");
   const [username, setUsername] = useState(""); const [password, setPassword] = useState("");
@@ -255,8 +257,11 @@ function TeachersTab({ teachers, onAdd, live, schoolId }: { teachers: any[]; onA
                 )}
               </div>
               <Pill tone="brand">{t.role}</Pill>
+              <button onClick={() => setEditT(t)} className="grid h-8 w-8 place-items-center rounded-md border hover:bg-accent"><Pencil className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setDelT(t)} className="grid h-8 w-8 place-items-center rounded-md border text-danger hover:bg-danger/10"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           ))}
+          {teachers.length === 0 && <div className="px-5 py-4 text-sm text-muted-foreground">لا معلمون بعد.</div>}
         </div>
       </div>
       <div className="rounded-xl border bg-card p-5 h-fit">
@@ -290,6 +295,49 @@ function TeachersTab({ teachers, onAdd, live, schoolId }: { teachers: any[]; onA
               <div className="flex items-center justify-between"><span className="text-muted-foreground">كلمة المرور</span><span className="font-mono font-bold" dir="ltr">{cred.password}</span></div>
             </div>
           )}
+        </div>
+      </div>
+
+      {editT && <EditTeacherModal t={editT} onClose={() => setEditT(null)} onSave={(patch) => { updateTeacher(editT.id, patch); setEditT(null); }} />}
+      {delT && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={() => setDelT(null)}>
+          <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"><Trash2 className="h-6 w-6" /></div>
+            <h3 className="mt-3 font-display text-lg font-extrabold">حذف المعلّم</h3>
+            <p className="mt-1 text-sm text-muted-foreground">سيتم حذف «{delT.name}» وفكّ ارتباطه من الفصول والمهام.</p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setDelT(null)} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+              <button onClick={() => { removeTeacher(delT.id); setDelT(null); }} className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-5 h-10 text-sm font-semibold text-white hover:opacity-90"><Trash2 className="h-4 w-4" /> تأكيد الحذف</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditTeacherModal({ t, onClose, onSave }: { t: any; onClose: () => void; onSave: (patch: any) => void }) {
+  const [name, setName] = useState(t.name || "");
+  const [role, setRole] = useState(t.role || TEACHER_ROLES[0]);
+  const [natId, setNatId] = useState(t.nationalId || "");
+  const [email, setEmail] = useState(t.email || "");
+  const [phone, setPhone] = useState(t.phone || "");
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-lg font-extrabold">تعديل بيانات المعلّم</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><span className="text-lg">×</span></button></div>
+        <div className="space-y-3">
+          <Field label="الاسم"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="الدور"><select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>{TEACHER_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
+          <Field label="رقم الهوية"><input className={inputCls} dir="ltr" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} /></Field>
+          <Field label="رقم الجوال"><input className={inputCls} dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} /></Field>
+          <Field label="البريد الإلكتروني"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+          <button disabled={name.trim().length < 2} onClick={() => onSave({ name: name.trim(), role, nationalId: natId.trim(), email: email.trim(), phone: phone.trim() })}
+            className="rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">حفظ</button>
         </div>
       </div>
     </div>

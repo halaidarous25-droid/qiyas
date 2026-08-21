@@ -9,7 +9,7 @@ import { matchTone, textTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import {
   Users, Search, ArrowRight, Target, Crown, ShieldCheck,
-  TrendingUp, CircleUser, Filter, Clock, FileText, Pencil, X,
+  TrendingUp, CircleUser, Filter, Clock, FileText, Pencil, X, Trash2,
 } from "lucide-react";
 import { StudentReportPro } from "./reports/StudentReportPro";
 
@@ -70,24 +70,43 @@ function EditStudentModal({ c, onClose }: { c: Candidate; onClose: () => void })
 }
 
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
-  const { studentMissionsFor, missions: allMissions, schoolInfo } = useSlis();
+  const { studentMissionsFor, missions: allMissions, schoolInfo, removeStudent, can } = useSlis();
   const trust = TRUST_META[c.trust];
   const missions = studentMissionsFor(c.id);
   const [showReport, setShowReport] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const canManage = can("school");
   const today = new Date().toISOString().slice(0, 10);
+  const delModal = confirmDel && (
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/40 p-4" onClick={() => setConfirmDel(false)}>
+      <div className="w-full max-w-sm rounded-2xl border bg-card p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger"><Trash2 className="h-6 w-6" /></div>
+        <h3 className="mt-3 font-display text-lg font-extrabold">حذف الطالب</h3>
+        <p className="mt-1 text-sm text-muted-foreground">سيتم حذف «{c.name}» وكل نتائجه وترشيحاته نهائيًا.</p>
+        <div className="mt-5 flex justify-center gap-2">
+          <button onClick={() => setConfirmDel(false)} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+          <button onClick={() => { removeStudent(c.id); setConfirmDel(false); onBack(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-5 h-10 text-sm font-semibold text-white hover:opacity-90"><Trash2 className="h-4 w-4" /> تأكيد الحذف</button>
+        </div>
+      </div>
+    </div>
+  );
 
   if (!c.assessed) {
     return (
       <div className="space-y-5">
         {editing && <EditStudentModal c={c} onClose={() => setEditing(false)} />}
+        {delModal}
         <div className="flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
             <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
           </button>
-          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
-            <Pencil className="h-4 w-4" /> تعديل البيانات
-          </button>
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent"><Pencil className="h-4 w-4" /> تعديل</button>
+              <button onClick={() => setConfirmDel(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-danger/40 text-danger px-3 h-9 text-sm font-semibold hover:bg-danger/10"><Trash2 className="h-4 w-4" /> حذف</button>
+            </div>
+          )}
         </div>
         <div className="rounded-2xl border bg-card p-5">
           <div className="flex flex-wrap items-center gap-4">
@@ -113,16 +132,20 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
           <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
         </button>
         <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
-            <Pencil className="h-4 w-4" /> تعديل البيانات
-          </button>
+          {canManage && <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
+            <Pencil className="h-4 w-4" /> تعديل
+          </button>}
+          {canManage && <button onClick={() => setConfirmDel(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-danger/40 text-danger px-3 h-9 text-sm font-semibold hover:bg-danger/10">
+            <Trash2 className="h-4 w-4" /> حذف
+          </button>}
           <button onClick={() => setShowReport(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-sm font-semibold text-white hover:bg-brand/90">
-            <FileText className="h-4 w-4" /> تقرير تفصيلي / طباعة
+            <FileText className="h-4 w-4" /> تقرير / طباعة
           </button>
         </div>
       </div>
 
+      {delModal}
       {editing && <EditStudentModal c={c} onClose={() => setEditing(false)} />}
       {showReport && (
         <StudentReportPro student={c} missions={allMissions} schoolName={schoolInfo.name || "مدرستي"} today={today} onClose={() => setShowReport(false)} />

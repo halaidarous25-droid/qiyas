@@ -42,6 +42,44 @@ export async function dbUpdateStudent(schoolId: string, studentId: string, patch
   if (error) throw error;
 }
 
+// حذف طالب مع تبعيّاته (ترشيحات/تقييمات/طلبات) بالترتيب الصحيح
+export async function dbDeleteStudent(studentId: string) {
+  await supabase.from("mission_applications").delete().eq("student_id", studentId);
+  await supabase.from("assessments").delete().eq("student_id", studentId);
+  await supabase.from("individual_requests").delete().eq("student_id", studentId);
+  await supabase.from("appeals").update({ student_id: null }).eq("student_id", studentId);
+  const { error } = await supabase.from("students").delete().eq("id", studentId);
+  if (error) throw error;
+}
+
+// تعديل بيانات معلّم
+export async function dbUpdateTeacher(teacherId: string, patch: { name?: string; role?: string; nationalId?: string; email?: string; phone?: string }) {
+  const upd: Record<string, unknown> = {};
+  if (patch.name !== undefined) upd.name = patch.name;
+  if (patch.role !== undefined) upd.role = patch.role;
+  if (patch.nationalId !== undefined) upd.national_id = patch.nationalId || null;
+  if (patch.email !== undefined) upd.email = patch.email || null;
+  if (patch.phone !== undefined) upd.phone = patch.phone || null;
+  const { error } = await supabase.from("teachers").update(upd).eq("id", teacherId);
+  if (error) throw error;
+}
+
+// حذف معلّم (مع فكّ ارتباطه من الفصول والمهام)
+export async function dbDeleteTeacher(teacherId: string) {
+  await supabase.from("classes").update({ homeroom_teacher_id: null }).eq("homeroom_teacher_id", teacherId);
+  await supabase.from("missions").update({ supervisor_id: null }).eq("supervisor_id", teacherId);
+  const { error } = await supabase.from("teachers").delete().eq("id", teacherId);
+  if (error) throw error;
+}
+
+// حذف مهمة مع تبعيّاتها
+export async function dbDeleteMission(missionId: string) {
+  await supabase.from("mission_applications").delete().eq("mission_id", missionId);
+  await supabase.from("assessments").update({ mission_id: null }).eq("mission_id", missionId);
+  const { error } = await supabase.from("missions").delete().eq("id", missionId);
+  if (error) throw error;
+}
+
 export async function dbBulkAddStudents(schoolId: string, rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) {
   const { data: cls } = await supabase.from("classes").select("id,name").eq("school_id", schoolId);
   const byName: Record<string, string> = {};

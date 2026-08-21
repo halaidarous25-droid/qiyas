@@ -89,6 +89,10 @@ interface Store {
   classes: SchoolClass[];
   addStudent: (s: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }) => void;
   updateStudent: (id: string, patch: { name?: string; grade?: string; className?: string; nationalId?: string; email?: string; phone?: string }) => void;
+  removeStudent: (id: string) => void;
+  updateTeacher: (id: string, patch: { name?: string; role?: string; nationalId?: string; email?: string; phone?: string }) => void;
+  removeTeacher: (id: string) => void;
+  deleteMission: (id: string) => void;
   bulkAddStudents: (rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) => Promise<number>;
   addTeacher: (t: { name: string; role: string; nationalId?: string; email?: string; phone?: string }) => void;
   reload: () => void;   // إعادة تحميل بيانات المدرسة من قاعدة البيانات
@@ -540,6 +544,54 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     toast("حُدّثت بيانات الطالب");
   };
 
+  const removeStudent: Store["removeStudent"] = (id) => {
+    if (isLive && schoolId) {
+      api.dbDeleteStudent(id)
+        .then(() => resync())
+        .then(() => toast("حُذف الطالب وبياناته"))
+        .catch((e) => toast(`تعذّر الحذف: ${e.message || e}`, "danger"));
+      return;
+    }
+    setStudents((list) => list.filter((s) => s.id !== id));
+    toast("حُذف الطالب");
+  };
+
+  const updateTeacher: Store["updateTeacher"] = (id, patch) => {
+    if (isLive && schoolId) {
+      api.dbUpdateTeacher(id, patch)
+        .then(() => resync())
+        .then(() => toast("حُدّثت بيانات المعلّم"))
+        .catch((e) => toast(`تعذّر التحديث: ${e.message || e}`, "danger"));
+      return;
+    }
+    setTeachers((list) => list.map((t) => t.id === id ? { ...t, ...patch } as Teacher : t));
+    toast("حُدّثت بيانات المعلّم");
+  };
+
+  const removeTeacher: Store["removeTeacher"] = (id) => {
+    if (isLive && schoolId) {
+      api.dbDeleteTeacher(id)
+        .then(() => resync())
+        .then(() => toast("حُذف المعلّم"))
+        .catch((e) => toast(`تعذّر الحذف: ${e.message || e}`, "danger"));
+      return;
+    }
+    setTeachers((list) => list.filter((t) => t.id !== id));
+    toast("حُذف المعلّم");
+  };
+
+  const deleteMission: Store["deleteMission"] = (id) => {
+    if (isLive && schoolId) {
+      api.dbDeleteMission(id)
+        .then(() => resync())
+        .then(() => toast("حُذفت المهمة"))
+        .catch((e) => toast(`تعذّر الحذف: ${e.message || e}`, "danger"));
+      return;
+    }
+    setMissions((list) => list.filter((m) => m.id !== id));
+    toast("حُذفت المهمة");
+  };
+
   const bulkAddStudents: Store["bulkAddStudents"] = async (rows) => {
     if (!rows.length) return 0;
     if (isLive && schoolId) {
@@ -607,7 +659,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, bulkAddStudents, addTeacher, reload: resync, addClass, rankMission, studentMissionsFor,
+      students, teachers, classes, addStudent, updateStudent, removeStudent, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, rankMission, studentMissionsFor,
     }}>
       {children}
     </Ctx.Provider>
