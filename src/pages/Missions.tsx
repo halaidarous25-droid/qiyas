@@ -67,10 +67,28 @@ function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }
 }
 
 export function Missions({ onOpenMission }: { onOpenMission: (id: string) => void }) {
-  const { missions, assigned, can } = useSlis();
+  const { missions, assigned, can, classes } = useSlis();
   const [filter, setFilter] = useState<MissionStatus | "all">("all");
+  const [gradeF, setGradeF] = useState("");
+  const [classF, setClassF] = useState("");
   const [creating, setCreating] = useState(false);
-  const list = filter === "all" ? missions : missions.filter((m) => m.status === filter);
+
+  const gradeOptions = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
+  const classOptions = classes.filter((c) => !gradeF || c.grade === gradeF);
+  const gradeOfClass = (cn: string) => classes.find((c) => c.name === cn)?.grade || "";
+  const matchesGrade = (m: typeof missions[number]) => !gradeF
+    || m.scopeType === "school" || m.scopeType === "stage"
+    || (m.scopeType === "grade" && m.scopeRef === gradeF)
+    || (m.scopeType === "class" && gradeOfClass(m.scopeRef || "") === gradeF);
+  const matchesClass = (m: typeof missions[number]) => !classF
+    || m.scopeType === "school" || m.scopeType === "stage"
+    || (m.scopeType === "class" && m.scopeRef === classF)
+    || (m.scopeType === "grade" && m.scopeRef === gradeOfClass(classF));
+
+  const list = missions
+    .filter((m) => filter === "all" || m.status === filter)
+    .filter(matchesGrade)
+    .filter(matchesClass);
 
   // مهمة مغلقة = اكتمل تعيين كل مقاعدها أو حالتها «مُسندة/مغلقة»
   const isClosed = (m: typeof missions[number]) => {
@@ -108,6 +126,20 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
             {f.label}
           </button>
         ))}
+        <div className="mx-1 h-6 w-px bg-border" />
+        <select value={gradeF} onChange={(e) => { setGradeF(e.target.value); setClassF(""); }}
+          className="rounded-lg border bg-card px-3 h-9 text-sm outline-none focus:border-brand">
+          <option value="">كل الصفوف</option>
+          {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <select value={classF} onChange={(e) => setClassF(e.target.value)}
+          className="rounded-lg border bg-card px-3 h-9 text-sm outline-none focus:border-brand">
+          <option value="">كل الفصول</option>
+          {classOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        {(gradeF || classF) && (
+          <button onClick={() => { setGradeF(""); setClassF(""); }} className="rounded-lg border px-3 h-9 text-sm font-medium hover:bg-accent">إلغاء التصفية</button>
+        )}
       </div>
 
       {/* مهام مفتوحة */}

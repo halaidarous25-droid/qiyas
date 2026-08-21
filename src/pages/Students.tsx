@@ -164,6 +164,10 @@ export function Students({ initialStudentId, onConsumed }:
   const [sel, setSel] = useState<Candidate | null>(null);
   const [q, setQ] = useState("");
   const [tf, setTf] = useState<Trust | "all">("all");
+  const [gradeF, setGradeF] = useState("");
+  const [classF, setClassF] = useState("");
+  const gradeOptions = Array.from(new Set(students.map((s) => s.grade).filter(Boolean)));
+  const classOptions = Array.from(new Set(students.filter((s) => !gradeF || s.grade === gradeF).map((s) => s.className).filter(Boolean)));
 
   // فتح ملف طالب قادم من شاشة أخرى (مثل «عرض الملف» في المهمة)
   useEffect(() => {
@@ -179,6 +183,8 @@ export function Students({ initialStudentId, onConsumed }:
 
   const list = students
     .filter((c) => (tf === "all" ? true : c.trust === tf))
+    .filter((c) => (!gradeF || c.grade === gradeF))
+    .filter((c) => (!classF || c.className === classF))
     .filter((c) => c.name.includes(q))
     .sort((a, b) => Number(b.assessed) - Number(a.assessed) || b.competency - a.competency);
 
@@ -205,6 +211,20 @@ export function Students({ initialStudentId, onConsumed }:
             {f.label}
           </button>
         ))}
+        <div className="mx-1 h-6 w-px bg-border" />
+        <select value={gradeF} onChange={(e) => { setGradeF(e.target.value); setClassF(""); }}
+          className="rounded-lg border bg-card px-3 h-9 text-sm outline-none focus:border-brand">
+          <option value="">كل الصفوف</option>
+          {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <select value={classF} onChange={(e) => setClassF(e.target.value)}
+          className="rounded-lg border bg-card px-3 h-9 text-sm outline-none focus:border-brand">
+          <option value="">كل الفصول</option>
+          {classOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {(gradeF || classF) && (
+          <button onClick={() => { setGradeF(""); setClassF(""); }} className="rounded-lg border px-3 h-9 text-sm font-medium hover:bg-accent">إلغاء التصفية</button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">

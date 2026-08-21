@@ -404,7 +404,11 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
   { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
   const [editS, setEditS] = useState<any | null>(null);
   const [delS, setDelS] = useState<any | null>(null);
+  const [fGrade, setFGrade] = useState(""); const [fClass, setFClass] = useState("");
   const gradeOptions = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
+  const fClassOptions = Array.from(new Set(students.filter((s: any) => !fGrade || s.grade === fGrade).map((s: any) => s.className).filter(Boolean)));
+  const fGradeOptions = Array.from(new Set(students.map((s: any) => s.grade).filter(Boolean)));
+  const shownStudents = students.filter((s: any) => (!fGrade || s.grade === fGrade) && (!fClass || s.className === fClass));
   const [name, setName] = useState(""); const [grade, setGrade] = useState("");
   const gradeClasses = classes.filter((c) => c.grade === grade);
   const [className, setClassName] = useState("");
@@ -519,8 +523,25 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFile} />
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 px-5 py-2">
+          <span className="text-xs font-semibold text-muted-foreground">تصفية:</span>
+          <select value={fGrade} onChange={(e) => { setFGrade(e.target.value); setFClass(""); }}
+            className="rounded-lg border bg-card px-2.5 h-8 text-xs outline-none focus:border-brand">
+            <option value="">كل الصفوف</option>
+            {fGradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select value={fClass} onChange={(e) => setFClass(e.target.value)}
+            className="rounded-lg border bg-card px-2.5 h-8 text-xs outline-none focus:border-brand">
+            <option value="">كل الفصول</option>
+            {fClassOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(fGrade || fClass) && (
+            <button onClick={() => { setFGrade(""); setFClass(""); }} className="rounded-lg border px-2.5 h-8 text-xs font-medium hover:bg-accent">إلغاء</button>
+          )}
+          <span className="text-[11px] text-muted-foreground">المعروض: <En>{shownStudents.length}</En></span>
+        </div>
         <div className="max-h-[460px] divide-y overflow-y-auto">
-          {students.map((s) => (
+          {shownStudents.map((s) => (
             <div key={s.id} className="flex items-center gap-3 px-5 py-2.5">
               <Avatar name={s.name} color={s.avatarColor} size={34} />
               <div className="flex-1"><div className="font-semibold text-sm">{s.name}</div>

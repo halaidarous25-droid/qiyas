@@ -12,7 +12,7 @@ const SCOPES: { k: ScopeLevel; l: string }[] = [
 const EVEN_W: AxisScores = { org: 20, lead: 20, comm: 20, firm: 20, init: 20 };
 
 export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edit?: Mission }) {
-  const { addMission, updateMission, classes, mode, roles } = useSlis();
+  const { addMission, updateMission, classes, mode, roles, missions } = useSlis();
   const isEdit = !!edit;
   const [title, setTitle] = useState(edit?.title ?? "");
   const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType === "stage" ? "school" : (edit?.scopeType ?? "school"));
@@ -26,6 +26,14 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
 
   const valid = title.trim().length >= 2 &&
     (scopeType === "school" || (scopeType === "grade" && !!scopeRef) || (scopeType === "class" && !!scopeRef));
+
+  // منع تكرار نفس المهمة (نفس العنوان) في نفس النطاق (نفس الصف أو نفس الفصل أو المدرسة)
+  const effRef = scopeType === "grade" || scopeType === "class" ? scopeRef : "";
+  const duplicate = title.trim().length >= 2 && missions.some((m) =>
+    m.id !== edit?.id &&
+    m.title.trim() === title.trim() &&
+    m.scopeType === scopeType &&
+    (m.scopeRef || "") === (effRef || ""));
 
   const wSum = AXES.reduce((s, a) => s + weights[a.key], 0);
   const normalize = (w: AxisScores): AxisScores => {
@@ -45,7 +53,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
   };
 
   const submit = () => {
-    if (!valid) return;
+    if (!valid || duplicate) return;
     const base = {
       title: title.trim(), scopeType,
       scopeRef: scopeType === "grade" || scopeType === "class" ? scopeRef : "",
@@ -158,12 +166,18 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           )}
         </div>
 
-        <div className="mt-3 rounded-lg border border-brand/25 bg-brand/5 px-3 py-2 text-[11px] text-brand">
-          يعمل النظام تلقائيًا: يُرشّح ويُقيّم الطلاب المؤهّلين ضمن النطاق فور إنشاء المهمة.
-        </div>
+        {duplicate ? (
+          <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-[12px] text-danger">
+            ⚠ توجد مهمة بنفس الاسم في هذا النطاق ({scopeType === "school" ? "كامل المدرسة" : scopeRef}). لا يمكن تكرار نفس المهمة في نفس الصف أو الفصل.
+          </div>
+        ) : (
+          <div className="mt-3 rounded-lg border border-brand/25 bg-brand/5 px-3 py-2 text-[11px] text-brand">
+            يعمل النظام تلقائيًا: يُرشّح ويُقيّم الطلاب المؤهّلين ضمن النطاق فور إنشاء المهمة.
+          </div>
+        )}
 
         <div className="mt-4 flex gap-2">
-          <button onClick={submit} disabled={!valid}
+          <button onClick={submit} disabled={!valid || duplicate}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand h-11 text-sm font-semibold text-white disabled:opacity-40 hover:bg-brand/90">
             <Plus className="h-4 w-4" /> {isEdit ? "حفظ التعديلات" : "إنشاء المهمة"}
           </button>
