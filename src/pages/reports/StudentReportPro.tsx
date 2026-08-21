@@ -99,8 +99,8 @@ function RecoCard({ icon: Icon, title, tone, items }: {
   );
 }
 
-export function StudentReportPro({ student, missions, schoolName, today, onClose }: {
-  student: Candidate; missions: Mission[]; schoolName: string; today: string; onClose: () => void;
+export function StudentReportPro({ student, missions, assignedMissions = [], schoolName, today, onClose }: {
+  student: Candidate; missions: Mission[]; assignedMissions?: Mission[]; schoolName: string; today: string; onClose: () => void;
 }) {
   const style = leadershipStyle(
     [...AXES].sort((a, b) => student.axes[b.key] - student.axes[a.key]).slice(0, 2).map((a) => a.key)
@@ -111,7 +111,7 @@ export function StudentReportPro({ student, missions, schoolName, today, onClose
   const growth = sorted.slice(-2);
 
   // المهام المناسبة: تحسب المواءمة لكل مهمة مفتوحة وترتّبها
-  const openMissions = missions.filter((m) => ["open", "screening", "trial"].includes(m.status));
+  const openMissions = missions.filter((m) => ["open", "screening"].includes(m.status));
   const ranked = openMissions
     .map((m) => ({ m, match: computeMatch(student, m) }))
     .sort((a, b) => b.match - a.match);
@@ -188,7 +188,7 @@ export function StudentReportPro({ student, missions, schoolName, today, onClose
           </div>
 
           {/* بطاقات علوية */}
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
             <div className="rounded-lg border p-3 text-center">
               <div className="text-[11px] text-slate-500">النمط القيادي</div>
               <div className="mt-0.5 font-extrabold text-brand">{style.name}</div>
@@ -203,9 +203,30 @@ export function StudentReportPro({ student, missions, schoolName, today, onClose
             </div>
             <div className="rounded-lg border p-3 text-center">
               <div className="text-[11px] text-slate-500">عدد المحاولات</div>
-              <div className="mt-0.5 font-extrabold"><En>{attemptCount || 1}</En>{attemptCount > 1 ? " (المعروض: الأفضل)" : ""}</div>
+              <div className="mt-0.5 font-extrabold"><En>{attemptCount || 1}</En>{attemptCount > 1 ? " (الأفضل)" : ""}</div>
+            </div>
+            <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-center">
+              <div className="text-[11px] text-slate-500">مهام سبق تكليفه بها</div>
+              <div className="mt-0.5 font-extrabold text-brand"><En>{assignedMissions.length}</En></div>
             </div>
           </div>
+
+          {/* سجل التكليفات السابقة (يؤخذ في الاعتبار عند القرار) */}
+          {assignedMissions.length > 0 && (
+            <div className="mt-4 rounded-lg border border-brand/25 bg-brand/5 p-3">
+              <div className="mb-1.5 flex items-center gap-1.5 font-bold text-brand"><ClipboardList className="h-4 w-4" /> المهام المعتمدة للطالب في الفترات السابقة (<En>{assignedMissions.length}</En>)</div>
+              <ul className="grid gap-1 sm:grid-cols-2">
+                {assignedMissions.map((m) => (
+                  <li key={m.id} className="flex items-center gap-1.5 text-[12.5px] text-slate-700">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                    <span className="font-semibold">{m.title}</span>
+                    <span className="text-slate-500">— {m.scopeLabel}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] text-slate-500">يُراعى عدد التكليفات السابقة عند ترشيح الطالب لمهام جديدة لتوزيع الفرص القيادية بعدالة.</p>
+            </div>
+          )}
 
           {/* الرسوم: راداري + أشرطة المحاور */}
           <div className="mt-4 grid items-center gap-4 sm:grid-cols-2">

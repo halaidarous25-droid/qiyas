@@ -167,7 +167,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       scopeRef: m.scope_ref || undefined,
       mode: m.operating_mode, seats: m.seats,
       supervisor: m.supervisor_id ? teacherById[m.supervisor_id] || "—" : "—",
-      status: m.status, applicants: apps.length, eligible: 214,
+      status: m.status === "trial" ? "screening" : m.status, applicants: apps.length, eligible: 214,
       createdAt: (m.created_at || "").slice(0, 10),
       weights: m.weights, candidateIds: apps.map((a) => a.student_id),
       hasConflict: false,

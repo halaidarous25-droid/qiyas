@@ -15,9 +15,11 @@ import { StudentReportPro } from "./reports/StudentReportPro";
 
 // ===== ملف الطالب =====
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
-  const { studentMissionsFor, missions: allMissions, schoolInfo } = useSlis();
+  const { studentMissionsFor, studentMissionStats, missions: allMissions, assigned, schoolInfo } = useSlis();
   const trust = TRUST_META[c.trust];
   const missions = studentMissionsFor(c.id);
+  const stats = studentMissionStats(c.id);
+  const assignedMissions = allMissions.filter((m) => (assigned[m.id] || []).includes(c.id));
   const [showReport, setShowReport] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -61,7 +63,7 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
       </div>
 
       {showReport && (
-        <StudentReportPro student={c} missions={allMissions} schoolName={schoolInfo.name || "مدرستي"} today={today} onClose={() => setShowReport(false)} />
+        <StudentReportPro student={c} missions={allMissions} assignedMissions={assignedMissions} schoolName={schoolInfo.name || "مدرستي"} today={today} onClose={() => setShowReport(false)} />
       )}
 
       <div className="rounded-2xl border bg-card p-5">
@@ -115,8 +117,13 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
 
         {/* المهام المرشّح لها — إغلاق الحلقة */}
         <div className="rounded-2xl border bg-card p-5">
-          <div className="mb-3 flex items-center gap-2"><Target className="h-[18px] w-[18px] text-gold" />
-            <h2 className="font-display font-bold">المهام المرشّح لها</h2></div>
+          <div className="mb-3 flex flex-wrap items-center gap-2"><Target className="h-[18px] w-[18px] text-gold" />
+            <h2 className="font-display font-bold">المهام المرشّح لها</h2>
+            <div className="mr-auto flex flex-wrap items-center gap-1">
+              <Pill tone="brand"><En>{stats.nominated}</En> مرشّح</Pill>
+              <Pill tone="muted"><En>{stats.notNominated}</En> غير مرشّح</Pill>
+              <Pill tone="success"><En>{stats.assigned}</En> مكلّف</Pill>
+            </div></div>
           {missions.length === 0 ? (
             <p className="text-sm text-muted-foreground">لم يُرشَّح لأي مهمة بعد.</p>
           ) : (
@@ -160,7 +167,7 @@ const TRUST_FILTERS: { key: Trust | "all"; label: string }[] = [
 
 export function Students({ initialStudentId, onConsumed }:
   { initialStudentId?: string | null; onConsumed?: () => void }) {
-  const { students, studentMissionsFor } = useSlis();
+  const { students, studentMissionStats } = useSlis();
   const [sel, setSel] = useState<Candidate | null>(null);
   const [q, setQ] = useState("");
   const [tf, setTf] = useState<Trust | "all">("all");
@@ -228,16 +235,16 @@ export function Students({ initialStudentId, onConsumed }:
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
-        <div className="hidden md:grid grid-cols-[1fr_120px_120px_130px_140px] gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-semibold text-muted-foreground">
-          <span>الطالب</span><span>الكفايات</span><span>السلوك</span><span>الموثوقية</span><span>المهام</span>
+        <div className="hidden md:grid grid-cols-[1fr_110px_110px_120px_180px] gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-semibold text-muted-foreground">
+          <span>الطالب</span><span>الكفايات</span><span>السلوك</span><span>الموثوقية</span><span>المهام (مرشّح / غير مرشّح / مكلّف)</span>
         </div>
         <div className="divide-y">
           {list.map((c) => {
             const trust = TRUST_META[c.trust];
-            const mc = studentMissionsFor(c.id).length;
+            const stats = studentMissionStats(c.id);
             return (
               <button key={c.id} onClick={() => setSel(c)}
-                className="grid w-full grid-cols-[1fr_auto] md:grid-cols-[1fr_120px_120px_130px_140px] items-center gap-3 px-4 py-3 text-right hover:bg-accent/40">
+                className="grid w-full grid-cols-[1fr_auto] md:grid-cols-[1fr_110px_110px_120px_180px] items-center gap-3 px-4 py-3 text-right hover:bg-accent/40">
                 <div className="flex items-center gap-3">
                   <Avatar name={c.name} color={c.avatarColor} size={38} />
                   <div>
@@ -256,8 +263,10 @@ export function Students({ initialStudentId, onConsumed }:
                       <span className="text-xs font-bold w-8"><En>{c.behavior}</En></span>
                     </div>
                     <div className="hidden md:block"><Pill tone={trust.tone as Tone}>{trust.label}</Pill></div>
-                    <div className="flex items-center gap-1.5 justify-end md:justify-start">
-                      <Pill tone="muted"><Target className="h-3 w-3" /> <En>{mc}</En> مهام</Pill>
+                    <div className="flex flex-wrap items-center gap-1 justify-end md:justify-start">
+                      <Pill tone="brand"><En>{stats.nominated}</En> مرشّح</Pill>
+                      <Pill tone="muted"><En>{stats.notNominated}</En> غير مرشّح</Pill>
+                      <Pill tone="success"><Target className="h-3 w-3" /> <En>{stats.assigned}</En> مكلّف</Pill>
                     </div>
                   </>
                 ) : (

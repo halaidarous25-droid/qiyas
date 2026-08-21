@@ -29,18 +29,17 @@ function WeightBar({ m }: { m: Mission }) {
   );
 }
 
-const APP_STATUS: { k: string; l: string }[] = [
-  { k: "applied", l: "متقدّم" }, { k: "nominated", l: "مرشّح" },
-  { k: "assigned", l: "معتمَد" }, { k: "rejected", l: "مرفوض" },
-];
-
-function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onRemove, onSetStatus, onOpenStudent }:
-  { c: Candidate; rank: number; mission: Mission; assigned: boolean;
+function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onUnassign, onRemove, onOpenStudent }:
+  { c: Candidate; rank: number; mission: Mission; assigned: boolean; assignedCount: number;
     onAssign: () => void; onUnassign: () => void; onRemove: () => void;
-    onSetStatus: (s: string) => void; onOpenStudent: () => void }) {
+    onOpenStudent: () => void }) {
   const [open, setOpen] = useState(rank === 1);
   const trust = TRUST_META[c.trust];
   const isSeat = rank <= mission.seats;
+  const seatsFull = assignedCount >= mission.seats;
+  // الحالة المشتقّة: مكلّف / غير مرشّح (اكتملت المقاعد) / مرشّح
+  const statusLabel = assigned ? "مكلّف" : seatsFull ? "غير مرشّح" : "مرشّح";
+  const statusTone: Tone = assigned ? "success" : seatsFull ? "muted" : "brand";
 
   return (
     <div className={cn("rounded-xl border bg-card transition-colors",
@@ -75,6 +74,7 @@ function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onRemo
           <Meter value={c.match} tone={matchTone(c.match)} />
         </div>
 
+        <Pill tone={statusTone} className="hidden sm:inline-flex">{statusLabel}</Pill>
         <Pill tone={trust.tone as Tone} className="hidden lg:inline-flex">{trust.label}</Pill>
         <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
@@ -150,25 +150,23 @@ function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onRemo
                 {assigned ? (
                   <button onClick={onUnassign}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-danger/40 text-danger px-3 h-9 text-sm font-semibold hover:bg-danger/10">
-                    <XCircle className="h-4 w-4" /> إلغاء الاعتماد
+                    <XCircle className="h-4 w-4" /> إلغاء التكليف
                   </button>
                 ) : (
-                  <button onClick={onAssign}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 h-9 text-sm font-semibold text-white bg-brand hover:bg-brand/90">
-                    اعتماد للتكليف التجريبي
+                  <button onClick={onAssign} disabled={seatsFull}
+                    title={seatsFull ? "اكتمل عدد المقاعد" : ""}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 h-9 text-sm font-semibold text-white bg-brand hover:bg-brand/90 disabled:opacity-40">
+                    {seatsFull ? "اكتملت المقاعد" : "تكليف الطالب"}
                   </button>
                 )}
                 <button onClick={onOpenStudent} className="rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
                   عرض الملف
                 </button>
               </div>
-              {/* أدوات المشرف: تغيير الحالة + حذف */}
+              {/* أدوات المشرف: الحالة (تلقائية) + حذف */}
               <div className="flex items-center gap-2 border-t pt-2">
-                <span className="text-[11px] text-muted-foreground">الحالة</span>
-                <select value={assigned ? "assigned" : "nominated"} onChange={(e) => onSetStatus(e.target.value)}
-                  className="rounded-lg border bg-background px-2 h-8 text-xs">
-                  {APP_STATUS.map((s) => <option key={s.k} value={s.k}>{s.l}</option>)}
-                </select>
+                <span className="text-[11px] text-muted-foreground">الحالة:</span>
+                <Pill tone={statusTone}>{statusLabel}</Pill>
                 <button onClick={onRemove} title="حذف من المهمة"
                   className="mr-auto inline-flex items-center gap-1 rounded-lg border border-danger/40 text-danger px-2.5 h-8 text-xs font-semibold hover:bg-danger/10">
                   <Trash2 className="h-3.5 w-3.5" /> حذف
@@ -183,7 +181,7 @@ function CandidateRow({ c, rank, mission, assigned, onAssign, onUnassign, onRemo
 }
 
 const DEV_STATUS: { k: NonNullable<DevPlan["status"]>; l: string; tone: Tone }[] = [
-  { k: "trial", l: "قيد التجربة", tone: "warning" },
+  { k: "trial", l: "قيد المتابعة", tone: "warning" },
   { k: "confirmed", l: "معتمَد نهائيًا", tone: "success" },
   { k: "unfit", l: "غير مناسب", tone: "danger" },
 ];
@@ -216,10 +214,10 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        <label className="text-xs text-muted-foreground">بداية التجربة
+        <label className="text-xs text-muted-foreground">بداية التكليف
           <input type="date" className={cn(inputCls, "mt-1 w-full")} value={plan.trialStart} onChange={(e) => setPlan((p) => ({ ...p, trialStart: e.target.value }))} />
         </label>
-        <label className="text-xs text-muted-foreground">نهاية التجربة
+        <label className="text-xs text-muted-foreground">نهاية التكليف
           <input type="date" className={cn(inputCls, "mt-1 w-full")} value={plan.trialEnd} onChange={(e) => setPlan((p) => ({ ...p, trialEnd: e.target.value }))} />
         </label>
         <label className="text-xs text-muted-foreground">الحالة
@@ -268,7 +266,7 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, setCandidateStatus, rankMission, students, deleteMission } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, rankMission, students, deleteMission } = useSlis();
   const m = missions.find((x) => x.id === missionId)!;
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
@@ -341,8 +339,8 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
               <span className="text-[11px] text-muted-foreground">مرشّح</span>
             </div>
             <div className="grid place-items-center rounded-lg border px-4">
-              <span className="font-display text-2xl font-extrabold text-gold"><En>{m.seats}</En></span>
-              <span className="text-[11px] text-muted-foreground">مقعد</span>
+              <span className="font-display text-2xl font-extrabold text-success"><En>{assignedIds.length}</En>/<En>{m.seats}</En></span>
+              <span className="text-[11px] text-muted-foreground">مكلّف / مقاعد</span>
             </div>
           </div>
         </div>
@@ -366,11 +364,10 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           )}
           {ranked.map((c, i) => (
             <CandidateRow key={c.id} c={c} rank={i + 1} mission={m}
-              assigned={assignedIds.includes(c.id)}
+              assigned={assignedIds.includes(c.id)} assignedCount={assignedIds.length}
               onAssign={() => assignCandidate(m.id, c.id, c.name)}
               onUnassign={() => unassignCandidate(m.id, c.id, c.name)}
               onRemove={() => removeCandidate(m.id, c.id, c.name)}
-              onSetStatus={(s) => setCandidateStatus(m.id, c.id, s)}
               onOpenStudent={() => onOpenStudent(c.id)} />
           ))}
         </div>
@@ -396,8 +393,8 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
         <div>
           <div className="mb-3 flex items-center gap-2">
             <ClipboardList className="h-[18px] w-[18px] text-brand" />
-            <h2 className="font-display text-lg font-bold">التكليف التجريبي وخطة التطوير</h2>
-            <Pill tone="muted" className="mr-auto"><Flag className="h-3 w-3" /> للمُعتمَدين</Pill>
+            <h2 className="font-display text-lg font-bold">الطلاب المكلّفون وخطة المتابعة</h2>
+            <Pill tone="muted" className="mr-auto"><Flag className="h-3 w-3" /> للمكلّفين</Pill>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {assignedStudents.map((s) => <DevPlanCard key={s.id} mission={m} student={s} />)}

@@ -185,17 +185,16 @@ export async function dbSetApplicationStatus(missionId: string, studentId: strin
   if (error) throw error;
 }
 
-// إلغاء اعتماد مرشّح (إرجاعه لحالة مُرشَّح)
+// إلغاء تكليف طالب (إرجاعه لحالة مُرشَّح)
 export async function dbUnassign(missionId: string, studentId: string) {
   const a = await supabase.from("mission_applications")
     .update({ status: "nominated" }).eq("mission_id", missionId).eq("student_id", studentId);
   if (a.error) throw a.error;
-  // إن لم يبقَ أي مُعتمَد، تُعاد المهمة إلى «مفتوحة»
+  // تحديث حالة المهمة حسب عدد المكلّفين المتبقّين
   const { data: remaining } = await supabase.from("mission_applications")
     .select("id").eq("mission_id", missionId).eq("status", "assigned");
-  if (!remaining || remaining.length === 0) {
-    await supabase.from("missions").update({ status: "open" }).eq("id", missionId);
-  }
+  const cnt = remaining?.length || 0;
+  await supabase.from("missions").update({ status: cnt === 0 ? "open" : "screening" }).eq("id", missionId);
 }
 
 // ترشيح طالب لمهمة (يحسب المواءمة ويحفظها)
@@ -209,12 +208,22 @@ export async function dbApply(schoolId: string, mission: Mission, student: Candi
   return match;
 }
 
-// اعتماد طالب للتكليف التجريبي
+// تكليف طالب بالمهمة (مباشرة) — لا يُسمح بتجاوز عدد المقاعد
 export async function dbAssign(schoolId: string, missionId: string, studentId: string) {
+  const { data: mrow } = await supabase.from("missions").select("seats").eq("id", missionId).single();
+  const seats = mrow?.seats ?? 1;
+  const { data: asg } = await supabase.from("mission_applications")
+    .select("student_id").eq("mission_id", missionId).eq("status", "assigned");
+  const already = (asg || []).some((r: any) => r.student_id === studentId);
+  if (!already && (asg || []).length >= seats) {
+    throw new Error(`اكتمل عدد المقاعد (${seats}) لهذه المهمة`);
+  }
   const a = await supabase.from("mission_applications")
     .update({ status: "assigned" }).eq("mission_id", missionId).eq("student_id", studentId);
   if (a.error) throw a.error;
-  const b = await supabase.from("missions").update({ status: "trial" }).eq("id", missionId);
+  const newCount = already ? (asg || []).length : (asg || []).length + 1;
+  const b = await supabase.from("missions")
+    .update({ status: newCount >= seats ? "closed" : "screening" }).eq("id", missionId);
   if (b.error) throw b.error;
 }
 

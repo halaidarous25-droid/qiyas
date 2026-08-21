@@ -101,6 +101,7 @@ interface Store {
   removeClass: (id: string) => void;
   rankMission: (m: Mission) => Candidate[];
   studentMissionsFor: (studentId: string) => { mission: Mission; rank: number; match: number; seat: boolean }[];
+  studentMissionStats: (studentId: string) => { nominated: number; notNominated: number; assigned: number };
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -241,20 +242,29 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
   };
 
   const assignCandidate: Store["assignCandidate"] = (missionId, candId, name) => {
+    const m = missions.find((x) => x.id === missionId);
+    const cur = assigned[missionId] || [];
+    // لا يُسمح بالتكليف إلا بعدد المقاعد
+    if (m && !cur.includes(candId) && cur.length >= m.seats) {
+      toast(`اكتمل عدد المقاعد (${m.seats}) لهذه المهمة — لا يمكن تكليف طالب إضافي`, "danger");
+      return;
+    }
     if (isLive && schoolId) {
       api.dbAssign(schoolId, missionId, candId)
         .then(() => resync())
-        .then(() => toast(`اعتُمد ${name} للتكليف التجريبي`))
-        .catch((e) => toast(`تعذّر الاعتماد: ${e.message || e}`, "danger"));
+        .then(() => toast(`كُلِّف ${name} بالمهمة`))
+        .catch((e) => toast(`تعذّر التكليف: ${e.message || e}`, "danger"));
       return;
     }
+    const nextCount = cur.includes(candId) ? cur.length : cur.length + 1;
     setAssigned((a) => {
-      const cur = a[missionId] || [];
-      if (cur.includes(candId)) return a;
-      return { ...a, [missionId]: [...cur, candId] };
+      const c2 = a[missionId] || [];
+      if (c2.includes(candId)) return a;
+      return { ...a, [missionId]: [...c2, candId] };
     });
-    setMissions((list) => list.map((m) => m.id === missionId ? { ...m, status: "trial" } : m));
-    toast(`اعتُمد ${name} للتكليف التجريبي`);
+    setMissions((list) => list.map((x) => x.id === missionId
+      ? { ...x, status: (m && nextCount >= m.seats ? "closed" : "screening") } : x));
+    toast(`كُلِّف ${name} بالمهمة`);
   };
 
   const unassignCandidate: Store["unassignCandidate"] = (missionId, candId, name) => {
@@ -265,8 +275,13 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
         .catch((e) => toast(`تعذّر الإلغاء: ${e.message || e}`, "danger"));
       return;
     }
-    setAssigned((a) => ({ ...a, [missionId]: (a[missionId] || []).filter((x) => x !== candId) }));
-    toast(`أُلغي اعتماد ${name}`, "info");
+    setAssigned((a) => {
+      const remaining = (a[missionId] || []).filter((x) => x !== candId);
+      setMissions((list) => list.map((x) => x.id === missionId
+        ? { ...x, status: (remaining.length === 0 ? "open" : "screening") } : x));
+      return { ...a, [missionId]: remaining };
+    });
+    toast(`أُلغي تكليف ${name}`, "info");
   };
 
   const nominateStudent: Store["nominateStudent"] = (missionId, candId, name) => {
@@ -674,6 +689,19 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     return out.sort((a, b) => b.match - a.match);
   };
 
+  // إحصاء حالات الطالب عبر جميع المهام: مرشّح / غير مرشّح / مكلّف
+  const studentMissionStats: Store["studentMissionStats"] = (studentId) => {
+    let nominated = 0, notNominated = 0, assignedC = 0;
+    missions.forEach((m) => {
+      const asg = assigned[m.id] || [];
+      if (asg.includes(studentId)) { assignedC++; return; }
+      if (!m.candidateIds.includes(studentId)) return;
+      const seatsLeft = m.seats - asg.length;
+      if (seatsLeft > 0) nominated++; else notNominated++;
+    });
+    return { nominated, notNominated, assigned: assignedC };
+  };
+
   return (
     <Ctx.Provider value={{
       live: isLive, schoolId, tenantCode: seed?.tenantCode ?? null, role: effRole, can,
@@ -683,7 +711,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, removeStudent, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor,
+      students, teachers, classes, addStudent, updateStudent, removeStudent, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor, studentMissionStats,
     }}>
       {children}
     </Ctx.Provider>

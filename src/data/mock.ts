@@ -5,7 +5,7 @@
 // ============================================================
 
 export type Trust = "trusted" | "reserved" | "interview";
-export type MissionStatus = "draft" | "open" | "screening" | "trial" | "closed";
+export type MissionStatus = "draft" | "open" | "screening" | "closed";
 export type ScopeLevel = "school" | "grade" | "stage" | "class";
 export type OperatingMode = "A" | "B";
 
@@ -174,7 +174,7 @@ export const MISSIONS: Mission[] = [
   {
     id: "m3", title: "عريف الفصل ٢/أ", scopeType: "grade",
     scopeLabel: "الصف الثاني الثانوي — فصل أ", mode: "A", seats: 1, supervisor: "أ. فهد العنزي",
-    status: "trial", applicants: 3, eligible: 28, createdAt: "1446/01/28",
+    status: "screening", applicants: 3, eligible: 28, createdAt: "1446/01/28",
     weights: { org: 30, lead: 20, comm: 20, firm: 20, init: 10 },
     candidateIds: ["st1","st5","st8"],
   },
@@ -240,7 +240,7 @@ export const SCHOOL = {
   tenant: "sch_1043",
   students: 214,
   classes: 9,
-  activeMissions: MISSIONS.filter((m) => ["open","screening","trial"].includes(m.status)).length,
+  activeMissions: MISSIONS.filter((m) => ["open","screening"].includes(m.status)).length,
   mode: "B" as OperatingMode,
   quota: { total: 200, used: 128, missionQuota: 150, missionUsed: 104, individual: 50, individualUsed: 24 },
 };
@@ -286,8 +286,7 @@ export const STATUS_META: Record<MissionStatus, { label: string; tone: string }>
   draft:     { label: "مسودة",       tone: "muted" },
   open:      { label: "تقديم مفتوح", tone: "info" },
   screening: { label: "قيد الفرز",   tone: "warning" },
-  trial:     { label: "تكليف تجريبي", tone: "success" },
-  closed:    { label: "مغلقة",        tone: "muted" },
+  closed:    { label: "مكتملة التكليف", tone: "success" },
 };
 
 export const SCOPE_META: Record<ScopeLevel, string> = {

@@ -23,7 +23,7 @@ export function StudentApp() {
   const [showReport, setShowReport] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
-  const openMissions = missions.filter((m) => ["open", "screening", "trial"].includes(m.status));
+  const openMissions = missions.filter((m) => ["open", "screening"].includes(m.status));
   const myMissions = missions.filter((m) => isMeIn(m.id));
 
   const finish = (a: Answers) => {

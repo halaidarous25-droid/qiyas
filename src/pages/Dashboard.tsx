@@ -28,7 +28,7 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 
 export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
   const { missions, students } = useSlis();
-  const activeMissions = missions.filter((m) => ["open", "screening", "trial"].includes(m.status)).length;
+  const activeMissions = missions.filter((m) => ["open", "screening"].includes(m.status)).length;
   const assessedStudents = students.filter((c) => c.assessed);
   const total = assessedStudents.length || 1;
   // متوسطات المدرسة على المحاور الخمسة (للمُقيَّمين فقط)

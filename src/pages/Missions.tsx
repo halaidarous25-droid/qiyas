@@ -11,7 +11,7 @@ const FILTERS: { key: MissionStatus | "all"; label: string }[] = [
   { key: "all", label: "الكل" },
   { key: "open", label: "تقديم مفتوح" },
   { key: "screening", label: "قيد الفرز" },
-  { key: "trial", label: "تكليف تجريبي" },
+  { key: "closed", label: "مكتملة التكليف" },
   { key: "draft", label: "مسودة" },
 ];
 
