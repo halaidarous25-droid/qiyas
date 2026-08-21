@@ -16,7 +16,7 @@ import {
   PauseCircle, Trash2, AlertTriangle, Plus, KeyRound, Copy, Loader2,
 } from "lucide-react";
 import { useEffect } from "react";
-import { provisionSchool, resetAccountPassword, fetchResetRequests, type ResetRequest } from "@/lib/api";
+import { provisionSchool, resetAccountPassword, fetchResetRequests, fetchSchoolAccount, setSchoolCredentials, type ResetRequest } from "@/lib/api";
 
 // قائمة المدن (قابلة للتوسعة)
 const CITIES = [
@@ -473,6 +473,23 @@ function SchoolEditModal({ school, onClose, onSave }: {
   const [email, setEmail] = useState(school.email || "");
   const [phone, setPhone] = useState(school.phone || "");
   const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
+  // بيانات دخول مدير المدرسة (اسم مستخدم/كلمة مرور — تعديل مرة واحدة)
+  const { toast } = useSlis();
+  const [acc, setAcc] = useState<{ username: string; username_locked: boolean } | null>(null);
+  const [newUser, setNewUser] = useState(""); const [newPass, setNewPass] = useState("");
+  const [savingCred, setSavingCred] = useState(false);
+  useEffect(() => { fetchSchoolAccount(school.id).then(setAcc).catch(() => {}); }, [school.id]);
+  const saveCred = async () => {
+    if (newUser.trim().length < 3 || newPass.length < 6) { toast("اسم المستخدم (٣ أحرف) وكلمة المرور (٦ أحرف) مطلوبة", "danger"); return; }
+    setSavingCred(true);
+    try {
+      await setSchoolCredentials(school.id, newUser.trim(), newPass);
+      toast("حُفظت بيانات الدخول — تُسلَّم للمدرسة (لا يمكن تعديلها مجددًا)");
+      setAcc({ username: newUser.trim().toLowerCase(), username_locked: true });
+      setNewUser(""); setNewPass("");
+    } catch (e: any) { toast(`تعذّر: ${e.message || e}`, "danger"); }
+    finally { setSavingCred(false); }
+  };
   const STAGES = ["الابتدائية", "المتوسطة", "الثانوية"];
   return (
     <div className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/40 p-4" onClick={onClose}>
@@ -509,6 +526,30 @@ function SchoolEditModal({ school, onClose, onSave }: {
             <input className={inp} dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05xxxxxxxx" />
           </div>
         </div>
+
+        {/* بيانات الدخول: تعديل اسم المستخدم/كلمة المرور مرة واحدة */}
+        <div className="mt-4 rounded-xl border bg-muted/20 p-3">
+          <div className="mb-2 flex items-center gap-2 text-sm font-bold"><KeyRound className="h-4 w-4 text-brand" /> بيانات دخول مدير المدرسة</div>
+          <div className="mb-2 text-xs text-muted-foreground">اسم المستخدم الحالي: <span className="font-mono font-semibold text-foreground" dir="ltr">{acc?.username || "…"}</span></div>
+          {acc?.username_locked ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-[12px] text-amber-800">تم تعديل بيانات الدخول مسبقًا (مرة واحدة فقط). لإعادة تعيين كلمة المرور فقط استخدم قسم «طلبات إعادة التعيين».</div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم المستخدم الجديد</label>
+                <input className={inp} dir="ltr" value={newUser} onChange={(e) => setNewUser(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ""))} placeholder="username" /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">كلمة المرور الجديدة</label>
+                <input className={inp} dir="ltr" value={newPass} onChange={(e) => setNewPass(e.target.value)} placeholder="٦ أحرف فأكثر" /></div>
+              <div className="sm:col-span-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">يُلغى استخدام البريد كاسم مستخدم. لا يمكن التعديل إلا مرة واحدة.</p>
+                <button onClick={saveCred} disabled={savingCred || newUser.trim().length < 3 || newPass.length < 6}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+                  {savingCred ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} حفظ بيانات الدخول
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
           <button

@@ -283,6 +283,20 @@ export async function provisionTeacher(payload: {
   if (data?.error) throw new Error(data.error);
   return data as { ok: boolean; username: string; password: string };
 }
+// حساب دخول مدير المدرسة (للاطلاع في نافذة التعديل)
+export async function fetchSchoolAccount(schoolId: string): Promise<{ username: string; username_locked: boolean } | null> {
+  const { data } = await supabase.from("account_credentials")
+    .select("username,username_locked").eq("school_id", schoolId).eq("role", "principal").limit(1).maybeSingle();
+  return data ? { username: data.username, username_locked: !!data.username_locked } : null;
+}
+// تعديل اسم المستخدم/كلمة المرور لمدرسة مسجّلة مسبقًا (مرة واحدة فقط)
+export async function setSchoolCredentials(schoolId: string, username: string, password: string) {
+  const { data, error } = await supabase.functions.invoke("admin-users", { body: { action: "set_school_credentials", schoolId, username, password } });
+  if (error) throw new Error((error as any)?.message || "تعذّر الحفظ");
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; username: string };
+}
+
 export async function resetAccountPassword(username: string, newPassword?: string, requestId?: string) {
   const { data, error } = await supabase.functions.invoke("admin-users", { body: { action: "reset_password", username, newPassword, requestId } });
   if (error) throw new Error((error as any)?.message || "تعذّر إعادة التعيين");
