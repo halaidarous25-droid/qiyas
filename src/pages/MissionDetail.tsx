@@ -10,8 +10,24 @@ import { cn } from "@/lib/utils";
 import {
   ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
   CheckCircle2, Trophy, ClipboardList, Plus, X, Save, Flag,
-  XCircle, Pencil, UserPlus, Trash2,
+  XCircle, Pencil, UserPlus, Trash2, Star,
 } from "lucide-react";
+
+// تقييم المواءمة على شكل ٥ نجوم تمتلئ حسب النسبة
+function MatchStars({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, value));
+  const row = (cls: string) => (
+    <span className={cn("flex gap-0.5", cls)}>
+      {[0, 1, 2, 3, 4].map((i) => <Star key={i} className="h-4 w-4" fill="currentColor" stroke="none" />)}
+    </span>
+  );
+  return (
+    <span className="relative inline-flex" title={`المواءمة ${pct}%`}>
+      {row("text-slate-300")}
+      <span className="absolute inset-0 overflow-hidden text-gold" style={{ width: `${pct}%` }}>{row("")}</span>
+    </span>
+  );
+}
 import type { DevPlan } from "@/lib/live";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
 
@@ -70,8 +86,8 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
           </span>
           <span className="text-[10px] text-muted-foreground">المواءمة</span>
         </div>
-        <div className="w-28 hidden md:block">
-          <Meter value={c.match} tone={matchTone(c.match)} />
+        <div className="w-28 hidden md:flex justify-center">
+          <MatchStars value={c.match} />
         </div>
 
         <Pill tone={statusTone} className="hidden sm:inline-flex">{statusLabel}</Pill>
@@ -81,7 +97,7 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
 
       {/* شارة المواءمة للجوال */}
       <div className="flex items-center gap-2 px-3 pb-2 md:hidden">
-        <Meter value={c.match} tone={matchTone(c.match)} />
+        <MatchStars value={c.match} />
         <span className="text-sm font-bold"><En>{c.match}%</En></span>
         <Pill tone={trust.tone as Tone}>{trust.label}</Pill>
       </div>
