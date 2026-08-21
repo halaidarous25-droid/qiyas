@@ -7,6 +7,7 @@ import { Missions } from "@/pages/Missions";
 import { MissionDetail } from "@/pages/MissionDetail";
 import { StudentApp } from "@/pages/student/StudentApp";
 import { Students } from "@/pages/Students";
+import { Updates } from "@/pages/Updates";
 import { SchoolAdmin } from "@/pages/SchoolAdmin";
 import { Quota } from "@/pages/Quota";
 import { Governance } from "@/pages/Governance";
@@ -25,7 +26,7 @@ import { useSlis } from "@/store";
 import { Loader2, LogOut, AlertCircle, KeyRound } from "lucide-react";
 
 const CRUMBS: Record<PageKey, string> = {
-  dashboard: "لوحة المدرسة", missions: "المهام القيادية", students: "الطلاب",
+  dashboard: "لوحة المدرسة", updates: "آخر المستجدات", missions: "المهام القيادية", students: "الطلاب",
   school: "إدارة المدرسة", questions: "مستودع الأسئلة", reports: "التقارير", quota: "الحصص",
   governance: "الحوكمة", settings: "الإعدادات", profile: "ملفي الشخصي",
 };
@@ -90,11 +91,18 @@ function LiveCentral({ userName }: { userName?: string }) {
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
 function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
   { initialRole: Role; locked: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null }) {
-  const { schoolInfo } = useSlis();
+  const { schoolInfo, indReqs, missions, assigned } = useSlis();
   const [page, setPage] = useState<PageKey>("dashboard");
   const [role, setRole] = useState<Role>(initialRole);
   const [missionId, setMissionId] = useState<string | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
+
+  // عدّاد المستجدات: طلبات فردية معلّقة + مهام بانتظار الإسناد
+  const pendingMissionsCount = missions.filter((m) => {
+    const asg = (assigned[m.id] || []).length;
+    return ["open", "screening"].includes(m.status) && m.candidateIds.length > 0 && asg < m.seats;
+  }).length;
+  const notifCount = indReqs.length + pendingMissionsCount;
 
   const openMission = (id: string) => { setMissionId(id); setPage("missions"); };
   const openStudent = (id: string) => { setStudentId(id); setMissionId(null); setPage("students"); };
@@ -122,12 +130,13 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
     <div className="min-h-screen bg-background text-foreground">
       <BrandBanner schoolName={schoolInfo.name || undefined} />
       <div className="flex">
-      <Sidebar page={page} onNavigate={goto} />
+      <Sidebar page={page} onNavigate={goto} notifCount={notifCount} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} schoolName={schoolInfo.name} />
+        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} schoolName={schoolInfo.name} notifCount={notifCount} onBell={() => goto("updates")} />
         <main className="flex-1 p-4 md:p-6 soft-grid">
           <div className="mx-auto max-w-6xl">
             {page === "dashboard" && <Dashboard onOpenMissions={() => setPage("missions")} />}
+            {page === "updates" && <Updates onOpenStudent={openStudent} onOpenMission={openMission} />}
             {page === "missions" && !missionId && <Missions onOpenMission={openMission} />}
             {page === "missions" && missionId && (
               <MissionDetail missionId={missionId} onBack={() => setMissionId(null)} onOpenStudent={openStudent} />

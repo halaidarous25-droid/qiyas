@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pill, Meter, Avatar, En, MatchStars } from "@/components/common";
+import { Pill, Meter, Avatar, En } from "@/components/common";
 import {
   AXES, STATUS_META, TRUST_META, ME_ID,
   type Candidate, type Mission,
@@ -70,8 +70,8 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
           </span>
           <span className="text-[10px] text-muted-foreground">المواءمة</span>
         </div>
-        <div className="w-28 hidden md:flex justify-center">
-          <MatchStars value={c.match} />
+        <div className="w-28 hidden md:block">
+          <Meter value={c.match} tone={matchTone(c.match)} />
         </div>
 
         <Pill tone={statusTone} className="hidden sm:inline-flex">{statusLabel}</Pill>
@@ -81,7 +81,7 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
 
       {/* شارة المواءمة للجوال */}
       <div className="flex items-center gap-2 px-3 pb-2 md:hidden">
-        <MatchStars value={c.match} />
+        <Meter value={c.match} tone={matchTone(c.match)} />
         <span className="text-sm font-bold"><En>{c.match}%</En></span>
         <Pill tone={trust.tone as Tone}>{trust.label}</Pill>
       </div>

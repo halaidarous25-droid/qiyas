@@ -6,7 +6,8 @@ import { useSlis } from "@/store";
 import { matchTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import { PieChart, Target, FileText, Layers, TrendingUp, User, Printer } from "lucide-react";
-import { StudentReport, MissionReport, SchoolReport } from "./reports/ReportView";
+import { MissionReport, SchoolReport } from "./reports/ReportView";
+import { StudentReportPro } from "./reports/StudentReportPro";
 
 const STYLE_COLORS = ["hsl(191 72% 30%)", "hsl(36 55% 47%)", "hsl(152 46% 40%)", "hsl(205 70% 45%)", "hsl(280 40% 55%)", "hsl(15 65% 55%)"];
 
@@ -22,7 +23,7 @@ type OpenReport =
   | null;
 
 export function Reports() {
-  const { missions, students, rankMission, studentMissionsFor, schoolInfo } = useSlis();
+  const { missions, students, rankMission, assigned, schoolInfo } = useSlis();
   const assessed = students.filter((c) => c.assessed);
   const [open, setOpen] = useState<OpenReport>(null);
   const [pickStudent, setPickStudent] = useState("");
@@ -149,7 +150,8 @@ export function Reports() {
                 const st = STATUS_META[m.status];
                 return (
                   <tr key={m.id} className="hover:bg-accent/30">
-                    <td className="border-b p-2.5 font-medium">{m.title}</td>
+                    <td className="border-b p-2.5 font-medium">{m.title}
+                      <span className="block text-[11px] font-normal text-muted-foreground">{m.scopeLabel}</span></td>
                     <td className="border-b p-2.5 text-center"><Pill tone={st.tone as Tone}>{st.label}</Pill></td>
                     <td className="border-b p-2.5 text-center tabular-nums"><En>{r.count}</En></td>
                     <td className="border-b p-2.5 text-center tabular-nums"><En>{r.filled}/{m.seats}</En></td>
@@ -194,7 +196,7 @@ export function Reports() {
             <select value={pickMission} onChange={(e) => setPickMission(e.target.value)}
               className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
               <option value="">اختر مهمة…</option>
-              {missions.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+              {missions.map((m) => <option key={m.id} value={m.id}>{m.title} — {m.scopeLabel}</option>)}
             </select>
             <button disabled={!pickMission} onClick={() => setOpen({ kind: "mission", id: pickMission })}
               className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
@@ -222,12 +224,15 @@ export function Reports() {
       {open?.kind === "student" && (() => {
         const s = students.find((c) => c.id === open.id);
         if (!s) return null;
-        return <StudentReport student={s} missions={studentMissionsFor(s.id)} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
+        const assignedMissions = missions.filter((m) => (assigned[m.id] || []).includes(s.id));
+        return <StudentReportPro student={s} missions={missions} assignedMissions={assignedMissions} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
       })()}
       {open?.kind === "mission" && (() => {
         const m = missions.find((x) => x.id === open.id);
         if (!m) return null;
-        return <MissionReport mission={m} ranked={rankMission(m)} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
+        const ranked = rankMission(m);
+        const assignedStudents = ranked.filter((c) => (assigned[m.id] || []).includes(c.id));
+        return <MissionReport mission={m} ranked={ranked} assignedStudents={assignedStudents} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
       })()}
       {open?.kind === "school" && (
         <SchoolReport schoolName={schoolName} today={today} onClose={() => setOpen(null)}

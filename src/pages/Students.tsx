@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Pill, Meter, Avatar, En, MatchStars } from "@/components/common";
+import { Pill, Meter, Avatar, En } from "@/components/common";
 import {
   AXES, TRUST_META,
   type Candidate, type Trust,
@@ -140,10 +140,7 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
                       <div className="text-[11px] text-muted-foreground">{mission.scopeLabel}</div>
                     </div>
                     <div className="text-left">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <MatchStars value={match} size={16} />
-                        <span className={cn("font-display font-extrabold", textTone[matchTone(match)])}><En>{match}%</En></span>
-                      </div>
+                      <div className={cn("font-display font-extrabold", textTone[matchTone(match)])}><En>{match}%</En></div>
                       {seat && <Pill tone="success" className="mt-0.5">ضمن المقاعد</Pill>}
                     </div>
                   </div>
@@ -238,8 +235,8 @@ export function Students({ initialStudentId, onConsumed }:
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card">
-        <div className="hidden md:grid grid-cols-[1fr_110px_110px_120px_180px] gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-semibold text-muted-foreground">
-          <span>الطالب</span><span>الكفايات</span><span>السلوك</span><span>الموثوقية</span><span>المهام (مرشّح / غير مرشّح / مكلّف)</span>
+        <div className="hidden md:grid grid-cols-[1fr_120px_120px_130px_150px] gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-semibold text-muted-foreground">
+          <span>الطالب</span><span>الكفايات</span><span>السلوك</span><span>الموثوقية</span><span>المهام</span>
         </div>
         <div className="divide-y">
           {list.map((c) => {
@@ -247,7 +244,7 @@ export function Students({ initialStudentId, onConsumed }:
             const stats = studentMissionStats(c.id);
             return (
               <button key={c.id} onClick={() => setSel(c)}
-                className="grid w-full grid-cols-[1fr_auto] md:grid-cols-[1fr_110px_110px_120px_180px] items-center gap-3 px-4 py-3 text-right hover:bg-accent/40">
+                className="grid w-full grid-cols-[1fr_auto] md:grid-cols-[1fr_120px_120px_130px_150px] items-center gap-3 px-4 py-3 text-right hover:bg-accent/40">
                 <div className="flex items-center gap-3">
                   <Avatar name={c.name} color={c.avatarColor} size={38} />
                   <div>

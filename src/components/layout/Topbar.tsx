@@ -12,9 +12,10 @@ const ROLES: { key: Role; label: string }[] = [
   { key: "central", label: "مدير النظام المركزي" },
 ];
 
-export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile, schoolName }:
+export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile, schoolName, notifCount = 0, onBell }:
   { role: Role; onRole: (r: Role) => void; crumb: string;
-    locked?: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null; onProfile?: () => void; schoolName?: string }) {
+    locked?: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null; onProfile?: () => void; schoolName?: string;
+    notifCount?: number; onBell?: () => void }) {
   const current = ROLES.find((r) => r.key === role)!;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -39,9 +40,12 @@ export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avata
           <input placeholder="بحث عن طالب أو مهمة…" className="bg-transparent outline-none flex-1 text-foreground placeholder:text-muted-foreground" />
         </div>
 
-        <button className="relative grid h-9 w-9 place-items-center rounded-lg border bg-background hover:bg-accent">
+        <button onClick={onBell} title="آخر المستجدات"
+          className="relative grid h-9 w-9 place-items-center rounded-lg border bg-background hover:bg-accent">
           <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute -top-1 -left-1 grid h-4 w-4 place-items-center rounded-full bg-danger text-[10px] text-white">4</span>
+          {notifCount > 0 && (
+            <span className="absolute -top-1 -left-1 grid h-4 min-w-4 px-0.5 place-items-center rounded-full bg-danger text-[10px] text-white">{notifCount > 9 ? "9+" : notifCount}</span>
+          )}
         </button>
 
         {locked ? (
