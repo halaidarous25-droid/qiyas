@@ -233,9 +233,11 @@ function ClassesTab({ classes, teachers, onAdd }:
 
 function EditClassModal({ c, classes, teachers, onClose, onSave }:
   { c: SchoolClass; classes: SchoolClass[]; teachers: any[]; onClose: () => void; onSave: (patch: any) => void }) {
+  const currentNum = c.name.includes("/") ? c.name.split("/")[1] : CLASS_NUMS[0];
   const [grade, setGrade] = useState(c.grade || GRADES[0]);
-  const [num, setNum] = useState(c.name.includes("/") ? c.name.split("/")[1] : CLASS_NUMS[0]);
+  const [num, setNum] = useState(currentNum);
   const [homeroom, setHomeroom] = useState(c.homeroom || teachers[0]?.name || "");
+  const numOptions = Array.from(new Set([currentNum, ...CLASS_NUMS])).filter(Boolean);
   const className = `${grade}/${num}`;
   const exists = classes.some((x) => x.id !== c.id && x.name === className);
   return (
@@ -245,7 +247,7 @@ function EditClassModal({ c, classes, teachers, onClose, onSave }:
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><span className="text-lg">×</span></button></div>
         <div className="space-y-3">
           <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => setGrade(e.target.value)}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
-          <Field label="رقم الفصل"><select className={inputCls} value={num} onChange={(e) => setNum(e.target.value)}>{CLASS_NUMS.map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
+          <Field label="رقم الفصل"><select className={inputCls} value={num} onChange={(e) => setNum(e.target.value)}>{numOptions.map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
           <Field label="رائد الفصل">
             <select className={inputCls} value={homeroom} onChange={(e) => setHomeroom(e.target.value)}>
               {teachers.length === 0 && <option value="">لا يوجد معلمون بعد</option>}
@@ -402,7 +404,8 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
   { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
   const [editS, setEditS] = useState<any | null>(null);
   const [delS, setDelS] = useState<any | null>(null);
-  const [name, setName] = useState(""); const [grade, setGrade] = useState(GRADES[0]);
+  const gradeOptions = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
+  const [name, setName] = useState(""); const [grade, setGrade] = useState("");
   const gradeClasses = classes.filter((c) => c.grade === grade);
   const [className, setClassName] = useState("");
   const [natId, setNatId] = useState(""); const [sEmail, setSEmail] = useState(""); const [sPhone, setSPhone] = useState("");
@@ -536,10 +539,13 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
           <h3 className="font-display font-bold">إضافة طالب</h3></div>
         <div className="space-y-3">
           <Field label="الاسم الرباعي"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الأول واسم الأب والجد والعائلة" /></Field>
-          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
+            <option value="">{gradeOptions.length ? "اختر الصف…" : "أضف فصلًا في صفحة الفصول أولًا"}</option>
+            {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select></Field>
           <Field label="الفصل">
             <select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>
-              <option value="">{gradeClasses.length ? "اختر الفصل…" : "أضف فصلًا لهذا الصف أولًا"}</option>
+              <option value="">{!grade ? "اختر الصف أولًا" : gradeClasses.length ? "اختر الفصل…" : "لا فصول لهذا الصف"}</option>
               {gradeClasses.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </Field>
@@ -573,11 +579,13 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
 function EditStudentModal({ s, classes, onClose, onSave }:
   { s: any; classes: SchoolClass[]; onClose: () => void; onSave: (patch: any) => void }) {
   const [name, setName] = useState(s.name || "");
-  const [grade, setGrade] = useState(s.grade || GRADES[0]);
+  const [grade, setGrade] = useState(s.grade || "");
   const [className, setClassName] = useState(s.className || "");
   const [natId, setNatId] = useState(s.nationalId || "");
   const [phone, setPhone] = useState(s.phone || "");
   const [email, setEmail] = useState(s.email || "");
+  // الصفوف المسجّلة في صفحة الفصول (مع الإبقاء على صف الطالب الحالي إن اختلف)
+  const gradeOptions = Array.from(new Set([s.grade, ...classes.map((c) => c.grade)].filter(Boolean)));
   const gradeClasses = classes.filter((c) => c.grade === grade);
   const nameOk = name.trim().split(/\s+/).filter(Boolean).length >= 3;
   return (
@@ -587,10 +595,14 @@ function EditStudentModal({ s, classes, onClose, onSave }:
           <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><span className="text-lg">×</span></button></div>
         <div className="space-y-3">
           <Field label="الاسم الرباعي"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الأول واسم الأب والجد والعائلة" /></Field>
-          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
+            <option value="">{gradeOptions.length ? "اختر الصف…" : "أضف فصلًا في صفحة الفصول أولًا"}</option>
+            {gradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select></Field>
           <Field label="الفصل">
             <select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>
-              <option value="">{gradeClasses.length ? "اختر الفصل…" : "أضف فصلًا لهذا الصف أولًا"}</option>
+              <option value="">{!grade ? "اختر الصف أولًا" : gradeClasses.length ? "اختر الفصل…" : "لا فصول لهذا الصف"}</option>
+              {className && !gradeClasses.some((c) => c.name === className) && <option value={className}>{className}</option>}
               {gradeClasses.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </Field>

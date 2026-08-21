@@ -22,6 +22,7 @@ export function PublicAssessment({ code }: { code: string }) {
   const [classNum, setClassNum] = useState("");
   const className = grade && classNum ? `${grade}/${classNum}` : "";
   const CLASS_NUMS = Array.from({ length: 10 }, (_, i) => String(i + 1));
+  const classMissing = !!(grade && classNum && classes.length > 0 && !classes.some((c) => c.name === className));
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -237,6 +238,12 @@ export function PublicAssessment({ code }: { code: string }) {
                   </select>
                 </div>
               </div>
+              {classMissing && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>لا يوجد فصل باسم «{className}» مسجّل في مدرستك. تأكّد من اختيار الصف والفصل الصحيحين قبل المتابعة.</span>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم الهوية <span className="font-normal text-muted-foreground/70">(اختياري)</span></label>
                 <input className={inp} dir="ltr" inputMode="numeric" placeholder="رقم الهوية الوطنية / الإقامة"
