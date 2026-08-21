@@ -304,7 +304,6 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           </div>
           <div className="flex items-center gap-1.5">
             <Pill tone={st.tone as Tone}>{st.label}</Pill>
-            <Pill tone="brand">الوضع {m.mode === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"}</Pill>
             <button onClick={() => setEditing(true)}
               className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent">
               <Pencil className="h-3.5 w-3.5" /> تعديل المهمة

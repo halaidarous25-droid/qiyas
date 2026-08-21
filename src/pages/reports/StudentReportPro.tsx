@@ -1,4 +1,5 @@
 import { AXES, TRUST_META, computeMatch, type Candidate, type Mission } from "@/data/mock";
+import { EXPERIENCE_LABELS } from "@/data/questions";
 import { leadershipStyle } from "@/lib/scoring";
 import { En } from "@/components/common";
 import { Printer, X, Award, Target, TrendingUp, AlertTriangle, CheckCircle2, History, ClipboardList, Lightbulb, ShieldCheck, ArrowUpRight } from "lucide-react";
@@ -180,6 +181,9 @@ export function StudentReportPro({ student, missions, schoolName, today, onClose
               <div>{student.grade}{student.className ? " · " + student.className : ""}</div>
               <div>تاريخ التقرير: <En>{today}</En></div>
               {student.assessedAt && <div>تاريخ الاختبار: <En>{student.assessedAt}</En></div>}
+              <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                <Award className="h-3 w-3" /> خبرة قيادية: {EXPERIENCE_LABELS[student.experience ?? 0]}
+              </div>
             </div>
           </div>
 

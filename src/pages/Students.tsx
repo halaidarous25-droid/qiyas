@@ -9,24 +9,86 @@ import { matchTone, textTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import {
   Users, Search, ArrowRight, Target, Crown, ShieldCheck,
-  TrendingUp, CircleUser, Filter, Clock, FileText,
+  TrendingUp, CircleUser, Filter, Clock, FileText, Pencil, X,
 } from "lucide-react";
 import { StudentReportPro } from "./reports/StudentReportPro";
 
 // ===== ملف الطالب =====
+const PROFILE_GRADES = ["الثالث الثانوي", "الثاني الثانوي", "الأول الثانوي", "الثالث المتوسط", "الثاني المتوسط", "الأول المتوسط"];
+
+function EditStudentModal({ c, onClose }: { c: Candidate; onClose: () => void }) {
+  const { classes, updateStudent } = useSlis();
+  const [name, setName] = useState(c.name);
+  const [grade, setGrade] = useState(c.grade || PROFILE_GRADES[0]);
+  const [className, setClassName] = useState(c.className || "");
+  const [natId, setNatId] = useState((c as any).nationalId || "");
+  const [phone, setPhone] = useState((c as any).phone || "");
+  const [email, setEmail] = useState((c as any).email || "");
+  const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
+  const gradeClasses = classes.filter((x) => x.grade === grade);
+  const nameOk = name.trim().split(/\s+/).filter(Boolean).length >= 3;
+  const save = () => {
+    if (!nameOk) return;
+    updateStudent(c.id, { name: name.trim(), grade, className, nationalId: natId.trim(), email: email.trim(), phone: phone.trim() });
+    onClose();
+  };
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center overflow-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-extrabold">تعديل بيانات الطالب</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-3">
+          <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">الاسم الرباعي</label>
+            <input className={inp} value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">الصف الدراسي</label>
+              <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{PROFILE_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></div>
+            <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">الفصل</label>
+              <select className={inp} value={className} onChange={(e) => setClassName(e.target.value)}>
+                <option value="">اختر الفصل…</option>
+                {gradeClasses.map((x) => <option key={x.id} value={x.name}>{x.name}</option>)}
+              </select></div>
+          </div>
+          <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">رقم الهوية</label>
+            <input className={inp} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">رقم الجوال</label>
+              <input className={inp} dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} /></div>
+            <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">البريد</label>
+              <input className={inp} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+          <button onClick={save} disabled={!nameOk} className="rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">حفظ التعديلات</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
   const { studentMissionsFor, missions: allMissions, schoolInfo } = useSlis();
   const trust = TRUST_META[c.trust];
   const missions = studentMissionsFor(c.id);
   const [showReport, setShowReport] = useState(false);
+  const [editing, setEditing] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
   if (!c.assessed) {
     return (
       <div className="space-y-5">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
-          <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
-        </button>
+        {editing && <EditStudentModal c={c} onClose={() => setEditing(false)} />}
+        <div className="flex items-center justify-between">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+            <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
+          </button>
+          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
+            <Pencil className="h-4 w-4" /> تعديل البيانات
+          </button>
+        </div>
         <div className="rounded-2xl border bg-card p-5">
           <div className="flex flex-wrap items-center gap-4">
             <Avatar name={c.name} color={c.avatarColor} size={60} />
@@ -50,12 +112,18 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
           <ArrowRight className="h-4 w-4" /> رجوع إلى الطلاب
         </button>
-        <button onClick={() => setShowReport(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-sm font-semibold text-white hover:bg-brand/90">
-          <FileText className="h-4 w-4" /> تقرير تفصيلي / طباعة
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-sm font-semibold hover:bg-accent">
+            <Pencil className="h-4 w-4" /> تعديل البيانات
+          </button>
+          <button onClick={() => setShowReport(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+            <FileText className="h-4 w-4" /> تقرير تفصيلي / طباعة
+          </button>
+        </div>
       </div>
 
+      {editing && <EditStudentModal c={c} onClose={() => setEditing(false)} />}
       {showReport && (
         <StudentReportPro student={c} missions={allMissions} schoolName={schoolInfo.name || "مدرستي"} today={today} onClose={() => setShowReport(false)} />
       )}

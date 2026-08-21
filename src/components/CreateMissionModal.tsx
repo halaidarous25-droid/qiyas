@@ -2,37 +2,32 @@ import { useState } from "react";
 import { useSlis } from "@/store";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { AXES, type ScopeLevel, type OperatingMode, type AxisScores, type AxisKey, type Mission } from "@/data/mock";
+import { AXES, type ScopeLevel, type AxisScores, type AxisKey, type Mission } from "@/data/mock";
 import { X, Target, Plus, SlidersHorizontal } from "lucide-react";
 
 const SCOPES: { k: ScopeLevel; l: string }[] = [
-  { k: "school", l: "المدرسة" }, { k: "stage", l: "المرحلة" }, { k: "grade", l: "الصف/الفصل" },
+  { k: "school", l: "المدرسة" }, { k: "grade", l: "الصف الدراسي" }, { k: "class", l: "الفصل" },
 ];
 
 const EVEN_W: AxisScores = { org: 20, lead: 20, comm: 20, firm: 20, init: 20 };
-const PRESETS: { l: string; w: AxisScores }[] = [
-  { l: "متوازن", w: { org: 20, lead: 20, comm: 20, firm: 20, init: 20 } },
-  { l: "قيادي", w: { org: 15, lead: 35, comm: 15, firm: 20, init: 15 } },
-  { l: "تنظيمي", w: { org: 35, lead: 15, comm: 15, firm: 20, init: 15 } },
-  { l: "تواصلي", w: { org: 15, lead: 20, comm: 35, firm: 10, init: 20 } },
-];
 
 export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edit?: Mission }) {
-  const { addMission, updateMission, classes, mode, hybrid, presets, savePreset, deletePreset } = useSlis();
-  const [presetName, setPresetName] = useState("");
+  const { addMission, updateMission, classes, mode, roles } = useSlis();
   const isEdit = !!edit;
   const [title, setTitle] = useState(edit?.title ?? "");
-  const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType ?? "school");
+  const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType === "stage" ? "school" : (edit?.scopeType ?? "school"));
   const [scopeRef, setScopeRef] = useState(edit?.scopeRef ?? "");
   const [seats, setSeats] = useState(edit?.seats ?? 1);
-  const [mMode, setMMode] = useState<OperatingMode>(edit?.mode ?? mode);
-  const [showPriorities, setShowPriorities] = useState(isEdit);
+  const [showPriorities, setShowPriorities] = useState(false);
   const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
-  const [autoNom, setAutoNom] = useState(true);
-  const valid = title.trim().length >= 3;
+
+  // الصفوف الدراسية المتاحة (من الفصول) وأسماء الفصول
+  const gradeLevels = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
+
+  const valid = title.trim().length >= 2 &&
+    (scopeType === "school" || (scopeType === "grade" && !!scopeRef) || (scopeType === "class" && !!scopeRef));
 
   const wSum = AXES.reduce((s, a) => s + weights[a.key], 0);
-  // تطبيع الأوزان إلى مجموع ١٠٠
   const normalize = (w: AxisScores): AxisScores => {
     const sum = AXES.reduce((s, a) => s + w[a.key], 0);
     if (sum <= 0) return { ...EVEN_W };
@@ -41,16 +36,28 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
     return out;
   };
 
+  // اختيار مسمّى قيادي: يملأ العنوان ويستدعي أوزانه للمواءمة
+  const onPickRole = (rid: string) => {
+    const r = roles.find((x) => x.id === rid);
+    if (!r) { setTitle(""); return; }
+    setTitle(r.title);
+    setWeights({ ...r.weights });
+  };
+
   const submit = () => {
     if (!valid) return;
-    const base = { title: title.trim(), scopeType, scopeRef: scopeType === "grade" ? scopeRef : "", seats, mode: hybrid ? mMode : mode, weights: normalize(weights) };
+    const base = {
+      title: title.trim(), scopeType,
+      scopeRef: scopeType === "grade" || scopeType === "class" ? scopeRef : "",
+      seats, mode, weights: normalize(weights),
+    };
     if (isEdit) updateMission(edit!.id, base);
-    else addMission({ ...base, autoNominate: autoNom });
+    else addMission({ ...base, autoNominate: true }); // الوضع التلقائي: ترشيح وتقييم تلقائي بعد الإنشاء
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[90] grid place-items-center overflow-auto bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -60,18 +67,29 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
 
+        {/* عنوان المهمة = مسمّى من قائمة المهام القيادية */}
         <label className="block text-sm font-semibold">عنوان المهمة</label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus
-          placeholder="مثال: مسؤول جماعة النشاط العلمي"
-          className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand" />
+        {roles.length > 0 ? (
+          <select
+            value={roles.find((r) => r.title === title)?.id ?? ""}
+            onChange={(e) => onPickRole(e.target.value)}
+            className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand">
+            <option value="">اختر المسمّى القيادي…</option>
+            {roles.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+          </select>
+        ) : (
+          <div className="mt-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-[12px] text-muted-foreground">
+            لا توجد مسمّيات قيادية بعد. أضِفها من «إدارة المدرسة ← المهام القيادية» لتظهر هنا.
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-semibold">النطاق</label>
             <div className="mt-1 flex rounded-lg border p-0.5">
               {SCOPES.map((s) => (
-                <button key={s.k} onClick={() => setScopeType(s.k)}
-                  className={cn("flex-1 rounded-md py-1.5 text-xs font-semibold", scopeType === s.k ? "bg-brand text-white" : "text-muted-foreground")}>
+                <button key={s.k} onClick={() => { setScopeType(s.k); setScopeRef(""); }}
+                  className={cn("flex-1 rounded-md py-1.5 text-[11px] font-semibold", scopeType === s.k ? "bg-brand text-white" : "text-muted-foreground")}>
                   {s.l}
                 </button>
               ))}
@@ -87,98 +105,64 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           </div>
         </div>
 
-        {/* اختيار الفصل عند نطاق صف/فصل */}
+        {/* الصف الدراسي عند نطاق «الصف الدراسي» */}
         {scopeType === "grade" && (
           <div className="mt-4">
-            <label className="block text-sm font-semibold">الفصل/الصف المستهدف</label>
-            {classes.length > 0 ? (
-              <select value={scopeRef} onChange={(e) => setScopeRef(e.target.value)}
-                className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm">
-                <option value="">اختر الفصل…</option>
-                {classes.map((c) => <option key={c.id} value={c.name}>{c.name}{c.grade ? ` — ${c.grade}` : ""}</option>)}
-              </select>
-            ) : (
-              <input value={scopeRef} onChange={(e) => setScopeRef(e.target.value)} placeholder="اسم الفصل أو الصف"
-                className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm" />
-            )}
+            <label className="block text-sm font-semibold">الصف الدراسي المستهدف</label>
+            <select value={scopeRef} onChange={(e) => setScopeRef(e.target.value)}
+              className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm">
+              <option value="">اختر الصف الدراسي…</option>
+              {gradeLevels.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">يُفتح الترشيح لجميع طلاب هذا الصف الدراسي.</p>
           </div>
         )}
 
-        {/* الترشيح التلقائي */}
-        {!isEdit && (
-          <label className="mt-4 flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5 cursor-pointer">
-            <input type="checkbox" checked={autoNom} onChange={(e) => setAutoNom(e.target.checked)} className="accent-[hsl(191_72%_30%)]" />
-            <span className="text-sm font-semibold">ترشيح تلقائي بعد الإنشاء</span>
-            <span className="mr-auto text-[11px] text-muted-foreground">يرشّح الطلاب المؤهّلين ضمن النطاق حسب المواءمة</span>
-          </label>
+        {/* الفصل عند نطاق «الفصل» */}
+        {scopeType === "class" && (
+          <div className="mt-4">
+            <label className="block text-sm font-semibold">الفصل المستهدف</label>
+            <select value={scopeRef} onChange={(e) => setScopeRef(e.target.value)}
+              className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm">
+              <option value="">اختر الفصل…</option>
+              {classes.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">يُفتح الترشيح فقط لطلاب هذا الفصل.</p>
+          </div>
         )}
 
-        <div className="mt-4">
-          <label className="block text-sm font-semibold">وضع التشغيل</label>
-          {hybrid ? (
-            <div className="mt-1 flex rounded-lg border p-0.5">
-              {(["A", "B"] as const).map((k) => (
-                <button key={k} onClick={() => setMMode(k)}
-                  className={cn("flex-1 rounded-md py-1.5 text-xs font-semibold", mMode === k ? "bg-brand text-white" : "text-muted-foreground")}>
-                  الوضع {k === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-1 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              موحّد على المدرسة: الوضع {mode === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"} · فعّل «التشغيل الهجين» من الإعدادات لاختيار الوضع لكل مهمة.
-            </div>
-          )}
-        </div>
+        {scopeType === "school" && (
+          <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">النطاق: كامل المدرسة — الترشيح مفتوح لجميع طلاب المدرسة.</p>
+        )}
 
-        {/* أولويات المهمة (أوزان المحاور) */}
+        {/* أولويات المهمة (أوزان المحاور) — تُملأ تلقائيًا من المسمّى وتُخصَّص عند الحاجة */}
         <div className="mt-4">
           <button onClick={() => setShowPriorities((v) => !v)}
             className="flex w-full items-center justify-between rounded-lg border px-3 h-10 text-sm font-semibold hover:bg-accent">
-            <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-brand" /> أولويات المهمة (أوزان المحاور)</span>
+            <span className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-brand" /> أولويات المواءمة (أوزان المحاور)</span>
             <span className="text-xs text-muted-foreground">{showPriorities ? "إخفاء" : "تخصيص"}</span>
           </button>
           {showPriorities && (
-            <div className="mt-2 rounded-lg border p-3">
-              <div className="mb-1 text-[11px] font-semibold text-muted-foreground">معايير جاهزة:</div>
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {PRESETS.map((p) => (
-                  <button key={p.l} onClick={() => setWeights({ ...p.w })}
-                    className="rounded-md border px-2.5 h-7 text-[11px] font-semibold hover:bg-accent">{p.l}</button>
-                ))}
-                {presets.map((p) => (
-                  <span key={p.name} className="inline-flex items-center gap-1 rounded-md border border-brand/40 bg-brand/5 px-2.5 h-7 text-[11px] font-semibold text-brand">
-                    <button onClick={() => setWeights({ ...p.weights })}>{p.name}</button>
-                    <button onClick={() => deletePreset(p.name)} title="حذف" className="text-danger">×</button>
-                  </span>
-                ))}
-              </div>
-              {/* حفظ المعيار الحالي باسم */}
-              <div className="mb-2 flex items-center gap-1.5">
-                <input value={presetName} onChange={(e) => setPresetName(e.target.value)}
-                  placeholder="احفظ الأوزان كمعيار… (مثال: عريف، قائد)"
-                  className="flex-1 rounded-md border bg-background px-2.5 h-8 text-[11px]" />
-                <button disabled={presetName.trim().length < 2}
-                  onClick={() => { savePreset(presetName.trim(), normalize(weights)); setPresetName(""); }}
-                  className="rounded-md bg-brand px-2.5 h-8 text-[11px] font-semibold text-white hover:bg-brand/90 disabled:opacity-50">حفظ المعيار</button>
-              </div>
-              <div className="space-y-2">
-                {AXES.map((a) => (
-                  <div key={a.key} className="grid grid-cols-[70px_1fr_36px] items-center gap-2">
-                    <span className="text-xs text-foreground/80">{a.label}</span>
-                    <input type="range" min={0} max={100} value={weights[a.key as AxisKey]}
-                      onChange={(e) => setWeights((w) => ({ ...w, [a.key]: Number(e.target.value) }))}
-                      className="accent-[hsl(191_72%_30%)]" />
-                    <span className="text-left text-xs font-bold text-brand"><En>{Math.round((weights[a.key as AxisKey] / (wSum || 1)) * 100)}</En>%</span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-[10px] text-muted-foreground">تُطبَّع الأوزان تلقائيًا إلى مجموع ١٠٠٪ وتُحدِّد كيفية حساب مواءمة الطلاب لهذه المهمة.</p>
+            <div className="mt-2 rounded-lg border p-3 space-y-2">
+              {AXES.map((a) => (
+                <div key={a.key} className="grid grid-cols-[70px_1fr_36px] items-center gap-2">
+                  <span className="text-xs text-foreground/80">{a.label}</span>
+                  <input type="range" min={0} max={100} value={weights[a.key as AxisKey]}
+                    onChange={(e) => setWeights((w) => ({ ...w, [a.key]: Number(e.target.value) }))}
+                    className="accent-[hsl(191_72%_30%)]" />
+                  <span className="text-left text-xs font-bold text-brand"><En>{Math.round((weights[a.key as AxisKey] / (wSum || 1)) * 100)}</En>%</span>
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground">تُملأ تلقائيًا من المسمّى المختار، وتُحدِّد كيفية مواءمة الطلاب. تُطبَّع إلى ١٠٠٪.</p>
             </div>
           )}
         </div>
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-3 rounded-lg border border-brand/25 bg-brand/5 px-3 py-2 text-[11px] text-brand">
+          يعمل النظام تلقائيًا: يُرشّح ويُقيّم الطلاب المؤهّلين ضمن النطاق فور إنشاء المهمة.
+        </div>
+
+        <div className="mt-4 flex gap-2">
           <button onClick={submit} disabled={!valid}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand h-11 text-sm font-semibold text-white disabled:opacity-40 hover:bg-brand/90">
             <Plus className="h-4 w-4" /> {isEdit ? "حفظ التعديلات" : "إنشاء المهمة"}

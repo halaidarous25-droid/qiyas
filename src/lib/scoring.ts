@@ -18,6 +18,7 @@ export interface AssessmentResult {
   contradiction: number;     // 0..10
   socialDesirability: number;// 0..5
   trust: Trust;
+  experience: number;        // 0..3 مؤشر الخبرة القيادية (السؤال ٣٦) — أثر محدود
   strengths: AxisKey[];      // أعلى محورين
   growth: AxisKey[];         // أدنى محورين
   answeredAll: boolean;
@@ -75,11 +76,15 @@ export function scoreAssessment(answers: Answers): AssessmentResult {
   const strengths = sorted.slice(0, 2).map((a) => a.key);
   const growth = sorted.slice(-2).map((a) => a.key);
 
+  // مؤشر الخبرة القيادية (السؤال ٣٦) — 0..3، لا يدخل في الكفايات/السلوك
+  const expAns = answers["exp1"];
+  const experience = typeof expAns === "number" ? Math.max(0, Math.min(3, expAns)) : 0;
+
   const answeredAll = Object.keys(answers).length >= 30;
 
   return {
     axes, competency, behavior, integrity, emotional,
-    contradiction, socialDesirability,
+    contradiction, socialDesirability, experience,
     trust: classifyTrust(contradiction, socialDesirability),
     strengths, growth, answeredAll,
   };

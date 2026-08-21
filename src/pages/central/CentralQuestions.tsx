@@ -224,6 +224,8 @@ export function CentralQuestions() {
           </div>
         </>
       )}
+
+      {showAdd && <AddForm onAdd={add} onClose={() => setShowAdd(false)} busy={busy} />}
     </div>
   );
 }

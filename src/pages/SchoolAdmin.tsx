@@ -6,21 +6,30 @@ import { parseStudentsCsv, STUDENTS_CSV_TEMPLATE } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
-  MapPin, Clock, UploadCloud, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon, Download,
+  Clock, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon, Download,
+  Target, Trash2, SlidersHorizontal, Pencil,
 } from "lucide-react";
+import { AXES, type AxisScores } from "@/data/mock";
+import { type MissionRole } from "@/store";
 import { useEffect } from "react";
-import { createStudentAccount, inviteMember, fetchCredentials, type AccountCred } from "@/lib/api";
+import { createStudentAccount, inviteMember, fetchCredentials, changePassword, type AccountCred } from "@/lib/api";
 
-type Tab = "info" | "classes" | "teachers" | "students" | "accounts";
+type Tab = "info" | "classes" | "teachers" | "students" | "roles" | "accounts";
 const TABS: { k: Tab; l: string; icon: any }[] = [
   { k: "info", l: "بيانات المدرسة", icon: Building2 },
   { k: "classes", l: "الفصول", icon: Layers },
   { k: "teachers", l: "المعلمون", icon: Users2 },
   { k: "students", l: "الطلاب", icon: GraduationCap },
+  { k: "roles", l: "المهام القيادية", icon: Target },
   { k: "accounts", l: "الحسابات والصلاحيات", icon: KeyRound },
 ];
 
-const GRADES = ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي"];
+// الصفوف الدراسية (من الثالث الثانوي إلى الأول المتوسط)
+const GRADES = [
+  "الثالث الثانوي", "الثاني الثانوي", "الأول الثانوي",
+  "الثالث المتوسط", "الثاني المتوسط", "الأول المتوسط",
+];
+const CLASS_NUMS = Array.from({ length: 10 }, (_, i) => String(i + 1));
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -33,7 +42,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full rounded-lg border bg-background px-3 h-10 text-sm outline-none focus:border-brand";
 
 export function SchoolAdmin() {
-  const { students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, mode, live, schoolId } = useSlis();
+  const { students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, live, schoolId } = useSlis();
   const [tab, setTab] = useState<Tab>("info");
 
   return (
@@ -54,17 +63,18 @@ export function SchoolAdmin() {
         ))}
       </div>
 
-      {tab === "info" && <SchoolInfo studentsN={students.length} classesN={classes.length} teachersN={teachers.length} mode={mode} live={live} />}
+      {tab === "info" && <SchoolInfo studentsN={students.length} classesN={classes.length} teachersN={teachers.length} live={live} />}
       {tab === "classes" && <ClassesTab classes={classes} teachers={teachers} onAdd={addClass} />}
       {tab === "teachers" && <TeachersTab teachers={teachers} onAdd={addTeacher} />}
       {tab === "students" && <StudentsTab students={students} classes={classes} onAdd={addStudent} onBulk={bulkAddStudents} />}
+      {tab === "roles" && <RolesTab />}
       {tab === "accounts" && <AccountsTab students={students} live={live} schoolId={schoolId} />}
     </div>
   );
 }
 
-function SchoolInfo({ studentsN, classesN, teachersN, mode, live }:
-  { studentsN: number; classesN: number; teachersN: number; mode: string; live: boolean }) {
+function SchoolInfo({ studentsN, classesN, teachersN, live }:
+  { studentsN: number; classesN: number; teachersN: number; live: boolean }) {
   const { schoolInfo, updateSchoolInfo, tenantCode } = useSlis();
   const [name, setName] = useState(schoolInfo.name || (live ? "" : SCHOOL.name));
   const [city, setCity] = useState(schoolInfo.city || (live ? "" : "الرياض"));
@@ -114,15 +124,36 @@ function SchoolInfo({ studentsN, classesN, teachersN, mode, live }:
               <span className="font-display text-lg font-extrabold"><En>{r.v}</En></span>
             </div>
           ))}
-          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>وضع التشغيل</span><Pill tone="brand">الوضع {mode === "A" ? "أ" : "ب"}</Pill>
-          </div>
         </div>
-        <div className="rounded-xl border border-dashed bg-card p-4 text-center">
-          <UploadCloud className="mx-auto h-7 w-7 text-brand" />
-          <div className="mt-1 text-sm font-semibold">استيراد من ملف</div>
-          <p className="text-[11px] text-muted-foreground">رفع الطلاب والفصول دفعةً واحدة عبر ملف <span className="en">CSV</span> (يُفعّل مع قاعدة البيانات).</p>
-        </div>
+        {live && <ChangePassword />}
+      </div>
+    </div>
+  );
+}
+
+function ChangePassword() {
+  const { toast } = useSlis();
+  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const ok = p1.length >= 6 && p1 === p2;
+  const save = async () => {
+    setBusy(true);
+    try { await changePassword(p1); setP1(""); setP2(""); toast("تم تغيير كلمة المرور بنجاح"); }
+    catch (e: any) { toast(`تعذّر التغيير: ${e.message || e}`, "danger"); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="rounded-xl border bg-card p-5">
+      <div className="mb-3 flex items-center gap-2"><KeyRound className="h-[18px] w-[18px] text-brand" />
+        <h3 className="font-display font-bold">تغيير كلمة المرور</h3></div>
+      <div className="space-y-3">
+        <Field label="كلمة المرور الجديدة"><input type="password" className={inputCls} value={p1} onChange={(e) => setP1(e.target.value)} placeholder="٦ أحرف على الأقل" autoComplete="new-password" /></Field>
+        <Field label="تأكيد كلمة المرور"><input type="password" className={inputCls} value={p2} onChange={(e) => setP2(e.target.value)} placeholder="أعد كتابتها" autoComplete="new-password" /></Field>
+        {p2.length > 0 && p1 !== p2 && <p className="text-[11px] text-danger">كلمتا المرور غير متطابقتين.</p>}
+        <button onClick={save} disabled={!ok || busy}
+          className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} حفظ كلمة المرور
+        </button>
       </div>
     </div>
   );
@@ -130,9 +161,15 @@ function SchoolInfo({ studentsN, classesN, teachersN, mode, live }:
 
 function ClassesTab({ classes, teachers, onAdd }:
   { classes: SchoolClass[]; teachers: any[]; onAdd: (c: any) => void }) {
-  const [name, setName] = useState(""); const [grade, setGrade] = useState(GRADES[0]);
+  const [grade, setGrade] = useState(GRADES[0]);
+  const [num, setNum] = useState(CLASS_NUMS[0]);
   const [homeroom, setHomeroom] = useState(teachers[0]?.name || "");
-  const submit = () => { if (name.trim().length < 1) return; onAdd({ name: name.trim(), grade, homeroom }); setName(""); };
+  const className = `${grade}/${num}`;
+  const exists = classes.some((c) => c.name === className);
+  const submit = () => {
+    if (exists) return;
+    onAdd({ name: className, grade, homeroom: homeroom || (teachers[0]?.name || "") });
+  };
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
@@ -140,22 +177,33 @@ function ClassesTab({ classes, teachers, onAdd }:
         <div className="divide-y">
           {classes.map((c) => (
             <div key={c.id} className="flex items-center gap-3 px-5 py-3">
-              <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 font-bold text-brand">{c.name}</div>
-              <div className="flex-1"><div className="font-semibold text-sm">{c.grade}</div>
-                <div className="text-xs text-muted-foreground">رائد الفصل: {c.homeroom}</div></div>
+              <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-[11px] font-bold text-brand">
+                {c.name.includes("/") ? c.name.split("/")[1] : c.name}
+              </div>
+              <div className="flex-1"><div className="font-semibold text-sm">{c.name}</div>
+                <div className="text-xs text-muted-foreground">رائد الفصل: {c.homeroom || "—"}</div></div>
               <Pill tone="muted"><En>{c.students}</En> طالب</Pill>
             </div>
           ))}
+          {classes.length === 0 && <div className="px-5 py-4 text-sm text-muted-foreground">لا فصول بعد.</div>}
         </div>
       </div>
       <div className="rounded-xl border bg-card p-5 h-fit">
         <div className="mb-3 flex items-center gap-2"><Plus className="h-4 w-4 text-brand" />
           <h3 className="font-display font-bold">إضافة فصل</h3></div>
         <div className="space-y-3">
-          <Field label="اسم الفصل"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: ٣/ب" /></Field>
-          <Field label="الصف"><select className={inputCls} value={grade} onChange={(e) => setGrade(e.target.value)}>{GRADES.map((g) => <option key={g}>{g}</option>)}</select></Field>
-          <Field label="رائد الفصل"><select className={inputCls} value={homeroom} onChange={(e) => setHomeroom(e.target.value)}>{teachers.map((t) => <option key={t.id}>{t.name}</option>)}</select></Field>
-          <button onClick={submit} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">إضافة الفصل</button>
+          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => setGrade(e.target.value)}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+          <Field label="رقم الفصل"><select className={inputCls} value={num} onChange={(e) => setNum(e.target.value)}>{CLASS_NUMS.map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
+          <Field label="رائد الفصل">
+            <select className={inputCls} value={homeroom} onChange={(e) => setHomeroom(e.target.value)}>
+              {teachers.length === 0 && <option value="">لا يوجد معلمون بعد</option>}
+              {teachers.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+          </Field>
+          <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">اسم الفصل: <span className="font-semibold text-foreground">{className}</span></div>
+          <button onClick={submit} disabled={exists} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+            {exists ? "هذا الفصل موجود مسبقًا" : "إضافة الفصل"}
+          </button>
         </div>
       </div>
     </div>
@@ -212,12 +260,14 @@ function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => 
 function StudentsTab({ students, classes, onAdd, onBulk }:
   { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
   const [name, setName] = useState(""); const [grade, setGrade] = useState(GRADES[0]);
-  const [className, setClassName] = useState(classes[0]?.name || "");
+  const gradeClasses = classes.filter((c) => c.grade === grade);
+  const [className, setClassName] = useState("");
   const [natId, setNatId] = useState(""); const [sEmail, setSEmail] = useState(""); const [sPhone, setSPhone] = useState("");
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const nameOk = name.trim().split(/\s+/).filter(Boolean).length >= 3; // الاسم الرباعي (ثلاثة أجزاء فأكثر)
   const submit = () => {
-    if (name.trim().length < 2) return;
+    if (!nameOk || !className) return;
     onAdd({ name: name.trim(), grade, className, nationalId: natId.trim(), email: sEmail.trim(), phone: sPhone.trim() });
     setName(""); setNatId(""); setSEmail(""); setSPhone("");
   };
@@ -340,14 +390,103 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
         <div className="mb-3 flex items-center gap-2"><Plus className="h-4 w-4 text-brand" />
           <h3 className="font-display font-bold">إضافة طالب</h3></div>
         <div className="space-y-3">
-          <Field label="الاسم"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الكامل" /></Field>
-          <Field label="الصف"><select className={inputCls} value={grade} onChange={(e) => setGrade(e.target.value)}>{GRADES.map((g) => <option key={g}>{g}</option>)}</select></Field>
-          <Field label="الفصل"><select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>{classes.map((c) => <option key={c.id}>{c.name}</option>)}</select></Field>
+          <Field label="الاسم الرباعي"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الأول واسم الأب والجد والعائلة" /></Field>
+          <Field label="الصف الدراسي"><select className={inputCls} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>{GRADES.map((g) => <option key={g} value={g}>{g}</option>)}</select></Field>
+          <Field label="الفصل">
+            <select className={inputCls} value={className} onChange={(e) => setClassName(e.target.value)}>
+              <option value="">{gradeClasses.length ? "اختر الفصل…" : "أضف فصلًا لهذا الصف أولًا"}</option>
+              {gradeClasses.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          </Field>
           <Field label="رقم الهوية (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} placeholder="١٠xxxxxxxx" /></Field>
-          <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={sEmail} onChange={(e) => setSEmail(e.target.value)} placeholder="name@example.com" /></Field>
           <Field label="رقم الجوال (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={sPhone} onChange={(e) => setSPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="05xxxxxxxx" /></Field>
-          <button onClick={submit} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">إضافة الطالب</button>
-          <p className="text-[11px] text-muted-foreground">يُضاف الطالب بحالة «بانتظار المقياس» حتى يؤدّيه من بوابته. رقم الهوية يربط نتائج الرابط العام تلقائيًا.</p>
+          <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={sEmail} onChange={(e) => setSEmail(e.target.value)} placeholder="name@example.com" /></Field>
+          <button onClick={submit} disabled={!nameOk || !className} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">إضافة الطالب</button>
+          <p className="text-[11px] text-muted-foreground">الاسم الرباعي إلزامي. يُضاف الطالب بحالة «بانتظار المقياس». رقم الهوية يربط نتائج الرابط العام تلقائيًا.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== تبويب المهام القيادية (المسمّيات) =====
+const EVEN_W: AxisScores = { org: 20, lead: 20, comm: 20, firm: 20, init: 20 };
+function RolesTab() {
+  const { roles, saveRole, deleteRole } = useSlis();
+  const [editing, setEditing] = useState<MissionRole | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [skills, setSkills] = useState("");
+  const [duties, setDuties] = useState("");
+  const [weights, setWeights] = useState<AxisScores>({ ...EVEN_W });
+  const wSum = AXES.reduce((s, a) => s + weights[a.key], 0) || 1;
+  const reset = () => { setEditing(null); setTitle(""); setDescription(""); setSkills(""); setDuties(""); setWeights({ ...EVEN_W }); };
+  const load = (r: MissionRole) => { setEditing(r); setTitle(r.title); setDescription(r.description); setSkills(r.skills); setDuties(r.duties); setWeights({ ...r.weights }); };
+  const submit = () => {
+    if (title.trim().length < 2) return;
+    const norm = {} as AxisScores; AXES.forEach((a) => (norm[a.key] = Math.round((weights[a.key] / wSum) * 100)));
+    saveRole({ id: editing?.id || `role_${Date.now()}`, title: title.trim(), description: description.trim(), skills: skills.trim(), duties: duties.trim(), weights: norm });
+    reset();
+  };
+  return (
+    <div className="grid gap-5 lg:grid-cols-3">
+      <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
+        <div className="border-b px-5 py-3 font-display font-bold">المسمّيات القيادية (<En>{roles.length}</En>)</div>
+        <div className="divide-y">
+          {roles.map((r) => (
+            <div key={r.id} className="px-5 py-3">
+              <div className="flex items-start gap-3">
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-brand"><Target className="h-4.5 w-4.5" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm">{r.title}</div>
+                  {r.description && <div className="mt-0.5 text-xs text-muted-foreground">{r.description}</div>}
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {AXES.map((a) => r.weights[a.key] >= 25 && (
+                      <Pill key={a.key} tone="info">{a.label} <En>{r.weights[a.key]}</En>٪</Pill>
+                    ))}
+                  </div>
+                  {(r.skills || r.duties) && (
+                    <div className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+                      {r.skills && <div><span className="font-semibold text-foreground/70">المهارات:</span> {r.skills}</div>}
+                      {r.duties && <div><span className="font-semibold text-foreground/70">المهام:</span> {r.duties}</div>}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => load(r)} className="grid h-8 w-8 place-items-center rounded-md border hover:bg-accent"><Pencil className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => deleteRole(r.id)} className="grid h-8 w-8 place-items-center rounded-md border text-danger hover:bg-danger/10"><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {roles.length === 0 && <div className="px-5 py-6 text-center text-sm text-muted-foreground">لا مسمّيات بعد — أضف أول مسمّى قيادي ليظهر عند إنشاء المهام.</div>}
+        </div>
+      </div>
+      <div className="rounded-xl border bg-card p-5 h-fit">
+        <div className="mb-3 flex items-center gap-2"><Plus className="h-4 w-4 text-brand" />
+          <h3 className="font-display font-bold">{editing ? "تعديل مسمّى" : "إضافة مسمّى قيادي"}</h3></div>
+        <div className="space-y-3">
+          <Field label="المسمّى"><input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: عريف فصل، مشرف نظام" /></Field>
+          <Field label="وصف المهمة"><textarea className={cn(inputCls, "h-auto py-2")} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="نبذة عن دور هذا المسمّى" /></Field>
+          <Field label="المهارات المطلوبة"><textarea className={cn(inputCls, "h-auto py-2")} rows={2} value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="مثال: تنظيم، تواصل، حزم" /></Field>
+          <Field label="المهام المطلوبة"><textarea className={cn(inputCls, "h-auto py-2")} rows={2} value={duties} onChange={(e) => setDuties(e.target.value)} placeholder="مثال: متابعة الحضور، تنظيم الطابور" /></Field>
+          <div>
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><SlidersHorizontal className="h-3.5 w-3.5 text-brand" /> أوزان المحاور للمواءمة</div>
+            <div className="space-y-1.5">
+              {AXES.map((a) => (
+                <div key={a.key} className="grid grid-cols-[68px_1fr_34px] items-center gap-2">
+                  <span className="text-[11px] text-foreground/80">{a.label}</span>
+                  <input type="range" min={0} max={100} value={weights[a.key]} onChange={(e) => setWeights((w) => ({ ...w, [a.key]: Number(e.target.value) }))} className="accent-[hsl(191_72%_30%)]" />
+                  <span className="text-left text-[11px] font-bold text-brand"><En>{Math.round((weights[a.key] / wSum) * 100)}</En>٪</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={submit} disabled={title.trim().length < 2} className="flex-1 rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">{editing ? "حفظ التعديلات" : "إضافة المسمّى"}</button>
+            {editing && <button onClick={reset} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>}
+          </div>
+          <p className="text-[11px] text-muted-foreground">تظهر هذه المسمّيات في قائمة «عنوان المهمة» عند إنشاء مهمة جديدة، وتُستخدم أوزانها في مواءمة الطلاب.</p>
         </div>
       </div>
     </div>

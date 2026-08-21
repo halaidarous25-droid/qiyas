@@ -6,7 +6,7 @@
 
 export type Trust = "trusted" | "reserved" | "interview";
 export type MissionStatus = "draft" | "open" | "screening" | "trial" | "closed";
-export type ScopeLevel = "school" | "grade" | "stage";
+export type ScopeLevel = "school" | "grade" | "stage" | "class";
 export type OperatingMode = "A" | "B";
 
 // المحاور الخمسة (نموذج هيرمان) — كما وثّقها المستشار النفسي
@@ -58,6 +58,7 @@ export interface Candidate {
   nationalId?: string;    // رقم الهوية
   email?: string;
   phone?: string;
+  experience?: number;    // 0..3 مؤشر الخبرة القيادية (السؤال ٣٦)
 }
 
 export interface Mission {
@@ -150,7 +151,9 @@ export function computeMatch(c: Candidate, m: Mission): number {
   // 85% نتيجة المحاور الموزونة + 10% رغبة الطالب + 5% إتمام المقابلة (نموذج مبسّط)
   const wish = c.wishRank ? Math.max(0, 100 - (c.wishRank - 1) * 12) : 60;
   const interview = c.interviewDone ? 100 : 70;
-  return Math.round(weighted * 0.85 + wish * 0.1 + interview * 0.05);
+  // مؤشر الخبرة القيادية: أثر محدود جدًّا (حتى +٣ نقاط) كعلامة تمييز لا تُرجّح بقوة
+  const expBonus = Math.min(3, (c.experience ?? 0));
+  return Math.min(100, Math.round(weighted * 0.85 + wish * 0.1 + interview * 0.05) + expBonus);
 }
 
 export const MISSIONS: Mission[] = [
@@ -288,7 +291,7 @@ export const STATUS_META: Record<MissionStatus, { label: string; tone: string }>
 };
 
 export const SCOPE_META: Record<ScopeLevel, string> = {
-  school: "المدرسة", grade: "صف/فصل", stage: "مرحلة",
+  school: "المدرسة", grade: "الصف الدراسي", stage: "مرحلة", class: "الفصل",
 };
 
 // ===== الحوكمة والتظلّمات (المستشار الإداري) =====

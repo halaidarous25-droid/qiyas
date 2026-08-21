@@ -26,7 +26,6 @@ function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }
         </div>
         <div className="flex items-center gap-1.5">
           <Pill tone={st.tone as Tone}>{st.label}</Pill>
-          <Pill tone="muted">الوضع {m.mode === "A" ? "أ" : "ب"}</Pill>
         </div>
       </div>
       <h3 className="mt-3 font-display text-[16px] font-bold group-hover:text-brand">{m.title}</h3>

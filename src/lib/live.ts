@@ -78,7 +78,7 @@ function mapSubscription(row: any): LiveSubscription | null {
 }
 
 const scopeLabel = (t: string) =>
-  t === "school" ? "كامل المدرسة" : t === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد";
+  t === "school" ? "كامل المدرسة" : t === "grade" ? "صف دراسي" : t === "class" ? "فصل محدّد" : "المرحلة الثانوية";
 
 // جلب بيانات مدرسة كاملة من قاعدة البيانات وتحويلها لأشكال الواجهة
 export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
@@ -132,6 +132,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       interviewDone: false, assessed: !!s.assessed, hasAccount: !!s.user_id,
       attempts, assessedAt: best ? (best.completed_at || "").slice(0, 10) : undefined,
       nationalId: s.national_id || "", email: s.email || "", phone: s.phone || "",
+      experience: s.experience ?? 0,
     };
   });
 

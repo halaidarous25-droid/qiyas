@@ -23,6 +23,15 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export interface WeightPreset { name: string; weights: AxisScores }
+// مسمّى قيادي في «قائمة المهام القيادية» — يغذّي إنشاء المهمة والمواءمة الذكية
+export interface MissionRole {
+  id: string;
+  title: string;          // المسمّى (مثال: عريف فصل)
+  description: string;    // وصف المهمة
+  skills: string;         // المهارات المطلوبة
+  duties: string;         // المهام المطلوبة
+  weights: AxisScores;    // أوزان المحاور للمواءمة مع نتائج الطالب
+}
 
 export interface Toast { id: number; text: string; tone: "success" | "info" | "danger" }
 
@@ -64,6 +73,9 @@ interface Store {
   presets: WeightPreset[];
   savePreset: (name: string, weights: AxisScores) => void;
   deletePreset: (name: string) => void;
+  roles: MissionRole[];
+  saveRole: (r: MissionRole) => void;
+  deleteRole: (id: string) => void;
   // دورة الطالب المُسجَّل (me)
   me: Candidate | null;
   meAssessed: boolean;
@@ -76,6 +88,7 @@ interface Store {
   teachers: Teacher[];
   classes: SchoolClass[];
   addStudent: (s: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }) => void;
+  updateStudent: (id: string, patch: { name?: string; grade?: string; className?: string; nationalId?: string; email?: string; phone?: string }) => void;
   bulkAddStudents: (rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) => Promise<number>;
   addTeacher: (t: { name: string; role: string; nationalId?: string; email?: string; phone?: string }) => void;
   addClass: (c: { name: string; grade: string; homeroom: string }) => void;
@@ -142,6 +155,9 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
   const [presets, setPresets] = useState<WeightPreset[]>(
     ((seed?.settings as any)?.presets as WeightPreset[]) ?? [],
   );
+  const [roles, setRoles] = useState<MissionRole[]>(
+    ((seed?.settings as any)?.roles as MissionRole[]) ?? [],
+  );
   const [subscription, setSubscription] = useState<LiveSubscription | null>(seed?.subscription ?? null);
   const [missions, setMissions] = useState<Mission[]>(seed?.missions ?? MISSIONS);
   const [assigned, setAssigned] = useState<Record<string, string[]>>(seed?.assigned ?? {});
@@ -169,6 +185,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     setMode(s.mode); setHybrid(s.hybrid);
     setSettings({ ...DEFAULT_SETTINGS, ...((s.settings as Partial<AppSettings>) ?? {}) });
     setPresets(((s.settings as any)?.presets as WeightPreset[]) ?? []);
+    setRoles(((s.settings as any)?.roles as MissionRole[]) ?? []);
     setSubscription(s.subscription);
     setMissions(s.missions); setAssigned(s.assigned); setIndReqs(s.indReqs);
     setDevPlans(s.devPlans);
@@ -177,12 +194,13 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
   }, [isLive, schoolId, meId]);
 
   // الطلاب المؤهّلون (أدّوا المقياس) ضمن نطاق معيّن
+  // school = كل المدرسة · grade = صف دراسي (حسب grade) · class = فصل محدّد (حسب className)
+  const inScope = (s: Candidate, scopeType: ScopeLevel, scopeRef?: string) =>
+    scopeType === "school" || scopeType === "stage" ? true
+      : scopeType === "grade" ? (scopeRef ? s.grade === scopeRef : true)
+      : /* class */ (scopeRef ? s.className === scopeRef : true);
   const eligibleByScope = (scopeType: ScopeLevel, scopeRef?: string) =>
-    students.filter((s) => s.assessed && (
-      scopeType === "school" || scopeType === "stage"
-        ? true
-        : (scopeRef ? (s.className === scopeRef || s.grade === scopeRef) : true)
-    ));
+    students.filter((s) => s.assessed && inScope(s, scopeType, scopeRef));
 
   const addMission: Store["addMission"] = (m) => {
     if (isLive && schoolId) {
@@ -201,7 +219,9 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       return;
     }
     const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
-      : m.scopeType === "stage" ? "المرحلة الثانوية" : (m.scopeRef ? `فصل: ${m.scopeRef}` : "صف/فصل محدّد");
+      : m.scopeType === "grade" ? (m.scopeRef ? `صف: ${m.scopeRef}` : "صف دراسي")
+      : m.scopeType === "class" ? (m.scopeRef ? `فصل: ${m.scopeRef}` : "فصل محدّد")
+      : "المرحلة الثانوية";
     const elig = m.autoNominate ? eligibleByScope(m.scopeType, m.scopeRef) : [];
     const nm: Mission = {
       id: `m${mid++}`, title: m.title, scopeType: m.scopeType, scopeLabel, scopeRef: m.scopeRef,
@@ -261,13 +281,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
   };
 
   // الطلاب المؤهّلون ضمن نطاق المهمة (والذين أدّوا المقياس)
-  const eligibleFor = (m: Mission) => students.filter((s) => {
-    if (!s.assessed) return false;
-    if (m.scopeType === "school" || m.scopeType === "stage") return true;
-    // نطاق صف/فصل: يطابق اسم الفصل أو الصف
-    if (m.scopeRef) return s.className === m.scopeRef || s.grade === m.scopeRef;
-    return true;
-  });
+  const eligibleFor = (m: Mission) => students.filter((s) => s.assessed && inScope(s, m.scopeType, m.scopeRef));
 
   const autoNominate: Store["autoNominate"] = (missionId) => {
     const m = missions.find((x) => x.id === missionId);
@@ -328,7 +342,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     setMissions((list) => list.map((m) => {
       if (m.id !== missionId) return m;
       const scopeLabel = patch.scopeType
-        ? (patch.scopeType === "school" ? "كامل المدرسة" : patch.scopeType === "stage" ? "المرحلة الثانوية" : "صف/فصل محدّد")
+        ? (patch.scopeType === "school" ? "كامل المدرسة" : patch.scopeType === "grade" ? (patch.scopeRef ? `صف: ${patch.scopeRef}` : "صف دراسي") : patch.scopeType === "class" ? (patch.scopeRef ? `فصل: ${patch.scopeRef}` : "فصل محدّد") : "المرحلة الثانوية")
         : m.scopeLabel;
       return { ...m, ...patch, scopeType: patch.scopeType ?? m.scopeType, scopeLabel, weights: patch.weights ?? m.weights } as Mission;
     }));
@@ -397,23 +411,40 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     toast("حُفظت بيانات المدرسة");
   };
 
+  // يحفظ الإعدادات مع المعايير والمسمّيات معًا (jsonb واحد يُستبدَل بالكامل)
+  const persistExtras = (p: WeightPreset[], r: MissionRole[]) =>
+    isLive && schoolId
+      ? api.saveSchoolSettings(schoolId, mode, hybrid, { ...settings, presets: p, roles: r })
+      : Promise.resolve();
+
   const savePreset: Store["savePreset"] = (name, weights) => {
     const np = [...presets.filter((p) => p.name !== name), { name, weights }];
     setPresets(np);
-    if (isLive && schoolId) {
-      api.saveSchoolSettings(schoolId, mode, hybrid, { ...settings, presets: np })
-        .then(() => toast(`حُفظ المعيار «${name}»`))
-        .catch((e) => toast(`تعذّر حفظ المعيار: ${e.message || e}`, "danger"));
-    } else toast(`حُفظ المعيار «${name}»`);
+    persistExtras(np, roles)
+      .then(() => toast(`حُفظ المعيار «${name}»`))
+      .catch((e) => toast(`تعذّر حفظ المعيار: ${e.message || e}`, "danger"));
   };
 
   const deletePreset: Store["deletePreset"] = (name) => {
     const np = presets.filter((p) => p.name !== name);
     setPresets(np);
-    if (isLive && schoolId) {
-      api.saveSchoolSettings(schoolId, mode, hybrid, { ...settings, presets: np }).catch(() => {});
-    }
+    persistExtras(np, roles).catch(() => {});
     toast(`حُذف المعيار «${name}»`, "info");
+  };
+
+  const saveRole: Store["saveRole"] = (r) => {
+    const nr = [...roles.filter((x) => x.id !== r.id), r];
+    setRoles(nr);
+    persistExtras(presets, nr)
+      .then(() => toast(`حُفظ المسمّى القيادي «${r.title}»`))
+      .catch((e) => toast(`تعذّر الحفظ: ${e.message || e}`, "danger"));
+  };
+
+  const deleteRole: Store["deleteRole"] = (id) => {
+    const nr = roles.filter((x) => x.id !== id);
+    setRoles(nr);
+    persistExtras(presets, nr).catch(() => {});
+    toast("حُذف المسمّى القيادي", "info");
   };
 
   // ===== دورة الطالب المُسجَّل =====
@@ -447,7 +478,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
               axes: r.axes, competency: r.competency, behavior: r.behavior,
               integrity: r.integrity ?? 0, emotional: r.emotional ?? 0,
               contradiction: r.contradiction, socialDesirability: r.socialDesirability,
-              trust: r.trust,
+              trust: r.trust, experience: r.experience,
             }, answers);
           }
           if (mode === "B") {
@@ -496,6 +527,18 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     setStudents((list) => [s, ...list]);
     toast(`أُضيف الطالب ${name} — بانتظار أداء المقياس`);
   };
+  const updateStudent: Store["updateStudent"] = (id, patch) => {
+    if (isLive && schoolId) {
+      api.dbUpdateStudent(schoolId, id, patch)
+        .then(() => resync())
+        .then(() => toast("حُدّثت بيانات الطالب"))
+        .catch((e) => toast(`تعذّر التحديث: ${e.message || e}`, "danger"));
+      return;
+    }
+    setStudents((list) => list.map((s) => s.id === id ? { ...s, ...patch } as Candidate : s));
+    toast("حُدّثت بيانات الطالب");
+  };
+
   const bulkAddStudents: Store["bulkAddStudents"] = async (rows) => {
     if (!rows.length) return 0;
     if (isLive && schoolId) {
@@ -560,10 +603,10 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       mode, hybrid, settings, subscription, missions, assigned, indReqs, toasts,
       toast, dismissToast, addMission, autoNominate, assignCandidate, unassignCandidate, nominateStudent,
       removeCandidate, setCandidateStatus, updateMission, requestRetake,
-      devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset,
+      devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,
+      students, teachers, classes, addStudent, updateStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,
     }}>
       {children}
     </Ctx.Provider>

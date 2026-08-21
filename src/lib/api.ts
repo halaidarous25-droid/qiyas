@@ -24,6 +24,24 @@ export async function dbAddStudent(schoolId: string, s: { name: string; grade: s
 }
 
 // استيراد عدد من الطلاب دفعة واحدة
+// تعديل بيانات طالب (المشرف)
+export async function dbUpdateStudent(schoolId: string, studentId: string, patch: {
+  name?: string; grade?: string; className?: string; nationalId?: string; email?: string; phone?: string;
+}) {
+  const upd: Record<string, unknown> = {};
+  if (patch.name !== undefined) upd.name = patch.name;
+  if (patch.grade !== undefined) upd.grade = patch.grade || null;
+  if (patch.nationalId !== undefined) upd.national_id = patch.nationalId || null;
+  if (patch.email !== undefined) upd.email = patch.email || null;
+  if (patch.phone !== undefined) upd.phone = patch.phone || null;
+  if (patch.className !== undefined) {
+    const { data: cls } = await supabase.from("classes").select("id").eq("school_id", schoolId).eq("name", patch.className).maybeSingle();
+    upd.class_id = cls?.id ?? null;
+  }
+  const { error } = await supabase.from("students").update(upd).eq("id", studentId);
+  if (error) throw error;
+}
+
 export async function dbBulkAddStudents(schoolId: string, rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) {
   const { data: cls } = await supabase.from("classes").select("id,name").eq("school_id", schoolId);
   const byName: Record<string, string> = {};
@@ -59,7 +77,9 @@ export async function dbAddMission(schoolId: string, m: {
   weights?: AxisScores; scopeRef?: string;
 }) {
   const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
-    : m.scopeType === "stage" ? "المرحلة الثانوية" : (m.scopeRef ? `فصل: ${m.scopeRef}` : "صف/فصل محدّد");
+    : m.scopeType === "grade" ? (m.scopeRef ? `صف: ${m.scopeRef}` : "صف دراسي")
+    : m.scopeType === "class" ? (m.scopeRef ? `فصل: ${m.scopeRef}` : "فصل محدّد")
+    : "المرحلة الثانوية";
   const { data, error } = await supabase.from("missions").insert({
     school_id: schoolId, title: m.title, scope_type: m.scopeType, scope_label: scopeLabel,
     scope_ref: m.scopeRef || null,
@@ -85,7 +105,9 @@ export async function dbUpdateMission(missionId: string, patch: {
   if (patch.scopeType !== undefined) {
     upd.scope_type = patch.scopeType;
     upd.scope_label = patch.scopeType === "school" ? "كامل المدرسة"
-      : patch.scopeType === "stage" ? "المرحلة الثانوية" : (patch.scopeRef ? `فصل: ${patch.scopeRef}` : "صف/فصل محدّد");
+      : patch.scopeType === "grade" ? (patch.scopeRef ? `صف: ${patch.scopeRef}` : "صف دراسي")
+      : patch.scopeType === "class" ? (patch.scopeRef ? `فصل: ${patch.scopeRef}` : "فصل محدّد")
+      : "المرحلة الثانوية";
   }
   const { error } = await supabase.from("missions").update(upd).eq("id", missionId);
   if (error) throw error;
@@ -198,7 +220,7 @@ export async function publicGetSchool(code: string) {
   return data as { ok: boolean; schoolName: string; classes: { id: string; name: string; grade: string }[] };
 }
 export async function publicSubmitAssessment(payload: {
-  code: string; name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string; result: unknown; answers: unknown;
+  code: string; name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string; experience?: number; result: unknown; answers: unknown;
 }) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "submit", ...payload } });
   if (error) throw error;
@@ -227,6 +249,12 @@ export async function dbSetSchoolStatus(schoolId: string, status: string) {
   const { error } = await supabase.from("schools").update({ status }).eq("id", schoolId);
   if (error) throw error;
 }
+// تغيير كلمة المرور للحساب الحالي (المستخدم يُدخل كلمته بنفسه)
+export async function changePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 // تعديل معلومات المدرسة (مركزي أو المدرسة لبياناتها الأساسية)
 export async function dbUpdateSchool(schoolId: string, patch: {
   name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string; status?: string;
@@ -317,7 +345,7 @@ export async function dbReviewAppeal(id: string, decider: string) {
 // حفظ محاولة قياس الطالب + وسمه كمُقيَّم
 export async function dbSaveAssessment(schoolId: string, studentId: string, r: {
   axes: AxisScores; competency: number; behavior: number; integrity: number; emotional: number;
-  contradiction: number; socialDesirability: number; trust: string;
+  contradiction: number; socialDesirability: number; trust: string; experience?: number;
 }, answers: Record<string, unknown>) {
   const ins = await supabase.from("assessments").insert({
     school_id: schoolId, student_id: studentId, kind: "individual",
@@ -326,7 +354,9 @@ export async function dbSaveAssessment(schoolId: string, studentId: string, r: {
     contradiction: r.contradiction, social_desirability: r.socialDesirability, trust: r.trust,
   });
   if (ins.error) throw ins.error;
-  const upd = await supabase.from("students").update({ assessed: true }).eq("id", studentId);
+  const studUpd: Record<string, unknown> = { assessed: true };
+  if (r.experience !== undefined) studUpd.experience = r.experience;
+  const upd = await supabase.from("students").update(studUpd).eq("id", studentId);
   if (upd.error) throw upd.error;
   // كل مقياس مكتمل يخصم وحدة من حصة المهام
   try { await consumeQuota(schoolId, "mission"); } catch { /* لا تُفشل حفظ المقياس إن تعذّر الخصم */ }

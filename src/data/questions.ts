@@ -8,7 +8,7 @@
 
 import type { AxisKey } from "./mock";
 
-export type ItemType = "scenario" | "situation" | "parallel" | "trap" | "indicator";
+export type ItemType = "scenario" | "situation" | "parallel" | "trap" | "indicator" | "experience";
 
 export interface Option { text: string; score: number } // score = مساهمة المحور 0..100
 
@@ -296,6 +296,19 @@ export const QUESTIONS: Item[] = [
       { text:"أشعر بالإحراج لكنني أُكمل الحصة بشكل طبيعي", score:85 },
     ]},
 ];
+
+// السؤال الأخير الثابت (٣٦) — مؤشر خبرة قيادية، يظهر لكل الطلاب ولا تُخلط خياراته
+export const EXPERIENCE_ITEM: Item = {
+  id: "exp1", n: 36, type: "experience", section: 3, role: "مؤشر الخبرة القيادية",
+  text: "هل سبق لك أن شاركت في مهام قيادية أو تنظيمية داخل المدرسة؟",
+  options: [
+    { text: "لا", score: 0 },
+    { text: "نعم، لمدة سنة", score: 1 },
+    { text: "نعم، أقل من ثلاث سنوات", score: 2 },
+    { text: "نعم، أكثر من ثلاث سنوات", score: 3 },
+  ],
+};
+export const EXPERIENCE_LABELS = ["لا خبرة", "خبرة سنة", "أقل من ٣ سنوات", "أكثر من ٣ سنوات"];
 
 export const SECTION_META: Record<1|2|3, { title: string; intro: string }> = {
   1: { title:"القسم الأول: الكفايات القيادية", intro:"الأسئلة مستمدة من مواقف يومية حقيقية في المدارس. اختر ما ستفعله فعلاً في كل موقف." },

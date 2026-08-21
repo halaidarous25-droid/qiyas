@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { QUESTIONS, SECTION_META, FREQ_LABELS, type Item } from "@/data/questions";
+import { QUESTIONS, SECTION_META, FREQ_LABELS, EXPERIENCE_ITEM, type Item } from "@/data/questions";
 import { BANK_B } from "@/data/questionBankB";
 import { AXES } from "@/data/mock";
 import { En } from "@/components/common";
@@ -87,7 +87,9 @@ function buildQuestionSet(): Built[] {
   const all = [...sec1, ...sec2, ...sec3];
   saveRecent(all.map((q) => q.id));
 
-  return all.map(shuffleOptions).map((q, idx) => ({ ...q, n: idx + 1 }));
+  // السؤال الأخير الثابت (٣٦): مؤشر الخبرة القيادية — يُعرض دائمًا في النهاية بلا خلط
+  const built = all.map(shuffleOptions);
+  return [...built, EXPERIENCE_ITEM as Built].map((q, idx) => ({ ...q, n: idx + 1 }));
 }
 
 export function Assessment({ onFinish, onExit }:
@@ -130,7 +132,7 @@ export function Assessment({ onFinish, onExit }:
 
         <div className="mt-5 space-y-2.5">
           {/* سيناريو / موقف / مؤشر */}
-          {(q.type === "scenario" || q.type === "situation" || q.type === "indicator") &&
+          {(q.type === "scenario" || q.type === "situation" || q.type === "indicator" || q.type === "experience") &&
             q.options.map((o, di) => {
               const orig = q._map ? q._map[di] : di;   // الفهرس الأصلي للخيار (للتصحيح)
               const sel = answers[q.id] === orig;

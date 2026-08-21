@@ -68,7 +68,7 @@ export function PublicAssessment({ code }: { code: string }) {
     setResult(r);
     setBusy(true);
     try {
-      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), phone: phone.trim(), email: email.trim(), result: r, answers: a });
+      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), phone: phone.trim(), email: email.trim(), experience: r.experience, result: r, answers: a });
       setStep("done");
     } catch (e: any) { setErr(e.message || "تعذّر الإرسال"); setStep("done"); }
     finally { setBusy(false); }

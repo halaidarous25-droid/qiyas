@@ -27,7 +27,7 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 }
 
 export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
-  const { missions, mode, students } = useSlis();
+  const { missions, students } = useSlis();
   const activeMissions = missions.filter((m) => ["open", "screening", "trial"].includes(m.status)).length;
   const assessedStudents = students.filter((c) => c.assessed);
   const total = assessedStudents.length || 1;
@@ -51,7 +51,6 @@ export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
             نظرة عامة على المهام القيادية وملفات الطلاب والتنبيهات الحرجة.
           </p>
         </div>
-        <Pill tone="brand">الوضع ({mode === "A" ? "أ — الإعلان أولًا" : "ب — القياس أولًا"})</Pill>
       </div>
 
       {/* مؤشرات */}
@@ -85,7 +84,7 @@ export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-[15px]">{m.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    {m.scopeLabel} · <En>{m.applicants}</En> متقدّم · الوضع ({m.mode === "A" ? "أ" : "ب"})
+                    {m.scopeLabel} · <En>{m.applicants}</En> متقدّم
                   </div>
                 </div>
                 <Pill tone={m.hasConflict ? "danger" : "muted"}>
