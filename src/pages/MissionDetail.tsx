@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pill, Meter, Avatar, En } from "@/components/common";
+import { Pill, Meter, Avatar, En, MatchStars } from "@/components/common";
 import {
   AXES, STATUS_META, TRUST_META, ME_ID,
   type Candidate, type Mission,
@@ -10,24 +10,8 @@ import { cn } from "@/lib/utils";
 import {
   ArrowRight, Target, MapPin, Users, Crown, ChevronDown,
   CheckCircle2, Trophy, ClipboardList, Plus, X, Save, Flag,
-  XCircle, Pencil, UserPlus, Trash2, Star,
+  XCircle, Pencil, UserPlus, Trash2,
 } from "lucide-react";
-
-// تقييم المواءمة على شكل ٥ نجوم تمتلئ حسب النسبة
-function MatchStars({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, value));
-  const row = (cls: string) => (
-    <span className={cn("flex gap-0.5", cls)}>
-      {[0, 1, 2, 3, 4].map((i) => <Star key={i} className="h-4 w-4" fill="currentColor" stroke="none" />)}
-    </span>
-  );
-  return (
-    <span className="relative inline-flex" title={`المواءمة ${pct}%`}>
-      {row("text-slate-300")}
-      <span className="absolute inset-0 overflow-hidden text-gold" style={{ width: `${pct}%` }}>{row("")}</span>
-    </span>
-  );
-}
 import type { DevPlan } from "@/lib/live";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
 

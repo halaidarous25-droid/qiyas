@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Pill, Meter, Avatar, En } from "@/components/common";
+import { Pill, Meter, Avatar, En, MatchStars } from "@/components/common";
 import {
   AXES, TRUST_META,
   type Candidate, type Trust,
@@ -120,9 +120,9 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
           <div className="mb-3 flex flex-wrap items-center gap-2"><Target className="h-[18px] w-[18px] text-gold" />
             <h2 className="font-display font-bold">المهام المرشّح لها</h2>
             <div className="mr-auto flex flex-wrap items-center gap-1">
-              <Pill tone="brand"><En>{stats.nominated}</En> مرشّح</Pill>
-              <Pill tone="muted"><En>{stats.notNominated}</En> غير مرشّح</Pill>
-              <Pill tone="success"><En>{stats.assigned}</En> مكلّف</Pill>
+              {stats.nominated > 0 && <Pill tone="brand"><En>{stats.nominated}</En> مرشّح</Pill>}
+              {stats.notNominated > 0 && <Pill tone="muted"><En>{stats.notNominated}</En> غير مرشّح</Pill>}
+              {stats.assigned > 0 && <Pill tone="success"><En>{stats.assigned}</En> مكلّف</Pill>}
             </div></div>
           {missions.length === 0 ? (
             <p className="text-sm text-muted-foreground">لم يُرشَّح لأي مهمة بعد.</p>
@@ -140,7 +140,10 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
                       <div className="text-[11px] text-muted-foreground">{mission.scopeLabel}</div>
                     </div>
                     <div className="text-left">
-                      <div className={cn("font-display font-extrabold", textTone[matchTone(match)])}><En>{match}%</En></div>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <MatchStars value={match} size={16} />
+                        <span className={cn("font-display font-extrabold", textTone[matchTone(match)])}><En>{match}%</En></span>
+                      </div>
                       {seat && <Pill tone="success" className="mt-0.5">ضمن المقاعد</Pill>}
                     </div>
                   </div>
@@ -264,9 +267,10 @@ export function Students({ initialStudentId, onConsumed }:
                     </div>
                     <div className="hidden md:block"><Pill tone={trust.tone as Tone}>{trust.label}</Pill></div>
                     <div className="flex flex-wrap items-center gap-1 justify-end md:justify-start">
-                      <Pill tone="brand"><En>{stats.nominated}</En> مرشّح</Pill>
-                      <Pill tone="muted"><En>{stats.notNominated}</En> غير مرشّح</Pill>
-                      <Pill tone="success"><Target className="h-3 w-3" /> <En>{stats.assigned}</En> مكلّف</Pill>
+                      {stats.nominated > 0 && <Pill tone="brand"><En>{stats.nominated}</En> مرشّح</Pill>}
+                      {stats.notNominated > 0 && <Pill tone="muted"><En>{stats.notNominated}</En> غير مرشّح</Pill>}
+                      {stats.assigned > 0 && <Pill tone="success"><Target className="h-3 w-3" /> <En>{stats.assigned}</En> مكلّف</Pill>}
+                      {stats.nominated === 0 && stats.notNominated === 0 && stats.assigned === 0 && <span className="text-xs text-muted-foreground">—</span>}
                     </div>
                   </>
                 ) : (

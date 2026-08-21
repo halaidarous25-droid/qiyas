@@ -1,5 +1,25 @@
 import { cn } from "@/lib/utils";
 import { badgeTone, barTone, type Tone } from "@/lib/tone";
+import { Star } from "lucide-react";
+
+// تقييم على شكل ٥ نجوم متلاصقة تمتلئ ذهبيًا حسب النسبة (0..100)
+export function MatchStars({ value, size = 20, className }:
+  { value: number; size?: number; className?: string }) {
+  const pct = Math.max(0, Math.min(100, value));
+  const row = () => (
+    <span className="flex">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Star key={i} width={size} height={size} fill="currentColor" stroke="none" />
+      ))}
+    </span>
+  );
+  return (
+    <span dir="ltr" className={cn("relative inline-flex leading-none align-middle", className)} title={`المواءمة ${pct}%`}>
+      <span className="flex text-slate-300 dark:text-slate-600">{row()}</span>
+      <span className="absolute inset-0 overflow-hidden text-gold" style={{ width: `${pct}%` }}>{row()}</span>
+    </span>
+  );
+}
 
 export function Pill({ tone = "muted", children, className }:
   { tone?: Tone; children: React.ReactNode; className?: string }) {
