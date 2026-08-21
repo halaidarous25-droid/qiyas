@@ -91,6 +91,7 @@ interface Store {
   updateStudent: (id: string, patch: { name?: string; grade?: string; className?: string; nationalId?: string; email?: string; phone?: string }) => void;
   bulkAddStudents: (rows: { name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string }[]) => Promise<number>;
   addTeacher: (t: { name: string; role: string; nationalId?: string; email?: string; phone?: string }) => void;
+  reload: () => void;   // إعادة تحميل بيانات المدرسة من قاعدة البيانات
   addClass: (c: { name: string; grade: string; homeroom: string }) => void;
   rankMission: (m: Mission) => Candidate[];
   studentMissionsFor: (studentId: string) => { mission: Mission; rank: number; match: number; seat: boolean }[];
@@ -606,7 +607,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, bulkAddStudents, addTeacher, addClass, rankMission, studentMissionsFor,
+      students, teachers, classes, addStudent, updateStudent, bulkAddStudents, addTeacher, reload: resync, addClass, rankMission, studentMissionsFor,
     }}>
       {children}
     </Ctx.Provider>

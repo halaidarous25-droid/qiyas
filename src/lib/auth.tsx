@@ -11,6 +11,14 @@ export interface Identity {
   userId: string;
   avatarUrl: string | null;
   name: string;
+  mustChange: boolean;         // تغيير كلمة المرور مطلوب عند أول دخول
+}
+
+const LOGIN_DOMAIN = "qiyas.local";
+// يحوّل اسم المستخدم إلى بريد الدخول الاصطناعي (الدخول باسم المستخدم لا بالبريد)
+export function usernameToEmail(login: string): string {
+  const v = login.trim();
+  return v.includes("@") ? v : `${v.toLowerCase().replace(/[^a-z0-9_.-]/g, "")}@${LOGIN_DOMAIN}`;
 }
 
 interface AuthState {
@@ -18,9 +26,10 @@ interface AuthState {
   demo: boolean;
   identity: Identity | null;
   email: string | null;
-  signIn: (email: string, password: string) => Promise<string | null>; // يُرجع رسالة خطأ أو null
+  signIn: (login: string, password: string) => Promise<string | null>; // login = اسم المستخدم أو بريد؛ يُرجع رسالة خطأ أو null
   signOut: () => Promise<void>;
   enterDemo: () => void;
+  clearMustChange: () => void;   // بعد تغيير كلمة المرور في أول دخول
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -32,15 +41,16 @@ export const useAuth = () => {
 
 async function resolveIdentity(userId: string): Promise<Identity | null> {
   // مركزي؟
-  const { data: prof } = await supabase.from("profiles").select("full_name,is_central_admin,avatar_url").eq("id", userId).maybeSingle();
+  const { data: prof } = await supabase.from("profiles").select("full_name,is_central_admin,avatar_url,must_change").eq("id", userId).maybeSingle();
   const av = prof?.avatar_url ?? null;
-  if (prof?.is_central_admin) return { role: "central", memberRole: null, schoolId: null, studentId: null, userId, avatarUrl: av, name: prof.full_name || "مدير النظام المركزي" };
+  const mustChange = !!prof?.must_change;
+  if (prof?.is_central_admin) return { role: "central", memberRole: null, schoolId: null, studentId: null, userId, avatarUrl: av, name: prof.full_name || "مدير النظام المركزي", mustChange };
   // عضو مدرسة (مدير/منسّق/مشرف نشاط/معلم)؟
   const { data: mem } = await supabase.from("school_members").select("school_id,role").eq("user_id", userId).maybeSingle();
-  if (mem) return { role: "supervisor", memberRole: mem.role, schoolId: mem.school_id, studentId: null, userId, avatarUrl: av, name: prof?.full_name || "عضو المدرسة" };
+  if (mem) return { role: "supervisor", memberRole: mem.role, schoolId: mem.school_id, studentId: null, userId, avatarUrl: av, name: prof?.full_name || "عضو المدرسة", mustChange };
   // طالب؟
   const { data: st } = await supabase.from("students").select("id,school_id,name").eq("user_id", userId).maybeSingle();
-  if (st) return { role: "student", memberRole: null, schoolId: st.school_id, studentId: st.id, userId, avatarUrl: av, name: st.name };
+  if (st) return { role: "student", memberRole: null, schoolId: st.school_id, studentId: st.id, userId, avatarUrl: av, name: st.name, mustChange };
   return null;
 }
 
@@ -71,9 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
 
-  const signIn = async (em: string, pw: string) => {
+  const signIn = async (login: string, pw: string) => {
+    const em = usernameToEmail(login);
     const { data, error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
-    if (error) return error.message;
+    if (error) return "اسم المستخدم أو كلمة المرور غير صحيحة";
     if (data.user) {
       const id = await resolveIdentity(data.user.id);
       if (!id) return "تم تسجيل الدخول لكن لا يوجد دور مرتبط بهذا الحساب.";
@@ -84,9 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => { await supabase.auth.signOut(); setIdentity(null); setEmail(null); setDemo(false); };
   const enterDemo = () => setDemo(true);
+  const clearMustChange = () => setIdentity((p) => p ? { ...p, mustChange: false } : p);
 
   return (
-    <Ctx.Provider value={{ ready, demo, identity, email, signIn, signOut, enterDemo }}>
+    <Ctx.Provider value={{ ready, demo, identity, email, signIn, signOut, enterDemo, clearMustChange }}>
       {children}
     </Ctx.Provider>
   );

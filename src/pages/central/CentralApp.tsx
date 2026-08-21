@@ -13,8 +13,18 @@ import { useSlis } from "@/store";
 import {
   Building2, ShieldCheck, Scale, TrendingUp, School, CheckCircle2,
   Server, ListChecks, Globe, ClipboardCheck, Gavel, Hourglass, Pencil, X,
-  PauseCircle, Trash2, AlertTriangle,
+  PauseCircle, Trash2, AlertTriangle, Plus, KeyRound, Copy, Loader2,
 } from "lucide-react";
+import { useEffect } from "react";
+import { provisionSchool, resetAccountPassword, fetchResetRequests, type ResetRequest } from "@/lib/api";
+
+// قائمة المدن (قابلة للتوسعة)
+const CITIES = [
+  "الرياض", "جدة", "مكة المكرمة", "المدينة المنورة", "الدمام", "الخبر", "الظهران", "الطائف",
+  "بريدة", "عنيزة", "تبوك", "حائل", "أبها", "خميس مشيط", "نجران", "جازان", "الباحة",
+  "عرعر", "سكاكا", "القطيف", "الأحساء", "الجبيل", "ينبع", "الخرج", "حفر الباطن", "الزلفي",
+];
+const STAGES = ["الابتدائية", "المتوسطة", "الثانوية"];
 
 function Kpi({ icon: Icon, label, value, sub, tone }:
   { icon: any; label: string; value: string; sub: string; tone: Tone }) {
@@ -36,7 +46,7 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 
 const pctText = (v: number | null) => (v === null ? "—" : `${v}%`);
 
-export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus, onUpdateSchool, onDeleteSchool }: {
+export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, onSetSchoolStatus, onUpdateSchool, onDeleteSchool, onReload }: {
   data?: CentralSeed;
   userName?: string;
   onResolveAppeal?: (id: string) => void;
@@ -44,12 +54,14 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
   onSetSchoolStatus?: (schoolId: string, status: string) => void;
   onUpdateSchool?: (schoolId: string, patch: { name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string }) => void;
   onDeleteSchool?: (schoolId: string) => void;
+  onReload?: () => void;
 } = {}) {
   const { toast } = useSlis();
   const live = !!data;
   const [view, setView] = useState<"dashboard" | "questions" | "permissions">("dashboard");
   const [editSchool, setEditSchool] = useState<PlatformSchool | null>(null);
   const [confirmDel, setConfirmDel] = useState<PlatformSchool | null>(null);
+  const [showRegister, setShowRegister] = useState(false);
 
   // البيانات: حيّة إن توفّرت، وإلا الوضع التجريبي
   const schools: PlatformSchool[] = live ? data!.schools : PLATFORM_SCHOOLS;
@@ -116,8 +128,9 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
             <div className="flex items-center justify-between border-b px-5 py-3.5">
               <div className="flex items-center gap-2"><Building2 className="h-[18px] w-[18px] text-brand" />
                 <h2 className="font-display font-bold">المدارس على المنصة</h2></div>
-              <button onClick={() => toast("قبول مدرسة جديدة يتم عبر إنشاء حساب المدرسة وربطه بمشرف", "info")}
-                className="rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90">+ قبول مدرسة</button>
+              <button onClick={() => live ? setShowRegister(true) : toast("تسجيل المدارس متاح في اللوحة الحيّة فقط", "info")}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90">
+                <Plus className="h-4 w-4" /> تسجيل مدرسة</button>
             </div>
             <div className="divide-y">
               {schools.map((s) => {
@@ -227,6 +240,9 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
           </div>
         </div>
 
+        {/* طلبات إعادة تعيين كلمة المرور */}
+        {live && <ResetRequestsPanel />}
+
         {/* دورة انضمام المدارس */}
         <div className="rounded-xl border bg-card p-5">
           <div className="mb-4 flex items-center gap-2"><ListChecks className="h-[18px] w-[18px] text-brand" />
@@ -269,6 +285,10 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
       </main>
       )}
 
+      {showRegister && (
+        <RegisterSchoolModal onClose={() => setShowRegister(false)} onDone={() => { setShowRegister(false); onReload?.(); }} />
+      )}
+
       {editSchool && onUpdateSchool && (
         <SchoolEditModal
           school={editSchool}
@@ -295,6 +315,148 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===== تسجيل مدرسة جديدة (مركزي) =====
+function RegisterSchoolModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { toast } = useSlis();
+  const [f, setF] = useState({ schoolName: "", stage: "الثانوية", city: CITIES[0], phone: "", email: "", principalName: "", username: "", password: "" });
+  const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<{ tenant: string; username: string; password: string } | null>(null);
+  const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
+  const valid = f.schoolName.trim().length >= 2 && f.username.trim().length >= 3 && f.password.length >= 6;
+  const copy = (t: string) => { navigator.clipboard?.writeText(t); toast("نُسِخ", "info"); };
+
+  const submit = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await provisionSchool({
+        schoolName: f.schoolName.trim(), stage: f.stage, city: f.city, phone: f.phone.trim(),
+        email: f.email.trim(), principalName: f.principalName.trim(), username: f.username.trim(), password: f.password,
+      });
+      setResult({ tenant: r.tenant, username: r.username, password: r.password });
+    } catch (e: any) { setErr(e.message || "تعذّر التسجيل"); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[95] grid place-items-center overflow-auto bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-extrabold">تسجيل مدرسة جديدة</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg hover:bg-accent"><X className="h-4 w-4" /></button>
+        </div>
+
+        {result ? (
+          <div className="text-center">
+            <CheckCircle2 className="mx-auto h-12 w-12 text-success" />
+            <h4 className="mt-2 font-display text-lg font-extrabold">تم تسجيل المدرسة 🎉</h4>
+            <p className="mt-1 text-sm text-muted-foreground">سلّم بيانات الدخول لمسؤول المدرسة. سيُطلب منه تغيير كلمة المرور عند أول دخول.</p>
+            <div className="mt-4 space-y-2 text-right">
+              {[{ l: "اسم المستخدم", v: result.username }, { l: "كلمة المرور", v: result.password }, { l: "رمز المدرسة (للرابط)", v: result.tenant }].map((r) => (
+                <div key={r.l} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">{r.l}</span>
+                  <span className="flex items-center gap-1.5 font-mono text-sm font-bold" dir="ltr">{r.v}
+                    <button onClick={() => copy(r.v)}><Copy className="h-3.5 w-3.5 text-brand" /></button></span>
+                </div>
+              ))}
+            </div>
+            <button onClick={onDone} className="mt-4 w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">تم</button>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2"><label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم المدرسة</label>
+                <input className={inp} value={f.schoolName} onChange={(e) => set("schoolName", e.target.value)} /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">المرحلة الدراسية</label>
+                <select className={inp} value={f.stage} onChange={(e) => set("stage", e.target.value)}>{STAGES.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">المدينة</label>
+                <select className={inp} value={f.city} onChange={(e) => set("city", e.target.value)}>{CITIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">رقم الجوال</label>
+                <input className={inp} dir="ltr" inputMode="numeric" value={f.phone} onChange={(e) => set("phone", e.target.value.replace(/[^0-9]/g, ""))} placeholder="05xxxxxxxx" /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">البريد الإلكتروني</label>
+                <input className={inp} dir="ltr" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="school@example.com" /></div>
+              <div className="sm:col-span-2"><label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم مدير المدرسة</label>
+                <input className={inp} value={f.principalName} onChange={(e) => set("principalName", e.target.value)} /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">اسم المستخدم (للدخول)</label>
+                <input className={inp} dir="ltr" value={f.username} onChange={(e) => set("username", e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ""))} placeholder="username" /></div>
+              <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">كلمة المرور المبدئية</label>
+                <input className={inp} dir="ltr" value={f.password} onChange={(e) => set("password", e.target.value)} placeholder="٦ أحرف فأكثر" /></div>
+            </div>
+            {err && <p className="mt-3 text-[12px] text-danger">{err}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={onClose} className="rounded-lg border px-4 h-10 text-sm font-semibold hover:bg-accent">إلغاء</button>
+              <button onClick={submit} disabled={!valid || busy}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-5 h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} تسجيل المدرسة
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===== طلبات إعادة تعيين كلمة المرور =====
+function ResetRequestsPanel() {
+  const { toast } = useSlis();
+  const [reqs, setReqs] = useState<ResetRequest[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [pwd, setPwd] = useState<Record<string, string>>({});
+  const load = () => fetchResetRequests().then(setReqs).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const copy = (t: string) => { navigator.clipboard?.writeText(t); toast("نُسِخ", "info"); };
+  const doReset = async (r: ResetRequest) => {
+    setBusy(r.id);
+    try {
+      const res = await resetAccountPassword(r.username, undefined, r.id);
+      setPwd((p) => ({ ...p, [r.username]: res.password }));
+      toast("أُعيد تعيين كلمة المرور — سلّمها للمستخدم");
+      load();
+    } catch (e: any) { toast(`تعذّر: ${e.message || e}`, "danger"); }
+    finally { setBusy(null); }
+  };
+  if (reqs.length === 0 && Object.keys(pwd).length === 0) return null;
+  return (
+    <div className="rounded-xl border bg-card">
+      <div className="flex items-center gap-2 border-b px-5 py-3.5">
+        <KeyRound className="h-[18px] w-[18px] text-brand" />
+        <h2 className="font-display font-bold">طلبات إعادة تعيين كلمة المرور</h2>
+        {reqs.length > 0 && <Pill tone="warning" className="mr-auto"><En>{reqs.length}</En></Pill>}
+      </div>
+      <div className="divide-y">
+        {reqs.map((r) => (
+          <div key={r.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">{r.school_name || "—"}</div>
+              <div className="text-xs text-muted-foreground" dir="ltr">اسم المستخدم: {r.username}</div>
+            </div>
+            {pwd[r.username] ? (
+              <span className="flex items-center gap-1.5 rounded-lg border bg-success/5 px-3 py-1.5 font-mono text-sm font-bold text-success" dir="ltr">
+                {pwd[r.username]} <button onClick={() => copy(pwd[r.username])}><Copy className="h-3.5 w-3.5" /></button>
+              </span>
+            ) : (
+              <button onClick={() => doReset(r)} disabled={busy === r.id}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+                {busy === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} إعادة تعيين
+              </button>
+            )}
+          </div>
+        ))}
+        {Object.entries(pwd).filter(([u]) => !reqs.some((r) => r.username === u)).map(([u, p]) => (
+          <div key={u} className="flex flex-wrap items-center gap-3 px-5 py-3">
+            <div className="min-w-0 flex-1 text-xs text-muted-foreground" dir="ltr">تمت إعادة التعيين: {u}</div>
+            <span className="flex items-center gap-1.5 rounded-lg border bg-success/5 px-3 py-1.5 font-mono text-sm font-bold text-success" dir="ltr">{p}
+              <button onClick={() => copy(p)}><Copy className="h-3.5 w-3.5" /></button></span>
+          </div>
+        ))}
+      </div>
+      <p className="px-5 py-2 text-[11px] text-muted-foreground">تُعيَّن كلمة مرور مؤقتة تُسلَّم للمستخدم، ويُطلب منه تغييرها عند أول دخول.</p>
     </div>
   );
 }

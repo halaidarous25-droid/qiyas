@@ -255,6 +255,54 @@ export async function changePassword(newPassword: string) {
   if (error) throw error;
 }
 
+// إتمام تغيير كلمة المرور عند أول دخول: يحدّث كلمة المرور ويرفع علامة must_change
+export async function completeFirstLoginChange(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from("profiles").update({ must_change: false }).eq("id", user.id);
+    await supabase.from("account_credentials").update({ password: newPassword, must_change: false }).eq("user_id", user.id);
+  }
+}
+
+// ===== تسجيل مدرسة/معلم وإعادة تعيين كلمة المرور (مركزي) =====
+export async function provisionSchool(payload: {
+  schoolName: string; stage?: string; city?: string; phone?: string; email?: string; principalName?: string; username: string; password: string;
+}) {
+  const { data, error } = await supabase.functions.invoke("admin-users", { body: { action: "provision_school", ...payload } });
+  if (error) throw new Error((error as any)?.message || "تعذّر التسجيل");
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; tenant: string; username: string; password: string; schoolId: string };
+}
+export async function provisionTeacher(payload: {
+  schoolId: string; name: string; role?: string; username: string; password: string; nationalId?: string; email?: string; phone?: string;
+}) {
+  const { data, error } = await supabase.functions.invoke("admin-users", { body: { action: "provision_teacher", ...payload } });
+  if (error) throw new Error((error as any)?.message || "تعذّر إنشاء الحساب");
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; username: string; password: string };
+}
+export async function resetAccountPassword(username: string, newPassword?: string, requestId?: string) {
+  const { data, error } = await supabase.functions.invoke("admin-users", { body: { action: "reset_password", username, newPassword, requestId } });
+  if (error) throw new Error((error as any)?.message || "تعذّر إعادة التعيين");
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean; username: string; password: string };
+}
+// طلب إعادة تعيين كلمة المرور (من صفحة الدخول — بلا حساب)
+export async function requestPasswordReset(schoolName: string, username: string) {
+  const { data, error } = await supabase.functions.invoke("public-signup", { body: { action: "request_reset", schoolName, username } });
+  if (error) throw new Error((error as any)?.message || "تعذّر إرسال الطلب");
+  if (data?.error) throw new Error(data.error);
+  return data as { ok: boolean };
+}
+export interface ResetRequest { id: string; school_id: string | null; school_name: string | null; username: string; status: string; created_at: string }
+export async function fetchResetRequests(): Promise<ResetRequest[]> {
+  const { data, error } = await supabase.from("password_reset_requests").select("*").eq("status", "pending").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as ResetRequest[]) || [];
+}
+
 // تعديل معلومات المدرسة (مركزي أو المدرسة لبياناتها الأساسية)
 export async function dbUpdateSchool(schoolId: string, patch: {
   name?: string; city?: string; address?: string; email?: string; phone?: string; stage?: string; status?: string;

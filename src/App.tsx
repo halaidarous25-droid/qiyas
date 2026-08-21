@@ -20,9 +20,9 @@ import { SlisProvider, type StoreSeed } from "@/store";
 import { Toaster } from "@/components/Toaster";
 import { AuthProvider, useAuth, type LiveRole } from "@/lib/auth";
 import { fetchSchoolSeed, fetchCentralSeed, type CentralSeed } from "@/lib/live";
-import { dbResolveAppeal, dbReviewAppeal, dbSetSchoolStatus, fetchRoleCaps, dbUpdateSchool } from "@/lib/api";
+import { dbResolveAppeal, dbReviewAppeal, dbSetSchoolStatus, fetchRoleCaps, dbUpdateSchool, completeFirstLoginChange } from "@/lib/api";
 import { useSlis } from "@/store";
-import { Loader2, LogOut, AlertCircle } from "lucide-react";
+import { Loader2, LogOut, AlertCircle, KeyRound } from "lucide-react";
 
 const CRUMBS: Record<PageKey, string> = {
   dashboard: "لوحة المدرسة", missions: "المهام القيادية", students: "الطلاب",
@@ -84,7 +84,7 @@ function LiveCentral({ userName }: { userName?: string }) {
     </div>
   );
 
-  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} onUpdateSchool={onUpdateSchool} onDeleteSchool={onDeleteSchool} />;
+  return <CentralApp data={data} userName={userName} onResolveAppeal={onResolveAppeal} onReviewAppeal={onReviewAppeal} onSetSchoolStatus={onSetSchoolStatus} onUpdateSchool={onUpdateSchool} onDeleteSchool={onDeleteSchool} onReload={load} />;
 }
 
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
@@ -205,7 +205,46 @@ function Root() {
   );
   if (demo) return <SlisProvider><Shell initialRole="supervisor" locked={false} /></SlisProvider>;
   if (!identity) return <Login />;
+  if (identity.mustChange) return <FirstLoginChange />;
   return <LiveApp />;
+}
+
+// شاشة إلزامية لتغيير كلمة المرور عند أول دخول
+function FirstLoginChange() {
+  const { signOut, clearMustChange } = useAuth();
+  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ok = p1.length >= 6 && p1 === p2;
+  const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try { await completeFirstLoginChange(p1); clearMustChange(); }
+    catch (e: any) { setErr(e?.message || "تعذّر تغيير كلمة المرور"); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="grid min-h-screen place-items-center bg-background p-6">
+      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-xl">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-brand text-white"><KeyRound className="h-6 w-6" /></div>
+        <h1 className="mt-3 text-center font-display text-xl font-extrabold">تغيير كلمة المرور</h1>
+        <p className="mt-1 text-center text-sm text-muted-foreground">لأول دخول، يجب تعيين كلمة مرور جديدة خاصة بك.</p>
+        <div className="mt-5 space-y-3">
+          <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">كلمة المرور الجديدة</label>
+            <input type="password" className={inp} value={p1} onChange={(e) => setP1(e.target.value)} placeholder="٦ أحرف على الأقل" autoComplete="new-password" /></div>
+          <div><label className="mb-1 block text-xs font-semibold text-muted-foreground">تأكيد كلمة المرور</label>
+            <input type="password" className={inp} value={p2} onChange={(e) => setP2(e.target.value)} placeholder="أعد كتابتها" autoComplete="new-password" /></div>
+          {p2.length > 0 && p1 !== p2 && <p className="text-[11px] text-danger">كلمتا المرور غير متطابقتين.</p>}
+          {err && <p className="text-[12px] text-danger">{err}</p>}
+          <button onClick={save} disabled={!ok || busy}
+            className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand h-11 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} حفظ ومتابعة
+          </button>
+          <button onClick={signOut} className="w-full text-xs text-muted-foreground hover:text-foreground">تسجيل الخروج</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {

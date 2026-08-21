@@ -12,7 +12,7 @@ import {
 import { AXES, type AxisScores } from "@/data/mock";
 import { type MissionRole } from "@/store";
 import { useEffect } from "react";
-import { createStudentAccount, inviteMember, fetchCredentials, changePassword, type AccountCred } from "@/lib/api";
+import { createStudentAccount, inviteMember, fetchCredentials, changePassword, provisionTeacher, type AccountCred } from "@/lib/api";
 
 type Tab = "info" | "classes" | "teachers" | "students" | "roles" | "accounts";
 const TABS: { k: Tab; l: string; icon: any }[] = [
@@ -65,7 +65,7 @@ export function SchoolAdmin() {
 
       {tab === "info" && <SchoolInfo studentsN={students.length} classesN={classes.length} teachersN={teachers.length} live={live} />}
       {tab === "classes" && <ClassesTab classes={classes} teachers={teachers} onAdd={addClass} />}
-      {tab === "teachers" && <TeachersTab teachers={teachers} onAdd={addTeacher} />}
+      {tab === "teachers" && <TeachersTab teachers={teachers} onAdd={addTeacher} live={live} schoolId={schoolId} />}
       {tab === "students" && <StudentsTab students={students} classes={classes} onAdd={addStudent} onBulk={bulkAddStudents} />}
       {tab === "roles" && <RolesTab />}
       {tab === "accounts" && <AccountsTab students={students} live={live} schoolId={schoolId} />}
@@ -210,11 +210,29 @@ function ClassesTab({ classes, teachers, onAdd }:
   );
 }
 
-function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => void }) {
+function TeachersTab({ teachers, onAdd, live, schoolId }: { teachers: any[]; onAdd: (t: any) => void; live: boolean; schoolId: string | null }) {
+  const { toast, reload } = useSlis();
   const [name, setName] = useState(""); const [role, setRole] = useState(TEACHER_ROLES[0]);
   const [natId, setNatId] = useState(""); const [email, setEmail] = useState(""); const [phone, setPhone] = useState("");
-  const submit = () => {
+  const [username, setUsername] = useState(""); const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [cred, setCred] = useState<{ username: string; password: string } | null>(null);
+  const genPass = () => setPassword("T" + Math.random().toString(36).slice(2, 8) + Math.floor(Math.random() * 90 + 10));
+  const submit = async () => {
     if (name.trim().length < 2) return;
+    if (live && schoolId) {
+      if (username.trim().length < 3 || password.length < 6) { toast("اسم المستخدم (٣ أحرف) وكلمة المرور (٦ أحرف) مطلوبة للمعلّم", "danger"); return; }
+      setBusy(true);
+      try {
+        const r = await provisionTeacher({ schoolId, name: name.trim(), role, username: username.trim(), password, nationalId: natId.trim(), email: email.trim(), phone: phone.trim() });
+        setCred({ username: r.username, password: r.password });
+        reload();
+        setName(""); setNatId(""); setEmail(""); setPhone(""); setUsername(""); setPassword("");
+        toast("أُنشئ حساب المعلّم — سيغيّر كلمة المرور عند أول دخول");
+      } catch (e: any) { toast(`تعذّر الإنشاء: ${e.message || e}`, "danger"); }
+      finally { setBusy(false); }
+      return;
+    }
     onAdd({ name: name.trim(), role, nationalId: natId.trim(), email: email.trim(), phone: phone.trim() });
     setName(""); setNatId(""); setEmail(""); setPhone("");
   };
@@ -247,10 +265,31 @@ function TeachersTab({ teachers, onAdd }: { teachers: any[]; onAdd: (t: any) => 
         <div className="space-y-3">
           <Field label="الاسم"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="مثال: أ. تركي القحطاني" /></Field>
           <Field label="الدور"><select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>{TEACHER_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
+          {live && (
+            <>
+              <Field label="اسم المستخدم (للدخول)"><input className={inputCls} dir="ltr" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ""))} placeholder="username" /></Field>
+              <Field label="كلمة المرور المبدئية">
+                <div className="flex gap-1.5">
+                  <input className={inputCls} dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="٦ أحرف فأكثر" />
+                  <button type="button" onClick={genPass} className="shrink-0 rounded-lg border px-2.5 h-10 text-xs font-semibold hover:bg-accent">توليد</button>
+                </div>
+              </Field>
+            </>
+          )}
           <Field label="رقم الهوية (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={natId} onChange={(e) => setNatId(e.target.value.replace(/[^0-9]/g, ""))} placeholder="١٠xxxxxxxx" /></Field>
           <Field label="رقم الجوال (اختياري)"><input className={inputCls} dir="ltr" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="05xxxxxxxx" /></Field>
           <Field label="البريد الإلكتروني (اختياري)"><input className={inputCls} dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></Field>
-          <button onClick={submit} className="w-full rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90">إضافة المعلّم</button>
+          <button onClick={submit} disabled={busy} className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand h-10 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} إضافة المعلّم
+          </button>
+          {live && <p className="text-[11px] text-muted-foreground">يُنشأ للمعلّم حساب دخول باسم المستخدم وكلمة المرور، ويُطلب منه تغييرها عند أول دخول.</p>}
+          {cred && (
+            <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-[12px]">
+              <div className="mb-1 font-semibold text-brand">بيانات دخول المعلّم (سلّمها له):</div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">اسم المستخدم</span><span className="font-mono font-bold" dir="ltr">{cred.username}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">كلمة المرور</span><span className="font-mono font-bold" dir="ltr">{cred.password}</span></div>
+            </div>
+          )}
         </div>
       </div>
     </div>
