@@ -19,7 +19,9 @@ export function PublicAssessment({ code }: { code: string }) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [grade, setGrade] = useState("");
-  const [className, setClassName] = useState("");
+  const [classNum, setClassNum] = useState("");
+  const className = grade && classNum ? `${grade}/${classNum}` : "";
+  const CLASS_NUMS = Array.from({ length: 10 }, (_, i) => String(i + 1));
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -32,10 +34,6 @@ export function PublicAssessment({ code }: { code: string }) {
     ...classes.map((c) => c.grade).filter(Boolean),
     ...FALLBACK_GRADES,
   ]));
-  // الفصول ضمن الصف المختار (أو كلها إن لم يتطابق)
-  const classOptions = grade
-    ? (classes.filter((c) => c.grade === grade).length ? classes.filter((c) => c.grade === grade) : classes)
-    : classes;
 
   useEffect(() => {
     publicGetSchool(code)
@@ -226,16 +224,16 @@ export function PublicAssessment({ code }: { code: string }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1">الصف</label>
-                  <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassName(""); }}>
+                  <select className={inp} value={grade} onChange={(e) => { setGrade(e.target.value); setClassNum(""); }}>
                     <option value="">اختر الصف…</option>
                     {grades.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1">الفصل</label>
-                  <select className={inp} value={className} onChange={(e) => setClassName(e.target.value)}>
+                  <select className={inp} value={classNum} onChange={(e) => setClassNum(e.target.value)}>
                     <option value="">اختر الفصل…</option>
-                    {classOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    {CLASS_NUMS.map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
               </div>
