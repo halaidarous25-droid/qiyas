@@ -272,16 +272,31 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
   const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, rankMission, students, deleteMission } = useSlis();
-  const m = missions.find((x) => x.id === missionId)!;
+  // جميع الـ hooks تُستدعى أولًا قبل أي return (التزامًا بقواعد hooks)
+  const [editing, setEditing] = useState(false);
+  const [confirmDelM, setConfirmDelM] = useState(false);
+  const [nomId, setNomId] = useState("");
+
+  const m = missions.find((x) => x.id === missionId);
+  // حارس: قد تُحذف المهمة من جلسة أخرى أثناء العرض — نعرض حالة آمنة بدل الانهيار
+  if (!m) {
+    return (
+      <div className="space-y-4">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+          <ArrowRight className="h-4 w-4" /> رجوع إلى المهام
+        </button>
+        <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
+          لم تعد هذه المهمة متاحة — ربما حُذفت أو تغيّرت. عد إلى قائمة المهام.
+        </div>
+      </div>
+    );
+  }
   const ranked = rankMission(m);
   const st = STATUS_META[m.status];
   const assignedIds = assigned[m.id] || [];
   const assignedStudents = assignedIds
     .map((id) => students.find((s) => s.id === id) || ranked.find((c) => c.id === id))
     .filter((c): c is Candidate => !!c);
-  const [editing, setEditing] = useState(false);
-  const [confirmDelM, setConfirmDelM] = useState(false);
-  const [nomId, setNomId] = useState("");
   const notNominated = students.filter((s) => !m.candidateIds.includes(s.id));
 
   return (

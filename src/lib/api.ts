@@ -429,20 +429,8 @@ export async function updateStudentName(studentId: string, name: string) {
   if (error) throw error;
 }
 
-// ============ التسجيل الذاتي (عام) ============
-export async function registerSchool(input: { schoolName: string; city: string; adminName: string; email: string; password: string }) {
-  const { data, error } = await supabase.functions.invoke("public-signup", { body: { action: "register_school", ...input } });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data as { ok: boolean; email: string; tenantCode: string; schoolId: string };
-}
-
-export async function registerStudent(input: { tenantCode: string; name: string; grade: string; email: string; password: string }) {
-  const { data, error } = await supabase.functions.invoke("public-signup", { body: { action: "register_student", ...input } });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data as { ok: boolean; email: string; schoolName: string };
-}
+// ملاحظة أمنية: أُزيلت دوال التسجيل الذاتي العام (registerSchool/registerStudent)
+// لأنها كانت تستدعي إجراءً عامًا بلا مصادقة. التسجيل يتم مركزيًا عبر provisionSchool المحمية.
 
 // ============ إدارة الحسابات (عبر Edge Function بصلاحيات إدارية) ============
 export async function createStudentAccount(studentId: string, email?: string) {
