@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Assessment } from "./student/Assessment";
 import { scoreAssessment, leadershipStyle, type Answers, type AssessmentResult } from "@/lib/scoring";
 import { publicGetSchool, publicSubmitAssessment, publicCheckEligibility, publicRequestRetake } from "@/lib/api";
-import { AXES } from "@/data/mock";
+import { AXES, classifyTrust } from "@/data/mock";
 import { En, Meter } from "@/components/common";
 import { Gauge, Loader2, AlertCircle, CheckCircle2, Play, Award, School, CalendarClock, BellRing, Target, ClipboardList, ArrowRight, ArrowLeft } from "lucide-react";
 
@@ -29,7 +29,7 @@ export function PublicAssessment({ code }: { code: string }) {
   const [block, setBlock] = useState<{ lastDate?: string; pending?: boolean }>({});
   const [reqSent, setReqSent] = useState(false);
   // تعدّد الاختبارات ورغبات المسمّيات
-  const [examTypes, setExamTypes] = useState<{ key: string; name: string; description?: string }[]>([]);
+  const [examTypes, setExamTypes] = useState<{ key: string; name: string; description?: string; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [selectedExam, setSelectedExam] = useState<string>("leadership");
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
@@ -73,6 +73,23 @@ export function PublicAssessment({ code }: { code: string }) {
   };
 
   const proceedFromRoles = () => setStep("test");
+
+  // إنهاء اختبار عام (غير القيادات) — تقييم مبدئي مؤقت حتى تُعتمد معايير الاختبار
+  const finishGeneric = async (scores: number[]) => {
+    const avg = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 0;
+    const r: any = {
+      axes: { org: avg, lead: avg, comm: avg, firm: avg, init: avg },
+      competency: avg, behavior: avg, contradiction: 0, socialDesirability: 0,
+      integrity: 0, emotional: 0, trust: classifyTrust(0, 0), experience: 0,
+    };
+    setResult(r);
+    setBusy(true);
+    try {
+      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), phone: phone.trim(), email: email.trim(), examType: selectedExam, rolePrefs: [], result: r, answers: {} });
+      setStep("done");
+    } catch (e: any) { setErr(e.message || "تعذّر الإرسال"); setStep("done"); }
+    finally { setBusy(false); }
+  };
 
   const requestRetake = async () => {
     setChecking(true);
@@ -193,12 +210,24 @@ export function PublicAssessment({ code }: { code: string }) {
     </Center>
   );
 
-  if (step === "test") return (
-    <div className="min-h-screen bg-background soft-grid p-4 md:p-8">
-      <Assessment onFinish={finish} onExit={() => setStep(selectedExam === "leadership" && roles.length > 0 ? "roles" : "exam")} />
-      {busy && <div className="fixed inset-0 grid place-items-center bg-black/30"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>}
-    </div>
-  );
+  if (step === "test") {
+    const backTo = selectedExam === "leadership" && roles.length > 0 ? "roles" : "exam";
+    if (selectedExam !== "leadership") {
+      const examObj = examTypes.find((e) => e.key === selectedExam);
+      return (
+        <div className="min-h-screen bg-background soft-grid p-4 md:p-8">
+          <GenericExam title={examObj?.name || "اختبار"} questions={examObj?.questions || []} onFinish={finishGeneric} onExit={() => setStep(backTo)} />
+          {busy && <div className="fixed inset-0 grid place-items-center bg-black/30"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>}
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-background soft-grid p-4 md:p-8">
+        <Assessment onFinish={finish} onExit={() => setStep(backTo)} />
+        {busy && <div className="fixed inset-0 grid place-items-center bg-black/30"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>}
+      </div>
+    );
+  }
 
   if (step === "done") return (
     <Center>
@@ -374,4 +403,57 @@ export function PublicAssessment({ code }: { code: string }) {
 
 function Center({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen grid place-items-center bg-background p-6">{children}</div>;
+}
+
+// عارض عام لاختبارات الكتالوج (غير القيادات) — يعرض الأسئلة ويجمع درجات الخيارات المختارة
+function GenericExam({ title, questions, onFinish, onExit }:
+  { title: string; questions: { id: string; text: string; options: { text: string; score: number }[] }[];
+    onFinish: (scores: number[]) => void; onExit: () => void }) {
+  const [picks, setPicks] = useState<Record<string, number>>({});
+  const answered = questions.filter((q) => picks[q.id] !== undefined).length;
+  const allDone = questions.length > 0 && answered === questions.length;
+  const submit = () => {
+    if (!allDone) return;
+    onFinish(questions.map((q) => q.options[picks[q.id]]?.score ?? 0));
+  };
+  return (
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-4 flex items-center justify-between">
+        <button onClick={onExit} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+          <ArrowRight className="h-4 w-4" /> رجوع
+        </button>
+        <span className="text-xs text-muted-foreground"><En>{answered}</En> / <En>{questions.length}</En></span>
+      </div>
+      <div className="rounded-2xl border bg-card p-5">
+        <h1 className="font-display text-xl font-extrabold">{title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">اختر الإجابة الأقرب إليك في كل سؤال.</p>
+        {questions.length === 0 && <p className="mt-4 text-sm text-muted-foreground">لا توجد أسئلة معرّفة لهذا الاختبار بعد.</p>}
+        <div className="mt-4 space-y-4">
+          {questions.map((q, qi) => (
+            <div key={q.id} className="rounded-xl border p-4">
+              <div className="mb-2 font-semibold text-sm"><En>{qi + 1}</En>. {q.text}</div>
+              <div className="grid gap-2">
+                {q.options.map((o, oi) => {
+                  const on = picks[q.id] === oi;
+                  return (
+                    <button key={oi} onClick={() => setPicks((p) => ({ ...p, [q.id]: oi }))}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-right text-sm ${on ? "border-brand bg-brand/5 font-semibold" : "hover:bg-accent"}`}>
+                      <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${on ? "border-brand" : ""}`}>
+                        {on && <span className="h-2 w-2 rounded-full bg-brand" />}
+                      </span>
+                      <span className="flex-1">{o.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <button onClick={submit} disabled={!allDone}
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand h-11 font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
+          <CheckCircle2 className="h-4 w-4" /> إنهاء وإرسال
+        </button>
+      </div>
+    </div>
+  );
 }

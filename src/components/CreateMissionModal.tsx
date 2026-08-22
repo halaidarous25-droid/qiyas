@@ -84,7 +84,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
             onChange={(e) => onPickRole(e.target.value)}
             className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand">
             <option value="">اختر المسمّى القيادي…</option>
-            {roles.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+            {roles.filter((r) => r.active !== false).map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
           </select>
         ) : (
           <div className="mt-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-[12px] text-muted-foreground">

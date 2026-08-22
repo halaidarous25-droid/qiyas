@@ -287,6 +287,63 @@ export async function saveRoleCaps(map: Record<string, string[]>) {
   if (error) throw error;
 }
 
+// ============ إدارة الاختبارات (كتالوج) ============
+export interface ExamOption { text: string; score: number }
+export interface ExamQuestion { id: string; text: string; options: ExamOption[] }
+export interface ExamType { id: string; key: string; name: string; description: string | null; active: boolean; sort: number; scoring: string; questions: ExamQuestion[] }
+
+// الحساب المركزي: كل الاختبارات (مفعّلة وغير مفعّلة)
+export async function fetchAllExamTypes(): Promise<ExamType[]> {
+  const { data, error } = await supabase.from("exam_types").select("*").order("sort", { ascending: true });
+  if (error) throw error;
+  return (data || []) as ExamType[];
+}
+// إنشاء/تعديل اختبار (مركزي)
+export async function upsertExamType(e: Partial<ExamType> & { key: string; name: string }) {
+  const row: Record<string, unknown> = { key: e.key, name: e.name, description: e.description ?? null, active: e.active ?? true, sort: e.sort ?? 0, scoring: e.scoring ?? "generic" };
+  if (e.questions !== undefined) row.questions = e.questions;
+  if ((e as any).id) row.id = (e as any).id;
+  const { error } = await supabase.from("exam_types").upsert(row, { onConflict: "key" });
+  if (error) throw error;
+}
+// حذف اختبار بالكامل (مركزي) — لا يُسمح بحذف اختبار القيادات الأساسي
+export async function deleteExamType(key: string) {
+  if (key === "leadership") throw new Error("لا يمكن حذف اختبار القيادات الأساسي");
+  await supabase.from("school_exam_access").delete().eq("exam_key", key);
+  const { error } = await supabase.from("exam_types").delete().eq("key", key);
+  if (error) throw error;
+}
+// وصول المدارس لاختبار معيّن (مركزي) — كل الصفوف
+export async function fetchExamAccessAll(examKey: string): Promise<{ school_id: string; enabled: boolean; school_active: boolean }[]> {
+  const { data, error } = await supabase.from("school_exam_access").select("school_id,enabled,school_active").eq("exam_key", examKey);
+  if (error) throw error;
+  return (data || []) as any[];
+}
+// المركزي: تفعيل/إيقاف اختبار لمدرسة
+export async function setSchoolExamEnabled(schoolId: string, examKey: string, enabled: boolean) {
+  const { error } = await supabase.from("school_exam_access")
+    .upsert({ school_id: schoolId, exam_key: examKey, enabled }, { onConflict: "school_id,exam_key" });
+  if (error) throw error;
+}
+// المدرسة: قراءة الاختبارات المتاحة لها + حالتها
+export async function fetchSchoolExamAccess(schoolId: string): Promise<{ exam_key: string; enabled: boolean; school_active: boolean }[]> {
+  const { data, error } = await supabase.from("school_exam_access").select("exam_key,enabled,school_active").eq("school_id", schoolId);
+  if (error) throw error;
+  return (data || []) as any[];
+}
+// المدرسة: تنشيط/إيقاف الاختبار داخليًا (الحارس يمنع تغيير enabled)
+export async function setSchoolExamActive(schoolId: string, examKey: string, active: boolean) {
+  const { error } = await supabase.from("school_exam_access")
+    .update({ school_active: active }).eq("school_id", schoolId).eq("exam_key", examKey);
+  if (error) throw error;
+}
+// قائمة الاختبارات للشاشات الداخلية (اسم/مفتاح فقط)
+export async function fetchExamTypesBasic(): Promise<{ key: string; name: string; active: boolean }[]> {
+  const { data, error } = await supabase.from("exam_types").select("key,name,active").order("sort", { ascending: true });
+  if (error) throw error;
+  return (data || []) as any[];
+}
+
 // ============ رابط الاختبار العام (بلا حساب) ============
 export async function publicGetSchool(code: string) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "get_school", code } });
@@ -295,7 +352,7 @@ export async function publicGetSchool(code: string) {
   return data as {
     ok: boolean; schoolName: string;
     classes: { id: string; name: string; grade: string }[];
-    examTypes: { key: string; name: string; description?: string }[];
+    examTypes: { key: string; name: string; description?: string; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[];
     roles: string[];
   };
 }

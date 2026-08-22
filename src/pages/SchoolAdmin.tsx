@@ -7,20 +7,21 @@ import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
   Clock, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon, Download,
-  Target, Trash2, SlidersHorizontal, Pencil,
+  Target, Trash2, SlidersHorizontal, Pencil, ClipboardList,
 } from "lucide-react";
 import { AXES, type AxisScores } from "@/data/mock";
 import { type MissionRole } from "@/store";
 import { useEffect } from "react";
-import { createStudentAccount, inviteMember, fetchCredentials, changePassword, provisionTeacher, type AccountCred } from "@/lib/api";
+import { createStudentAccount, inviteMember, fetchCredentials, changePassword, provisionTeacher, type AccountCred, fetchExamTypesBasic, fetchSchoolExamAccess, setSchoolExamActive } from "@/lib/api";
 
-type Tab = "info" | "classes" | "teachers" | "students" | "roles" | "accounts";
+type Tab = "info" | "classes" | "teachers" | "students" | "roles" | "exams" | "accounts";
 const TABS: { k: Tab; l: string; icon: any }[] = [
   { k: "info", l: "بيانات المدرسة", icon: Building2 },
   { k: "classes", l: "الفصول", icon: Layers },
   { k: "teachers", l: "المعلمون", icon: Users2 },
   { k: "students", l: "الطلاب", icon: GraduationCap },
   { k: "roles", l: "المهام القيادية", icon: Target },
+  { k: "exams", l: "الاختبارات", icon: ClipboardList },
   { k: "accounts", l: "الحسابات والصلاحيات", icon: KeyRound },
 ];
 
@@ -68,7 +69,79 @@ export function SchoolAdmin() {
       {tab === "teachers" && <TeachersTab teachers={teachers} onAdd={addTeacher} live={live} schoolId={schoolId} />}
       {tab === "students" && <StudentsTab students={students} classes={classes} onAdd={addStudent} onBulk={bulkAddStudents} />}
       {tab === "roles" && <RolesTab />}
+      {tab === "exams" && <ExamsTab live={live} schoolId={schoolId} />}
       {tab === "accounts" && <AccountsTab students={students} live={live} schoolId={schoolId} />}
+    </div>
+  );
+}
+
+// ===== تبويب الاختبارات (تفعيل داخلي للمدرسة) =====
+function ExamsTab({ live, schoolId }: { live: boolean; schoolId: string | null }) {
+  const { toast } = useSlis();
+  const [exams, setExams] = useState<{ key: string; name: string; active: boolean }[]>([]);
+  const [access, setAccess] = useState<Record<string, { enabled: boolean; school_active: boolean }>>({});
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    if (!live || !schoolId) { setLoading(false); return; }
+    try {
+      const [ex, acc] = await Promise.all([fetchExamTypesBasic(), fetchSchoolExamAccess(schoolId)]);
+      setExams(ex);
+      const map: Record<string, { enabled: boolean; school_active: boolean }> = {};
+      acc.forEach((a) => (map[a.exam_key] = { enabled: a.enabled, school_active: a.school_active }));
+      setAccess(map);
+    } catch (e: any) { toast(`تعذّر تحميل الاختبارات: ${e.message || e}`, "danger"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [live, schoolId]);
+
+  const toggle = async (key: string, next: boolean) => {
+    if (!schoolId) return;
+    try {
+      await setSchoolExamActive(schoolId, key, next);
+      setAccess((m) => ({ ...m, [key]: { ...(m[key] || { enabled: true }), school_active: next } }));
+      toast(next ? "فُعّل الاختبار لطلاب مدرستك" : "أُوقف الاختبار مؤقتًا");
+    } catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
+  };
+
+  if (!live) return <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">إدارة الاختبارات متاحة عند الدخول بحساب مدرسة حقيقي.</div>;
+  if (loading) return <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin text-brand" /></div>;
+
+  // القيادات متاح دائمًا؛ نعرضه كصف ثابت + الاختبارات التي فعّلها المركز لهذه المدرسة
+  const centralEnabled = exams.filter((e) => e.key !== "leadership" && access[e.key]?.enabled && e.active);
+
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="border-b px-5 py-3 font-display font-bold">الاختبارات المتاحة لمدرستك</div>
+      <div className="divide-y">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-brand"><ClipboardList className="h-4 w-4" /></div>
+          <div className="flex-1"><div className="font-semibold text-sm">اختبار القيادات الطلابية</div>
+            <div className="text-[11px] text-muted-foreground">أساسي — متاح دائمًا لكل المدارس.</div></div>
+          <Pill tone="success">مُفعّل دائمًا</Pill>
+        </div>
+        {centralEnabled.map((e) => {
+          const on = access[e.key]?.school_active !== false;
+          return (
+            <div key={e.key} className="flex items-center gap-3 px-5 py-3">
+              <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-brand"><ClipboardList className="h-4 w-4" /></div>
+              <div className="flex-1"><div className="font-semibold text-sm">{e.name}</div>
+                <div className="text-[11px] text-muted-foreground">فعّله الحساب المركزي لمدرستك — يمكنك تنشيطه أو إيقافه مؤقتًا.</div></div>
+              <Pill tone={on ? "success" : "muted"}>{on ? "ظاهر للطلاب" : "موقوف مؤقتًا"}</Pill>
+              <button onClick={() => toggle(e.key, !on)}
+                className={cn("rounded-lg border px-3 h-9 text-sm font-semibold", on ? "text-danger hover:bg-danger/10" : "text-success hover:bg-success/10")}>
+                {on ? "إيقاف مؤقت" : "تنشيط"}
+              </button>
+            </div>
+          );
+        })}
+        {centralEnabled.length === 0 && (
+          <div className="px-5 py-6 text-center text-sm text-muted-foreground">لا اختبارات إضافية مفعّلة لمدرستك من الحساب المركزي بعد.</div>
+        )}
+      </div>
+      <div className="border-t bg-muted/20 px-5 py-3 text-[11px] text-muted-foreground">
+        تُضاف الاختبارات وتُفعّل لمدرستك من الحساب المركزي، وأنت تتحكم بإظهارها أو إيقافها مؤقتًا في رابط الطالب.
+      </div>
     </div>
   );
 }
@@ -657,9 +730,10 @@ function RolesTab() {
   const submit = () => {
     if (title.trim().length < 2) return;
     const norm = {} as AxisScores; AXES.forEach((a) => (norm[a.key] = Math.round((weights[a.key] / wSum) * 100)));
-    saveRole({ id: editing?.id || `role_${Date.now()}`, title: title.trim(), description: description.trim(), skills: skills.trim(), duties: duties.trim(), weights: norm });
+    saveRole({ id: editing?.id || `role_${Date.now()}`, title: title.trim(), description: description.trim(), skills: skills.trim(), duties: duties.trim(), weights: norm, active: editing?.active ?? true });
     reset();
   };
+  const toggleActive = (r: MissionRole) => saveRole({ ...r, active: r.active === false ? true : false });
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
@@ -670,7 +744,10 @@ function RolesTab() {
               <div className="flex items-start gap-3">
                 <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-brand"><Target className="h-4.5 w-4.5" /></div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-sm">{r.title}</div>
+                  <div className="flex items-center gap-2"><span className="font-semibold text-sm">{r.title}</span>
+                    {r.active === false
+                      ? <Pill tone="muted">موقوف</Pill>
+                      : <Pill tone="success">مُفعّل</Pill>}</div>
                   {r.description && <div className="mt-0.5 text-xs text-muted-foreground">{r.description}</div>}
                   <div className="mt-1 flex flex-wrap gap-1">
                     {AXES.map((a) => r.weights[a.key] >= 25 && (
@@ -685,6 +762,10 @@ function RolesTab() {
                   )}
                 </div>
                 <div className="flex gap-1">
+                  <button onClick={() => toggleActive(r)} title={r.active === false ? "تفعيل" : "إيقاف"}
+                    className={cn("rounded-md border px-2 h-8 text-xs font-semibold", r.active === false ? "text-success hover:bg-success/10" : "text-muted-foreground hover:bg-accent")}>
+                    {r.active === false ? "تفعيل" : "إيقاف"}
+                  </button>
                   <button onClick={() => load(r)} className="grid h-8 w-8 place-items-center rounded-md border hover:bg-accent"><Pencil className="h-3.5 w-3.5" /></button>
                   <button onClick={() => deleteRole(r.id)} className="grid h-8 w-8 place-items-center rounded-md border text-danger hover:bg-danger/10"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>

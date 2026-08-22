@@ -31,6 +31,7 @@ export interface MissionRole {
   skills: string;         // المهارات المطلوبة
   duties: string;         // المهام المطلوبة
   weights: AxisScores;    // أوزان المحاور للمواءمة مع نتائج الطالب
+  active?: boolean;       // مُفعّل؟ (المسمّيات غير المفعّلة لا تظهر في إنشاء المهام ولا رابط الطالب)
 }
 
 export interface Toast { id: number; text: string; tone: "success" | "info" | "danger" }

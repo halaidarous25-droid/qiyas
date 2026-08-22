@@ -7,6 +7,7 @@ import {
 import type { CentralSeed } from "@/lib/live";
 import { CentralQuestions } from "./CentralQuestions";
 import { CentralPermissions } from "./CentralPermissions";
+import { CentralExams } from "./CentralExams";
 import { badgeTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import { useSlis } from "@/store";
@@ -58,7 +59,7 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
 } = {}) {
   const { toast } = useSlis();
   const live = !!data;
-  const [view, setView] = useState<"dashboard" | "questions" | "permissions">("dashboard");
+  const [view, setView] = useState<"dashboard" | "questions" | "exams" | "permissions">("dashboard");
   const [editSchool, setEditSchool] = useState<PlatformSchool | null>(null);
   const [confirmDel, setConfirmDel] = useState<PlatformSchool | null>(null);
   const [showRegister, setShowRegister] = useState(false);
@@ -102,6 +103,10 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
               className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "questions" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
               مستودع الأسئلة
             </button>
+            <button onClick={() => setView("exams")}
+              className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "exams" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
+              الاختبارات
+            </button>
             <button onClick={() => setView("permissions")}
               className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "permissions" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
               الصلاحيات
@@ -111,6 +116,7 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
       </header>
 
       {view === "questions" && <CentralQuestions />}
+      {view === "exams" && <CentralExams schools={data?.schools || []} />}
       {view === "permissions" && <CentralPermissions />}
       {view === "dashboard" && (
       <main className="mx-auto max-w-5xl space-y-5 p-4 md:p-8 soft-grid">
