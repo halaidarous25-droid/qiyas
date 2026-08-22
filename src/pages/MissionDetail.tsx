@@ -41,6 +41,8 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
   // الحالة المشتقّة: مكلّف / غير مرشّح (اكتملت المقاعد) / مرشّح
   const statusLabel = assigned ? "مكلّف" : seatsFull ? "غير مرشّح" : "مرشّح";
   const statusTone: Tone = assigned ? "success" : seatsFull ? "muted" : "brand";
+  // هل صرّح الطالب أنه سبق تكليفه بهذا المسمّى؟
+  const priorForThis = (c as any).rolePrefs?.find((p: any) => p.role_title === mission.title)?.prior_assigned;
 
   return (
     <div className={cn("rounded-xl border bg-card transition-colors",
@@ -76,6 +78,7 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
         </div>
 
         <Pill tone={statusTone} className="hidden sm:inline-flex">{statusLabel}</Pill>
+        {priorForThis && <Pill tone="gold" className="hidden md:inline-flex">سبق تكليفه</Pill>}
         <Pill tone={trust.tone as Tone} className="hidden lg:inline-flex">{trust.label}</Pill>
         <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
@@ -323,6 +326,9 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           </div>
           <div className="flex items-center gap-1.5">
             <Pill tone={st.tone as Tone}>{st.label}</Pill>
+            <Pill tone={m.nominationMode === "preference" ? "gold" : "muted"}>
+              {m.nominationMode === "preference" ? "ترشيح بالرغبة" : "ترشيح بالنطاق"}
+            </Pill>
             <button onClick={() => setEditing(true)}
               className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent">
               <Pencil className="h-3.5 w-3.5" /> تعديل المهمة

@@ -54,7 +54,7 @@ interface Store {
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
   addMission: (m: {
-    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores; scopeRef?: string; autoNominate?: boolean;
+    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores; scopeRef?: string; autoNominate?: boolean; nominationMode?: "scope" | "preference";
   }) => void;
   autoNominate: (missionId: string) => void;
   assignCandidate: (missionId: string, candId: string, name: string) => void;
@@ -210,6 +210,14 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       : /* class */ (scopeRef ? s.className === scopeRef : true);
   const eligibleByScope = (scopeType: ScopeLevel, scopeRef?: string) =>
     students.filter((s) => s.assessed && inScope(s, scopeType, scopeRef));
+  // هل رغب الطالب بهذا المسمّى؟
+  const wantsRole = (s: Candidate, title: string) =>
+    (s.rolePrefs || []).some((p) => p.role_title === title);
+  // الطلاب المؤهّلون لمهمة حسب آلية ترشيحها: بالنطاق (الجميع) أو بالرغبة (من اختار المسمّى)
+  const eligibleForMission = (title: string, scopeType: ScopeLevel, scopeRef: string | undefined, mode: "scope" | "preference") => {
+    const base = eligibleByScope(scopeType, scopeRef);
+    return mode === "preference" ? base.filter((s) => wantsRole(s, title)) : base;
+  };
 
   const addMission: Store["addMission"] = (m) => {
     if (isLive && schoolId) {
@@ -218,7 +226,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
           let count = 0;
           if (m.autoNominate && created) {
             const missionObj = { id: created.id, weights: created.weights } as Mission;
-            const elig = eligibleByScope(m.scopeType, m.scopeRef);
+            const elig = eligibleForMission(m.title, m.scopeType, m.scopeRef, m.nominationMode || "scope");
             for (const s of elig) { await api.dbApply(schoolId, missionObj, s, true); count++; }
           }
           await resync();
@@ -231,12 +239,13 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       : m.scopeType === "grade" ? (m.scopeRef ? `صف: ${m.scopeRef}` : "صف دراسي")
       : m.scopeType === "class" ? (m.scopeRef ? `فصل: ${m.scopeRef}` : "فصل محدّد")
       : "المرحلة الثانوية";
-    const elig = m.autoNominate ? eligibleByScope(m.scopeType, m.scopeRef) : [];
+    const elig = m.autoNominate ? eligibleForMission(m.title, m.scopeType, m.scopeRef, m.nominationMode || "scope") : [];
     const nm: Mission = {
       id: `m${mid++}`, title: m.title, scopeType: m.scopeType, scopeLabel, scopeRef: m.scopeRef,
       mode: m.mode, seats: m.seats, supervisor: "أ. سعد المالكي", status: "open",
       applicants: elig.length, eligible: 214, createdAt: "1446/03/01",
       weights: m.weights ?? { ...EVEN }, candidateIds: elig.map((s) => s.id),
+      nominationMode: m.nominationMode || "scope",
     };
     setMissions((list) => [nm, ...list]);
     toast(elig.length > 0 ? `أُنشئت المهمة ورُشِّح ${elig.length} طالبًا تلقائيًا` : `أُنشئت المهمة «${m.title}» بنجاح`);
@@ -304,19 +313,27 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
   };
 
   // الطلاب المؤهّلون ضمن نطاق المهمة (والذين أدّوا المقياس)
-  const eligibleFor = (m: Mission) => students.filter((s) => s.assessed && inScope(s, m.scopeType, m.scopeRef));
+  const eligibleFor = (m: Mission) =>
+    eligibleForMission(m.title, m.scopeType, m.scopeRef, m.nominationMode || "scope");
 
   const autoNominate: Store["autoNominate"] = (missionId) => {
     const m = missions.find((x) => x.id === missionId);
     if (!m) return;
+    const byPref = (m.nominationMode || "scope") === "preference";
     const eligible = eligibleFor(m).filter((s) => !m.candidateIds.includes(s.id));
-    if (eligible.length === 0) { toast("لا طلاب مؤهّلين للترشيح ضمن هذا النطاق (تأكد من أداء الطلاب للمقياس)", "info"); return; }
+    if (eligible.length === 0) {
+      toast(byPref
+        ? "لا طلاب اختاروا هذا المسمّى ضمن النطاق (الترشيح بالرغبة يعتمد على اختيار الطالب في الرابط)"
+        : "لا طلاب مؤهّلين للترشيح ضمن هذا النطاق (تأكد من أداء الطلاب للمقياس)", "info");
+      return;
+    }
+    const doneMsg = byPref ? `رُشِّح ${eligible.length} طالبًا ممن اختاروا هذا المسمّى` : `رُشِّح ${eligible.length} طالبًا تلقائيًا حسب النطاق`;
     if (isLive && schoolId) {
       (async () => {
         try {
           for (const s of eligible) await api.dbApply(schoolId, m, s, true);
           await resync();
-          toast(`رُشِّح ${eligible.length} طالبًا تلقائيًا حسب النطاق`);
+          toast(doneMsg);
         } catch (e: any) { toast(`تعذّر الترشيح التلقائي: ${e.message || e}`, "danger"); }
       })();
       return;
@@ -324,7 +341,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     setMissions((list) => list.map((x) => x.id === missionId
       ? { ...x, candidateIds: [...new Set([...x.candidateIds, ...eligible.map((s) => s.id)])], applicants: x.applicants + eligible.length }
       : x));
-    toast(`رُشِّح ${eligible.length} طالبًا تلقائيًا حسب النطاق`);
+    toast(doneMsg);
   };
 
   const removeCandidate: Store["removeCandidate"] = (missionId, candId, name) => {

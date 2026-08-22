@@ -82,7 +82,7 @@ const scopeLabel = (t: string) =>
 
 // جلب بيانات مدرسة كاملة من قاعدة البيانات وتحويلها لأشكال الواجهة
 export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
-  const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes, subRes] =
+  const [schoolRes, studentsRes, assessRes, teachersRes, classesRes, missionsRes, appsRes, indRes, subRes, prefsRes] =
     await Promise.all([
       supabase.from("schools").select("name,city,stage,address,email,phone,operating_mode,hybrid,settings,tenant_code").eq("id", schoolId).single(),
       supabase.from("students").select("*").eq("school_id", schoolId),
@@ -93,7 +93,14 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       supabase.from("mission_applications").select("*").eq("school_id", schoolId),
       supabase.from("individual_requests").select("*").eq("school_id", schoolId).eq("status", "pending"),
       supabase.from("subscriptions").select("*").eq("school_id", schoolId).maybeSingle(),
+      supabase.from("student_role_prefs").select("student_id,role_title,prior_assigned").eq("school_id", schoolId),
     ]);
+
+  // رغبات المسمّيات لكل طالب
+  const prefsByStudent: Record<string, { role_title: string; prior_assigned: boolean }[]> = {};
+  (prefsRes.data || []).forEach((p: any) => {
+    (prefsByStudent[p.student_id] ||= []).push({ role_title: p.role_title, prior_assigned: !!p.prior_assigned });
+  });
 
   const classById: Record<string, string> = {};
   (classesRes.data || []).forEach((c: any) => (classById[c.id] = c.name));
@@ -133,6 +140,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       attempts, assessedAt: best ? (best.completed_at || "").slice(0, 10) : undefined,
       nationalId: s.national_id || "", email: s.email || "", phone: s.phone || "",
       supervisorNotes: s.supervisor_notes || "",
+      rolePrefs: prefsByStudent[s.id] || [],
       experience: s.experience ?? 0,
     };
   });
@@ -171,6 +179,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       status: m.status === "trial" ? "screening" : m.status, applicants: apps.length, eligible: 214,
       createdAt: (m.created_at || "").slice(0, 10),
       weights: m.weights, candidateIds: apps.map((a) => a.student_id),
+      nominationMode: (m.nomination_mode === "preference" ? "preference" : "scope"),
       hasConflict: false,
     };
   });

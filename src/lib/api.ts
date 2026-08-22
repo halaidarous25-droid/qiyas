@@ -138,7 +138,7 @@ export async function dbDeleteClass(classId: string) {
 
 export async function dbAddMission(schoolId: string, m: {
   title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
-  weights?: AxisScores; scopeRef?: string;
+  weights?: AxisScores; scopeRef?: string; nominationMode?: "scope" | "preference";
 }) {
   const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
     : m.scopeType === "grade" ? (m.scopeRef ? `صف: ${m.scopeRef}` : "صف دراسي")
@@ -148,6 +148,7 @@ export async function dbAddMission(schoolId: string, m: {
     school_id: schoolId, title: m.title, scope_type: m.scopeType, scope_label: scopeLabel,
     scope_ref: m.scopeRef || null,
     operating_mode: m.mode, seats: m.seats, status: "open",
+    nomination_mode: m.nominationMode || "scope",
     weights: m.weights ?? { org: 20, lead: 20, comm: 20, firm: 20, init: 20 },
   }).select().single();
   if (error) throw error;
@@ -157,7 +158,7 @@ export async function dbAddMission(schoolId: string, m: {
 // تعديل مهمة قائمة
 export async function dbUpdateMission(missionId: string, patch: {
   title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode;
-  weights?: AxisScores; status?: string; scopeRef?: string;
+  weights?: AxisScores; status?: string; scopeRef?: string; nominationMode?: "scope" | "preference";
 }) {
   const upd: Record<string, unknown> = {};
   if (patch.title !== undefined) upd.title = patch.title;
@@ -166,6 +167,7 @@ export async function dbUpdateMission(missionId: string, patch: {
   if (patch.weights !== undefined) upd.weights = patch.weights;
   if (patch.status !== undefined) upd.status = patch.status;
   if (patch.scopeRef !== undefined) upd.scope_ref = patch.scopeRef || null;
+  if (patch.nominationMode !== undefined) upd.nomination_mode = patch.nominationMode;
   if (patch.scopeType !== undefined) {
     upd.scope_type = patch.scopeType;
     upd.scope_label = patch.scopeType === "school" ? "كامل المدرسة"

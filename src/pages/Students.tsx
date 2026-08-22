@@ -157,6 +157,23 @@ function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
         </div>
       </div>
 
+      {(c as any).rolePrefs?.length > 0 && (
+        <div className="rounded-2xl border bg-card p-5">
+          <div className="mb-2 flex items-center gap-2"><Target className="h-[18px] w-[18px] text-gold" />
+            <h2 className="font-display font-bold">المسمّيات التي رغب بها الطالب</h2></div>
+          <div className="flex flex-wrap gap-2">
+            {(c as any).rolePrefs.map((p: any) => (
+              <span key={p.role_title} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px]">
+                <span className="font-semibold">{p.role_title}</span>
+                {p.prior_assigned
+                  ? <Pill tone="gold">سبق تكليفه</Pill>
+                  : <Pill tone="muted">لم يُكلّف سابقًا</Pill>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <StudentNotes studentId={c.id} value={c.supervisorNotes} />
     </div>
   );

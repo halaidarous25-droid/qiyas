@@ -18,6 +18,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
   const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType === "stage" ? "school" : (edit?.scopeType ?? "school"));
   const [scopeRef, setScopeRef] = useState(edit?.scopeRef ?? "");
   const [seats, setSeats] = useState(edit?.seats ?? 1);
+  const [nominationMode, setNominationMode] = useState<"scope" | "preference">(edit?.nominationMode ?? "scope");
   const [showPriorities, setShowPriorities] = useState(false);
   const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
 
@@ -57,7 +58,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
     const base = {
       title: title.trim(), scopeType,
       scopeRef: scopeType === "grade" || scopeType === "class" ? scopeRef : "",
-      seats, mode, weights: normalize(weights),
+      seats, mode, weights: normalize(weights), nominationMode,
     };
     if (isEdit) updateMission(edit!.id, base);
     else addMission({ ...base, autoNominate: true }); // الوضع التلقائي: ترشيح وتقييم تلقائي بعد الإنشاء
@@ -142,6 +143,23 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
         {scopeType === "school" && (
           <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">النطاق: كامل المدرسة — الترشيح مفتوح لجميع طلاب المدرسة.</p>
         )}
+
+        {/* آلية الترشيح: بالنطاق (الجميع) أو بالرغبة (من اختار المسمّى في الرابط) */}
+        <div className="mt-4">
+          <label className="block text-sm font-semibold">آلية الترشيح</label>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setNominationMode("scope")}
+              className={cn("rounded-lg border p-2.5 text-right text-[12px]", nominationMode === "scope" ? "border-brand bg-brand/5" : "hover:bg-accent")}>
+              <div className="font-semibold">بالنطاق (تلقائي)</div>
+              <div className="text-[11px] text-muted-foreground">يُرشَّح كل طلاب النطاق المؤهّلين.</div>
+            </button>
+            <button type="button" onClick={() => setNominationMode("preference")}
+              className={cn("rounded-lg border p-2.5 text-right text-[12px]", nominationMode === "preference" ? "border-brand bg-brand/5" : "hover:bg-accent")}>
+              <div className="font-semibold">بالرغبة</div>
+              <div className="text-[11px] text-muted-foreground">يُرشَّح فقط من اختار هذا المسمّى في رابط الاختبار.</div>
+            </button>
+          </div>
+        </div>
 
         {/* أولويات المهمة (أوزان المحاور) — تُملأ تلقائيًا من المسمّى وتُخصَّص عند الحاجة */}
         <div className="mt-4">

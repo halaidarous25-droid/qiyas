@@ -59,6 +59,7 @@ export interface Candidate {
   email?: string;
   phone?: string;
   supervisorNotes?: string; // تقييم وملاحظات المشرف/المدرسة عن الطالب (مرجع دائم)
+  rolePrefs?: { role_title: string; prior_assigned: boolean }[]; // المسمّيات التي رغبها الطالب + هل سبق تكليفه
   experience?: number;    // 0..3 مؤشر الخبرة القيادية (السؤال ٣٦)
 }
 
@@ -79,6 +80,7 @@ export interface Mission {
   weights: Record<AxisKey, number>;
   candidateIds: string[];
   hasConflict?: boolean;
+  nominationMode?: "scope" | "preference"; // آلية الترشيح: بالنطاق (الجميع) أو بالرغبة (من اختار المسمّى)
 }
 
 // ---- تصنيف الموثوقية وفق معادلة المستشار النفسي ----
