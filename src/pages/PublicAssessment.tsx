@@ -4,9 +4,9 @@ import { scoreAssessment, leadershipStyle, type Answers, type AssessmentResult }
 import { publicGetSchool, publicSubmitAssessment, publicCheckEligibility, publicRequestRetake } from "@/lib/api";
 import { AXES } from "@/data/mock";
 import { En, Meter } from "@/components/common";
-import { Gauge, Loader2, AlertCircle, CheckCircle2, Play, Award, School, CalendarClock, BellRing } from "lucide-react";
+import { Gauge, Loader2, AlertCircle, CheckCircle2, Play, Award, School, CalendarClock, BellRing, Target, ClipboardList, ArrowRight, ArrowLeft } from "lucide-react";
 
-type Step = "loading" | "invalid" | "intro" | "form" | "blocked" | "test" | "done";
+type Step = "loading" | "invalid" | "intro" | "form" | "exam" | "roles" | "blocked" | "test" | "done";
 const inp = "w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand";
 
 export function PublicAssessment({ code }: { code: string }) {
@@ -28,6 +28,13 @@ export function PublicAssessment({ code }: { code: string }) {
   const [checking, setChecking] = useState(false);
   const [block, setBlock] = useState<{ lastDate?: string; pending?: boolean }>({});
   const [reqSent, setReqSent] = useState(false);
+  // تعدّد الاختبارات ورغبات المسمّيات
+  const [examTypes, setExamTypes] = useState<{ key: string; name: string; description?: string }[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [selectedExam, setSelectedExam] = useState<string>("leadership");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [priorMap, setPriorMap] = useState<Record<string, boolean>>({});
+  const toggleRole = (t: string) => setSelectedRoles((cur) => cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]);
 
   const FALLBACK_GRADES = ["الأول الثانوي", "الثاني الثانوي", "الثالث الثانوي", "الأول المتوسط", "الثاني المتوسط", "الثالث المتوسط"];
   // الصفوف: من فصول المدرسة إن وُجدت، وإلا قائمة افتراضية
@@ -38,20 +45,34 @@ export function PublicAssessment({ code }: { code: string }) {
 
   useEffect(() => {
     publicGetSchool(code)
-      .then((r) => { setSchoolName(r.schoolName); setClasses(r.classes); setStep("intro"); })
+      .then((r) => {
+        setSchoolName(r.schoolName); setClasses(r.classes);
+        setExamTypes(r.examTypes || []); setRoles(r.roles || []);
+        if (r.examTypes && r.examTypes.length) setSelectedExam(r.examTypes[0].key);
+        setStep("intro");
+      })
       .catch((e) => { setErr(e.message || "رمز غير صحيح"); setStep("invalid"); });
   }, [code]);
 
-  // بدء الاختبار بعد فحص الأهلية عبر رقم الهوية
+  // بعد بيانات الطالب: فحص الأهلية ثم اختيار نوع الاختبار
   const startTest = async () => {
     setChecking(true); setErr(null);
     try {
       const el = await publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade, phone: phone.trim() });
-      if (el.eligible) { setStep("test"); }
+      if (el.eligible) { setStep(examTypes.length > 1 ? "exam" : "exam"); }
       else { setBlock({ lastDate: el.lastDate, pending: el.pending }); setReqSent(!!el.pending); setStep("blocked"); }
     } catch (e: any) { setErr(e.message || "تعذّر التحقق"); }
     finally { setChecking(false); }
   };
+
+  // اختيار نوع الاختبار → القيادات تعرض المسمّيات، غيرها يذهب للأسئلة مباشرة
+  const chooseExam = (key: string) => {
+    setSelectedExam(key);
+    if (key === "leadership" && roles.length > 0) setStep("roles");
+    else setStep("test");
+  };
+
+  const proceedFromRoles = () => setStep("test");
 
   const requestRetake = async () => {
     setChecking(true);
@@ -66,8 +87,11 @@ export function PublicAssessment({ code }: { code: string }) {
     const r = scoreAssessment(a);
     setResult(r);
     setBusy(true);
+    const rolePrefs = selectedRoles.map((t) => ({ role_title: t, prior_assigned: !!priorMap[t] }));
+    // مؤشر الخبرة القيادية = عدد المسمّيات التي سبق تكليفه بها (بحد أقصى 3) بدل السؤال القديم
+    const experience = Math.min(3, rolePrefs.filter((p) => p.prior_assigned).length);
     try {
-      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), phone: phone.trim(), email: email.trim(), experience: r.experience, result: r, answers: a });
+      await publicSubmitAssessment({ code, name: name.trim(), grade, className, nationalId: nationalId.trim(), phone: phone.trim(), email: email.trim(), experience, examType: selectedExam, rolePrefs, result: r, answers: a });
       setStep("done");
     } catch (e: any) { setErr(e.message || "تعذّر الإرسال"); setStep("done"); }
     finally { setBusy(false); }
@@ -93,9 +117,85 @@ export function PublicAssessment({ code }: { code: string }) {
     </Center>
   );
 
+  // اختيار نوع الاختبار
+  if (step === "exam") return (
+    <Center>
+      <div className="w-full max-w-md">
+        <Header />
+        <h2 className="font-display text-xl font-extrabold">اختر نوع الاختبار</h2>
+        <p className="mt-1 text-sm text-muted-foreground">حدّد الاختبار الذي تريد الدخول إليه.</p>
+        <div className="mt-4 space-y-2.5">
+          {examTypes.length === 0 && (
+            <button onClick={() => chooseExam("leadership")} className="w-full rounded-xl border p-4 text-right hover:border-brand hover:bg-accent">
+              <div className="flex items-center gap-2 font-semibold"><Target className="h-4 w-4 text-brand" /> اختبار القيادات الطلابية</div>
+            </button>
+          )}
+          {examTypes.map((e) => (
+            <button key={e.key} onClick={() => chooseExam(e.key)}
+              className="flex w-full items-center gap-3 rounded-xl border p-4 text-right hover:border-brand hover:bg-accent">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/8 text-brand"><Target className="h-5 w-5" /></div>
+              <div className="flex-1">
+                <div className="font-semibold">{e.name}</div>
+                {e.description && <div className="text-[11px] text-muted-foreground">{e.description}</div>}
+              </div>
+              <ArrowLeft className="h-4 w-4 text-brand" />
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setStep("form")} className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+          <ArrowRight className="h-4 w-4" /> رجوع للبيانات
+        </button>
+      </div>
+    </Center>
+  );
+
+  // اختيار المسمّيات المرغوبة + هل سبق التكليف (لاختبار القيادات)
+  if (step === "roles") return (
+    <Center>
+      <div className="w-full max-w-md">
+        <Header />
+        <h2 className="font-display text-xl font-extrabold">المهام التي ترغب أن تُكلّف بها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">اختر المسمّيات التي تودّ الترشّح لها. لن تُرشَّح لأي مهمة لم تخترها.</p>
+        <div className="mt-4 space-y-2">
+          {roles.map((t) => {
+            const on = selectedRoles.includes(t);
+            return (
+              <div key={t} className={`rounded-xl border p-3 ${on ? "border-brand bg-brand/5" : ""}`}>
+                <button onClick={() => toggleRole(t)} className="flex w-full items-center gap-2 text-right">
+                  <span className={`grid h-5 w-5 place-items-center rounded border ${on ? "bg-brand text-white border-brand" : "bg-background"}`}>
+                    {on && <CheckCircle2 className="h-3.5 w-3.5" />}
+                  </span>
+                  <span className="flex-1 font-semibold text-sm">{t}</span>
+                </button>
+                {on && (
+                  <div className="mt-2 flex items-center gap-2 pr-7 text-[12px]">
+                    <span className="text-muted-foreground">هل سبق أن كُلّفت بها؟</span>
+                    <button onClick={() => setPriorMap((m) => ({ ...m, [t]: true }))}
+                      className={`rounded-lg border px-3 h-8 font-semibold ${priorMap[t] === true ? "bg-brand text-white border-brand" : "hover:bg-accent"}`}>نعم</button>
+                    <button onClick={() => setPriorMap((m) => ({ ...m, [t]: false }))}
+                      className={`rounded-lg border px-3 h-8 font-semibold ${priorMap[t] === false ? "bg-brand text-white border-brand" : "hover:bg-accent"}`}>لا</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {roles.length === 0 && <p className="text-sm text-muted-foreground">لا توجد مسمّيات معرّفة لهذه المدرسة بعد.</p>}
+        </div>
+        <div className="mt-5 flex items-center gap-2">
+          <button onClick={proceedFromRoles}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand h-11 font-semibold text-white hover:bg-brand/90">
+            <Play className="h-4 w-4" /> متابعة إلى الأسئلة
+          </button>
+          <button onClick={() => setStep("exam")} className="rounded-lg border px-4 h-11 text-sm font-semibold hover:bg-accent">رجوع</button>
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">يمكنك المتابعة دون اختيار مسمّى، لكنك حينها لن تُرشَّح تلقائيًا لأي مهمة.</p>
+      </div>
+    </Center>
+  );
+
   if (step === "test") return (
     <div className="min-h-screen bg-background soft-grid p-4 md:p-8">
-      <Assessment onFinish={finish} onExit={() => setStep("form")} />
+      <Assessment onFinish={finish} onExit={() => setStep(selectedExam === "leadership" && roles.length > 0 ? "roles" : "exam")} />
       {busy && <div className="fixed inset-0 grid place-items-center bg-black/30"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>}
     </div>
   );

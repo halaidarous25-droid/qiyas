@@ -290,10 +290,17 @@ export async function publicGetSchool(code: string) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "get_school", code } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
-  return data as { ok: boolean; schoolName: string; classes: { id: string; name: string; grade: string }[] };
+  return data as {
+    ok: boolean; schoolName: string;
+    classes: { id: string; name: string; grade: string }[];
+    examTypes: { key: string; name: string; description?: string }[];
+    roles: string[];
+  };
 }
 export async function publicSubmitAssessment(payload: {
-  code: string; name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string; experience?: number; result: unknown; answers: unknown;
+  code: string; name: string; grade: string; className: string; nationalId?: string; email?: string; phone?: string;
+  experience?: number; examType?: string; rolePrefs?: { role_title: string; prior_assigned: boolean }[];
+  result: unknown; answers: unknown;
 }) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "submit", ...payload } });
   if (error) throw error;

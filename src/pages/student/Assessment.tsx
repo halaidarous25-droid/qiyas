@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { QUESTIONS, SECTION_META, FREQ_LABELS, EXPERIENCE_ITEM, type Item } from "@/data/questions";
+import { QUESTIONS, SECTION_META, FREQ_LABELS, type Item } from "@/data/questions";
 import { BANK_B } from "@/data/questionBankB";
 import { AXES } from "@/data/mock";
 import { En } from "@/components/common";
@@ -87,9 +87,9 @@ function buildQuestionSet(): Built[] {
   const all = [...sec1, ...sec2, ...sec3];
   saveRecent(all.map((q) => q.id));
 
-  // السؤال الأخير الثابت (٣٦): مؤشر الخبرة القيادية — يُعرض دائمًا في النهاية بلا خلط
+  // (أُزيل سؤال الخبرة القيادية الأخير — استُبدل بأسئلة «سبق التكليف» لكل مسمّى في رابط الطالب)
   const built = all.map(shuffleOptions);
-  return [...built, EXPERIENCE_ITEM as Built].map((q, idx) => ({ ...q, n: idx + 1 }));
+  return built.map((q, idx) => ({ ...q, n: idx + 1 }));
 }
 
 export function Assessment({ onFinish, onExit }:
