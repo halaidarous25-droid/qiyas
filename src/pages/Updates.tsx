@@ -9,7 +9,8 @@ import {
 
 export function Updates({ onOpenStudent, onOpenMission }:
   { onOpenStudent: (id: string) => void; onOpenMission: (id: string) => void }) {
-  const { students, indReqs, resolveIndReq, missions, assigned, toast } = useSlis();
+  const { students, indReqs, resolveIndReq, missions, assigned, toast, seenStudents } = useSlis();
+  const isNew = (id: string) => !seenStudents.includes(id);
 
   // أحدث الاختبارات: الطلاب الذين أدّوا المقياس مرتّبين من الأحدث إلى الأقدم
   const latestDate = (s: any) => {
@@ -19,8 +20,10 @@ export function Updates({ onOpenStudent, onOpenMission }:
   const recentAssessed = students
     .filter((s) => s.assessed)
     .slice()
-    .sort((a, b) => latestDate(b).localeCompare(latestDate(a)))
+    // الجديد (لم يُطّلع عليه) أولًا، ثم الأحدث تاريخًا
+    .sort((a, b) => (Number(isNew(b.id)) - Number(isNew(a.id))) || latestDate(b).localeCompare(latestDate(a)))
     .slice(0, 12);
+  const newCount = students.filter((s) => s.assessed && isNew(s.id)).length;
 
   // مهام بانتظار الإسناد: مفتوحة/قيد الفرز، لها مرشّحون، ولم تكتمل مقاعدها
   const pendingMissions = missions.filter((m) => {
@@ -50,7 +53,7 @@ export function Updates({ onOpenStudent, onOpenMission }:
 
       {/* بطاقات ملخّص */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatTile icon={Sparkles} tone="brand" label="اختبارات جديدة" value={recentAssessed.length} hint="آخر من أدّوا المقياس" />
+        <StatTile icon={Sparkles} tone="brand" label="اختبارات جديدة" value={newCount} hint="طلاب اختبروا حديثًا ولم تُطّلع عليهم" />
         <StatTile icon={Inbox} tone="gold" label="طلبات فردية معلّقة" value={indReqs.length} hint="بحاجة إلى موافقة/رفض" />
         <StatTile icon={Target} tone="success" label="مهام بانتظار الإسناد" value={pendingMissions.length} hint="لها مرشّحون ولم تُسنَد" />
       </div>
@@ -137,7 +140,8 @@ export function Updates({ onOpenStudent, onOpenMission }:
                 <div key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
                   <Avatar name={s.name} color={s.avatarColor} size={38} />
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-sm">{s.name}</div>
+                    <div className="flex items-center gap-2"><span className="font-semibold text-sm">{s.name}</span>
+                      {isNew(s.id) && <Pill tone="brand">جديد</Pill>}</div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                       <span>{s.grade} · {s.className}</span>
                       {s.assessedAt && <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> <En>{s.assessedAt}</En></span>}

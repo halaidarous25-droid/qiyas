@@ -91,7 +91,7 @@ function LiveCentral({ userName }: { userName?: string }) {
 // ===== الهيكل الرئيسي (يعمل في وضع تجريبي أو حيّ) =====
 function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
   { initialRole: Role; locked: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null }) {
-  const { schoolInfo, indReqs, missions, assigned } = useSlis();
+  const { schoolInfo, indReqs, missions, assigned, students, seenStudents } = useSlis();
   const [page, setPage] = useState<PageKey>("dashboard");
   const [role, setRole] = useState<Role>(initialRole);
   const [missionId, setMissionId] = useState<string | null>(null);
@@ -102,7 +102,8 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
     const asg = (assigned[m.id] || []).length;
     return ["open", "screening"].includes(m.status) && m.candidateIds.length > 0 && asg < m.seats;
   }).length;
-  const notifCount = indReqs.length + pendingMissionsCount;
+  const newAssessedCount = students.filter((s) => s.assessed && !seenStudents.includes(s.id)).length;
+  const notifCount = indReqs.length + pendingMissionsCount + newAssessedCount;
 
   const openMission = (id: string) => { setMissionId(id); setPage("missions"); };
   const openStudent = (id: string) => { setStudentId(id); setMissionId(null); setPage("students"); };

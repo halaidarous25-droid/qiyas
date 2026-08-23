@@ -34,7 +34,7 @@ function CandidateRow({ c, rank, mission, assigned, assignedCount, onAssign, onU
   { c: Candidate; rank: number; mission: Mission; assigned: boolean; assignedCount: number;
     onAssign: () => void; onUnassign: () => void; onRemove: () => void;
     onOpenStudent: () => void }) {
-  const [open, setOpen] = useState(rank === 1);
+  const [open, setOpen] = useState(false);
   const trust = TRUST_META[c.trust];
   const isSeat = rank <= mission.seats;
   const seatsFull = assignedCount >= mission.seats;

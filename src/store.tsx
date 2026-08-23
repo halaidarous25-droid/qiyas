@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import {
   MISSIONS, IND_REQUESTS, ME_ID, CANDIDATES, TEACHERS, CLASSES,
   computeMatch, newStudent,
@@ -92,6 +92,8 @@ interface Store {
   updateStudent: (id: string, patch: { name?: string; grade?: string; className?: string; nationalId?: string; email?: string; phone?: string }) => void;
   removeStudent: (id: string) => void;
   saveStudentNotes: (id: string, notes: string) => void;
+  seenStudents: string[];                 // طلاب اطُّلع على ملفاتهم (لإنهاء تنبيه «اختبر حديثًا»)
+  markStudentSeen: (id: string) => void;
   updateTeacher: (id: string, patch: { name?: string; role?: string; nationalId?: string; email?: string; phone?: string }) => void;
   removeTeacher: (id: string) => void;
   deleteMission: (id: string) => void;
@@ -169,6 +171,12 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     ((seed?.settings as any)?.roles as MissionRole[]) ?? [],
   );
   const [subscription, setSubscription] = useState<LiveSubscription | null>(seed?.subscription ?? null);
+  // طلاب اطُّلع على ملفاتهم — يُحفظ محليًا لكل مستخدم لإنهاء تنبيه «اختبر حديثًا»
+  const SEEN_KEY = "qiyas_seen_students";
+  const [seenStudents, setSeenStudents] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch { return []; }
+  });
+  const persistSeen = (arr: string[]) => { try { localStorage.setItem(SEEN_KEY, JSON.stringify(arr)); } catch { /* تجاهل */ } };
   const [missions, setMissions] = useState<Mission[]>(seed?.missions ?? MISSIONS);
   const [assigned, setAssigned] = useState<Record<string, string[]>>(seed?.assigned ?? {});
   const [devPlans, setDevPlans] = useState<Record<string, DevPlan>>(seed?.devPlans ?? {});
@@ -592,6 +600,21 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     toast("حُذف الطالب");
   };
 
+  const markStudentSeen: Store["markStudentSeen"] = (id) => {
+    setSeenStudents((cur) => { if (cur.includes(id)) return cur; const n = [...cur, id]; persistSeen(n); return n; });
+  };
+  // أول تشغيل: اعتبر الطلاب المُقيَّمين حاليًا «مُطّلَعًا عليهم» حتى لا تفيض التنبيهات — وتظهر لاحقًا الاختبارات الجديدة فقط
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("qiyas_seen_seeded") && students.length) {
+        const ids = students.filter((s) => s.assessed).map((s) => s.id);
+        setSeenStudents((cur) => { const merged = Array.from(new Set([...cur, ...ids])); persistSeen(merged); return merged; });
+        localStorage.setItem("qiyas_seen_seeded", "1");
+      }
+    } catch { /* تجاهل */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students.length]);
+
   const saveStudentNotes: Store["saveStudentNotes"] = (id, notes) => {
     if (isLive && schoolId) {
       api.dbUpdateStudentNotes(id, notes)
@@ -742,7 +765,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, removeStudent, saveStudentNotes, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor, studentMissionStats,
+      students, teachers, classes, addStudent, updateStudent, removeStudent, saveStudentNotes, seenStudents, markStudentSeen, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor, studentMissionStats,
     }}>
       {children}
     </Ctx.Provider>

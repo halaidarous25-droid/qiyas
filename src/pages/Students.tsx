@@ -16,9 +16,11 @@ import { StudentNotes } from "@/components/StudentNotes";
 
 // ===== ملف الطالب =====
 function StudentProfile({ c, onBack }: { c: Candidate; onBack: () => void }) {
-  const { studentMissionsFor, studentMissionStats, missions: allMissions, assigned, schoolInfo } = useSlis();
+  const { studentMissionsFor, studentMissionStats, missions: allMissions, assigned, schoolInfo, markStudentSeen } = useSlis();
   const trust = TRUST_META[c.trust];
   const missions = studentMissionsFor(c.id);
+  // إنهاء تنبيه «اختبر حديثًا» فور فتح ملف الطالب
+  useEffect(() => { markStudentSeen(c.id); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [c.id]);
   const stats = studentMissionStats(c.id);
   const assignedMissions = allMissions.filter((m) => (assigned[m.id] || []).includes(c.id));
   const [showReport, setShowReport] = useState(false);
