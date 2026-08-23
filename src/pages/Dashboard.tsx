@@ -1,5 +1,5 @@
 import { Pill, Meter, En } from "@/components/common";
-import { AXES, ALERTS, TRUST_META, SCHOOL, type Trust } from "@/data/mock";
+import { AXES, TRUST_META, type Trust } from "@/data/mock";
 import { useSlis } from "@/store";
 import { badgeTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,7 @@ function Kpi({ icon: Icon, label, value, sub, tone }:
 }
 
 export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
-  const { missions, students } = useSlis();
+  const { missions, students, assigned, subscription } = useSlis();
   const activeMissions = missions.filter((m) => ["open", "screening"].includes(m.status)).length;
   const assessedStudents = students.filter((c) => c.assessed);
   const total = assessedStudents.length || 1;
@@ -39,7 +39,42 @@ export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
   const trustDist = (["trusted", "reserved", "interview"] as Trust[]).map((t) => ({
     t, n: assessedStudents.filter((c) => c.trust === t).length,
   }));
-  const q = SCHOOL.quota;
+
+  // ===== بيانات حيّة للتنبيهات والمؤشرات =====
+  // مرشّحون بانتظار قرار: مرشّح غير مكلّف في مهمة ما زالت مقاعدها متاحة
+  const pendingDecisions = missions.reduce((n, m) => {
+    const asg = assigned[m.id] || [];
+    if (asg.length >= m.seats) return n;
+    return n + m.candidateIds.filter((id) => !asg.includes(id)).length;
+  }, 0);
+
+  // تعارض: طالب مكلّف بأكثر من مهمة في آنٍ واحد
+  const asgCount: Record<string, number> = {};
+  Object.values(assigned).forEach((ids) => ids.forEach((id) => (asgCount[id] = (asgCount[id] || 0) + 1)));
+  const conflictStudents = students.filter((s) => (asgCount[s.id] || 0) > 1);
+
+  // مهام لم يكتمل اختبار مرشّحيها
+  const incompleteMissions = missions
+    .map((m) => ({ m, pending: m.candidateIds.filter((id) => { const st = students.find((x) => x.id === id); return st && !st.assessed; }).length }))
+    .filter((x) => x.pending > 0);
+
+  // ملفات تستوجب مقابلة
+  const interviewStudents = assessedStudents.filter((c) => c.trust === "interview");
+
+  // الحصص من الاشتراك الحيّ
+  const b = subscription?.buckets;
+  const qUsed = b ? b.mission.used + b.individual.used + b.buffer.used : 0;
+  const qTotal = b ? b.mission.alloc + b.individual.alloc + b.buffer.alloc : 0;
+  const qPct = qTotal > 0 ? Math.round((qUsed / qTotal) * 100) : 0;
+
+  // بناء قائمة التنبيهات ديناميكيًا
+  type DashAlert = { id: string; kind: "danger" | "warning" | "info"; text: string };
+  const alerts: DashAlert[] = [];
+  conflictStudents.forEach((s) => alerts.push({ id: `c${s.id}`, kind: "danger", text: `تعارض: «${s.name}» مكلّف بأكثر من مهمة في آنٍ واحد.` }));
+  incompleteMissions.forEach(({ m, pending }) => alerts.push({ id: `m${m.id}`, kind: "warning", text: `مهمة «${m.title}»: لم يكتمل اختبار ${pending} مرشّح بعد.` }));
+  interviewStudents.forEach((s) => alerts.push({ id: `i${s.id}`, kind: "warning", text: `ملف «${s.name}» يستوجب تحفّظًا — يُنصح بمقابلة قبل الاعتماد.` }));
+  if (qTotal > 0) alerts.push({ id: "quota", kind: "info", text: `حصة الاختبارات بلغت ${qPct}٪ من المخصّص لها.` });
+  const criticalCount = conflictStudents.length + interviewStudents.length;
 
   return (
     <div className="space-y-5">
@@ -58,10 +93,10 @@ export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
         <Kpi icon={Users} tone="brand" label="إجمالي الطلاب" value={String(students.length)}
              sub={`${assessedStudents.length} أدّوا المقياس`} />
         <Kpi icon={Target} tone="info" label="المهام النشطة" value={String(activeMissions)}
-             sub="مفتوحة / فرز / تجريبي" />
-        <Kpi icon={ClipboardList} tone="warning" label="بانتظار الفرز" value="6"
+             sub="مفتوحة / قيد الفرز" />
+        <Kpi icon={ClipboardList} tone="warning" label="بانتظار الفرز" value={String(pendingDecisions)}
              sub="مرشّحون يحتاجون قرارًا" />
-        <Kpi icon={AlertTriangle} tone="danger" label="تنبيهات حرجة" value="2"
+        <Kpi icon={AlertTriangle} tone="danger" label="تنبيهات حرجة" value={String(criticalCount)}
              sub="تعارض + ملف يستوجب مقابلة" />
       </div>
 
@@ -101,7 +136,10 @@ export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
             <h2 className="font-display font-bold">التنبيهات</h2>
           </div>
           <div className="space-y-2.5 p-4">
-            {ALERTS.map((a) => {
+            {alerts.length === 0 && (
+              <div className="rounded-lg border border-dashed p-4 text-center text-[13px] text-muted-foreground">لا تنبيهات حالية — كل شيء على ما يُرام.</div>
+            )}
+            {alerts.map((a) => {
               const tone = (a.kind === "danger" ? "danger" : a.kind === "warning" ? "warning" : "info") as Tone;
               const Icon = a.kind === "info" ? Info : AlertTriangle;
               return (
@@ -157,13 +195,17 @@ export function Dashboard({ onOpenMissions }: { onOpenMissions: () => void }) {
               <h2 className="font-display font-bold">حصة الاختبارات</h2>
             </div>
             <div className="flex items-baseline justify-between">
-              <span className="font-display text-2xl font-extrabold"><En>{q.used}/{q.total}</En></span>
+              <span className="font-display text-2xl font-extrabold"><En>{qUsed}/{qTotal}</En></span>
               <span className="text-xs text-muted-foreground">مُستهلَك من الرصيد</span>
             </div>
-            <Meter value={(q.used / q.total) * 100} tone="gold" className="mt-2" />
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              مهمّية <En>{q.missionUsed}/{q.missionQuota}</En> · فردية <En>{q.individualUsed}/{q.individual}</En>
-            </div>
+            <Meter value={qPct} tone="gold" className="mt-2" />
+            {b ? (
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                مهمّية <En>{b.mission.used}/{b.mission.alloc}</En> · فردية <En>{b.individual.used}/{b.individual.alloc}</En>
+              </div>
+            ) : (
+              <div className="mt-2 text-[11px] text-muted-foreground">لا توجد بيانات اشتراك بعد.</div>
+            )}
           </div>
         </div>
       </div>

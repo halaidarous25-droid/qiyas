@@ -106,11 +106,9 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           </div>
           <div>
             <label className="block text-sm font-semibold">عدد المقاعد</label>
-            <div className="mt-1 flex items-center gap-2">
-              <input type="range" min={1} max={5} value={seats} onChange={(e) => setSeats(+e.target.value)}
-                className="flex-1 accent-[hsl(191_72%_30%)]" />
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand/10 font-bold text-brand"><En>{seats}</En></span>
-            </div>
+            <input type="number" min={1} inputMode="numeric" value={seats}
+              onChange={(e) => setSeats(Math.max(1, parseInt(e.target.value) || 1))}
+              className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand" dir="ltr" />
           </div>
         </div>
 

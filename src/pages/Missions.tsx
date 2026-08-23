@@ -15,7 +15,7 @@ const FILTERS: { key: MissionStatus | "all"; label: string }[] = [
   { key: "draft", label: "مسودة" },
 ];
 
-function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }) {
+function MissionCard({ m, onOpen, applied, qualified }: { m: Mission; onOpen: (id: string) => void; applied: number; qualified: number }) {
   const st = STATUS_META[m.status];
   return (
     <button onClick={() => onOpen(m.id)}
@@ -36,7 +36,7 @@ function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-muted/60 py-2">
-          <div className="font-display text-lg font-extrabold"><En>{m.applicants}</En></div>
+          <div className="font-display text-lg font-extrabold"><En>{applied}</En></div>
           <div className="text-[11px] text-muted-foreground">متقدّم</div>
         </div>
         <div className="rounded-lg bg-muted/60 py-2">
@@ -44,7 +44,7 @@ function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }
           <div className="text-[11px] text-muted-foreground">مقعد</div>
         </div>
         <div className="rounded-lg bg-muted/60 py-2">
-          <div className="font-display text-lg font-extrabold"><En>{m.eligible}</En></div>
+          <div className="font-display text-lg font-extrabold"><En>{qualified}</En></div>
           <div className="text-[11px] text-muted-foreground">مؤهّل</div>
         </div>
       </div>
@@ -67,7 +67,11 @@ function MissionCard({ m, onOpen }: { m: Mission; onOpen: (id: string) => void }
 }
 
 export function Missions({ onOpenMission }: { onOpenMission: (id: string) => void }) {
-  const { missions, assigned, can, classes } = useSlis();
+  const { missions, assigned, can, classes, students } = useSlis();
+  // متقدّم = عدد المتقدمين/المرشّحين، مؤهّل = من بينهم من أدّى المقياس
+  const appliedOf = (m: typeof missions[number]) => m.candidateIds.length;
+  const qualifiedOf = (m: typeof missions[number]) =>
+    m.candidateIds.filter((id) => students.find((s) => s.id === id)?.assessed).length;
   const [filter, setFilter] = useState<MissionStatus | "all">("all");
   const [gradeF, setGradeF] = useState("");
   const [classF, setClassF] = useState("");
@@ -151,7 +155,7 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
         {openList.length === 0
           ? <div className="rounded-xl border border-dashed bg-card p-6 text-center text-sm text-muted-foreground">لا مهام مفتوحة حاليًا.</div>
           : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {openList.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} />)}
+              {openList.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} applied={appliedOf(m)} qualified={qualifiedOf(m)} />)}
             </div>}
       </div>
 
@@ -163,7 +167,7 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
             <h2 className="font-display font-bold text-muted-foreground">مهام مغلقة — اكتمل التعيين (<En>{closedList.length}</En>)</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 opacity-80">
-            {closedList.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} />)}
+            {closedList.map((m) => <MissionCard key={m.id} m={m} onOpen={onOpenMission} applied={appliedOf(m)} qualified={qualifiedOf(m)} />)}
           </div>
         </div>
       )}
