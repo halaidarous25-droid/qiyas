@@ -5,7 +5,7 @@ import { useSlis } from "@/store";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
-import { Target, Users, MapPin, ArrowLeft, Plus, SlidersHorizontal } from "lucide-react";
+import { Target, Users, MapPin, ArrowLeft, Plus, SlidersHorizontal, Search } from "lucide-react";
 
 const FILTERS: { key: MissionStatus | "all"; label: string }[] = [
   { key: "all", label: "الكل" },
@@ -75,6 +75,7 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
   const [filter, setFilter] = useState<MissionStatus | "all">("all");
   const [gradeF, setGradeF] = useState("");
   const [classF, setClassF] = useState("");
+  const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
 
   const gradeOptions = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
@@ -89,10 +90,12 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
     || (m.scopeType === "class" && m.scopeRef === classF)
     || (m.scopeType === "grade" && m.scopeRef === gradeOfClass(classF));
 
+  const qq = q.trim();
   const list = missions
     .filter((m) => filter === "all" || m.status === filter)
     .filter(matchesGrade)
-    .filter(matchesClass);
+    .filter(matchesClass)
+    .filter((m) => !qq || m.title.includes(qq) || (m.scopeLabel || "").includes(qq) || (m.supervisor || "").includes(qq));
 
   // مهمة مغلقة = اكتمل تعيين كل مقاعدها أو حالتها «مُسندة/مغلقة»
   const isClosed = (m: typeof missions[number]) => {
@@ -122,6 +125,11 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
       {creating && <CreateMissionModal onClose={() => setCreating(false)} />}
 
       <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 rounded-lg border bg-card px-3 h-9 text-sm w-60">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمهمة أو النطاق…"
+            className="bg-transparent outline-none flex-1" />
+        </div>
         <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
         {FILTERS.map((f) => (
           <button key={f.key} onClick={() => setFilter(f.key)}

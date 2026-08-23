@@ -18,7 +18,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
   const [scopeType, setScopeType] = useState<ScopeLevel>(edit?.scopeType === "stage" ? "school" : (edit?.scopeType ?? "school"));
   const [scopeRef, setScopeRef] = useState(edit?.scopeRef ?? "");
   const [seats, setSeats] = useState(edit?.seats ?? 1);
-  const [nominationMode, setNominationMode] = useState<"scope" | "preference">(edit?.nominationMode ?? "scope");
+  const [nominationMode, setNominationMode] = useState<"scope" | "preference">(edit?.nominationMode ?? "preference");
   const [showPriorities, setShowPriorities] = useState(false);
   const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
 

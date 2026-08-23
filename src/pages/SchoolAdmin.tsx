@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   Building2, Users2, Layers, GraduationCap, Plus, School,
   Clock, Check, FileDown, FileUp, KeyRound, UserPlus, Copy, Loader2, Eye, EyeOff, Link as LinkIcon, Download,
-  Target, Trash2, SlidersHorizontal, Pencil, ClipboardList,
+  Target, Trash2, SlidersHorizontal, Pencil, ClipboardList, Search,
 } from "lucide-react";
 import { AXES, type AxisScores } from "@/data/mock";
 import { type MissionRole } from "@/store";
@@ -237,6 +237,10 @@ function ClassesTab({ classes, teachers, onAdd }:
   const { updateClass, removeClass } = useSlis();
   const [editC, setEditC] = useState<SchoolClass | null>(null);
   const [delC, setDelC] = useState<SchoolClass | null>(null);
+  const [fGrade, setFGrade] = useState(""); const [fClass, setFClass] = useState("");
+  const fGradeOptions = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
+  const fClassOptions = classes.filter((c) => !fGrade || c.grade === fGrade);
+  const shownClasses = classes.filter((c) => (!fGrade || c.grade === fGrade) && (!fClass || c.name === fClass));
   const [grade, setGrade] = useState(GRADES[0]);
   const [num, setNum] = useState(CLASS_NUMS[0]);
   const [homeroom, setHomeroom] = useState(teachers[0]?.name || "");
@@ -250,8 +254,25 @@ function ClassesTab({ classes, teachers, onAdd }:
     <div className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2 rounded-xl border bg-card overflow-hidden">
         <div className="border-b px-5 py-3 font-display font-bold">الفصول (<En>{classes.length}</En>)</div>
+        <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 px-5 py-2">
+          <span className="text-xs font-semibold text-muted-foreground">تصفية:</span>
+          <select value={fGrade} onChange={(e) => { setFGrade(e.target.value); setFClass(""); }}
+            className="rounded-lg border bg-card px-2.5 h-8 text-xs outline-none focus:border-brand">
+            <option value="">كل الصفوف</option>
+            {fGradeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select value={fClass} onChange={(e) => setFClass(e.target.value)}
+            className="rounded-lg border bg-card px-2.5 h-8 text-xs outline-none focus:border-brand">
+            <option value="">كل الفصول</option>
+            {fClassOptions.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+          {(fGrade || fClass) && (
+            <button onClick={() => { setFGrade(""); setFClass(""); }} className="rounded-lg border px-2.5 h-8 text-xs font-medium hover:bg-accent">إلغاء</button>
+          )}
+          <span className="text-[11px] text-muted-foreground">المعروض: <En>{shownClasses.length}</En></span>
+        </div>
         <div className="divide-y">
-          {classes.map((c) => (
+          {shownClasses.map((c) => (
             <div key={c.id} className="flex items-center gap-3 px-5 py-3">
               <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-[11px] font-bold text-brand">
                 {c.name.includes("/") ? c.name.split("/")[1] : c.name}
@@ -263,7 +284,7 @@ function ClassesTab({ classes, teachers, onAdd }:
               <button onClick={() => setDelC(c)} className="grid h-8 w-8 place-items-center rounded-md border text-danger hover:bg-danger/10"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           ))}
-          {classes.length === 0 && <div className="px-5 py-4 text-sm text-muted-foreground">لا فصول بعد.</div>}
+          {shownClasses.length === 0 && <div className="px-5 py-4 text-sm text-muted-foreground">{classes.length === 0 ? "لا فصول بعد." : "لا فصول مطابقة للتصفية."}</div>}
         </div>
       </div>
       <div className="rounded-xl border bg-card p-5 h-fit">
@@ -477,11 +498,12 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
   { students: any[]; classes: SchoolClass[]; onAdd: (s: any) => void; onBulk: (rows: any[]) => Promise<number> }) {
   const [editS, setEditS] = useState<any | null>(null);
   const [delS, setDelS] = useState<any | null>(null);
-  const [fGrade, setFGrade] = useState(""); const [fClass, setFClass] = useState("");
+  const [fGrade, setFGrade] = useState(""); const [fClass, setFClass] = useState(""); const [fQ, setFQ] = useState("");
   const gradeOptions = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
   const fClassOptions = Array.from(new Set(students.filter((s: any) => !fGrade || s.grade === fGrade).map((s: any) => s.className).filter(Boolean)));
   const fGradeOptions = Array.from(new Set(students.map((s: any) => s.grade).filter(Boolean)));
-  const shownStudents = students.filter((s: any) => (!fGrade || s.grade === fGrade) && (!fClass || s.className === fClass));
+  const fQt = fQ.trim();
+  const shownStudents = students.filter((s: any) => (!fGrade || s.grade === fGrade) && (!fClass || s.className === fClass) && (!fQt || String(s.name || "").includes(fQt)));
   const [name, setName] = useState(""); const [grade, setGrade] = useState("");
   const gradeClasses = classes.filter((c) => c.grade === grade);
   const [className, setClassName] = useState("");
@@ -597,6 +619,10 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 px-5 py-2">
+          <div className="flex items-center gap-1.5 rounded-lg border bg-card px-2.5 h-8 text-xs w-48">
+            <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            <input value={fQ} onChange={(e) => setFQ(e.target.value)} placeholder="بحث باسم الطالب…" className="bg-transparent outline-none flex-1" />
+          </div>
           <span className="text-xs font-semibold text-muted-foreground">تصفية:</span>
           <select value={fGrade} onChange={(e) => { setFGrade(e.target.value); setFClass(""); }}
             className="rounded-lg border bg-card px-2.5 h-8 text-xs outline-none focus:border-brand">
@@ -608,8 +634,8 @@ function StudentsTab({ students, classes, onAdd, onBulk }:
             <option value="">كل الفصول</option>
             {fClassOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          {(fGrade || fClass) && (
-            <button onClick={() => { setFGrade(""); setFClass(""); }} className="rounded-lg border px-2.5 h-8 text-xs font-medium hover:bg-accent">إلغاء</button>
+          {(fGrade || fClass || fQ) && (
+            <button onClick={() => { setFGrade(""); setFClass(""); setFQ(""); }} className="rounded-lg border px-2.5 h-8 text-xs font-medium hover:bg-accent">إلغاء</button>
           )}
           <span className="text-[11px] text-muted-foreground">المعروض: <En>{shownStudents.length}</En></span>
         </div>
