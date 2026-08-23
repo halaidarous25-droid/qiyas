@@ -309,9 +309,9 @@ export function PublicAssessment({ code }: { code: string }) {
 
         {/* محتوى */}
         <div className="p-6 text-center">
-          <h2 className="font-display text-xl font-extrabold text-slate-800">مقياس القيادة والسلوك</h2>
+          <h2 className="font-display text-xl font-extrabold text-slate-800">مقياس المهارات الطلابية والقيادية</h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-            مرحبًا بك! هذا المقياس يساعد مدرستك على اكتشاف مهاراتك القيادية وترشيحك للأدوار الأنسب لك بالقياس العلمي لا بالانطباع.
+            مرحبًا بك! هذا اختبار لقياس قدراتك القيادية لتولّي بعض المهام داخل المدرسة مثل: عريف فصل، مشرف نظام، طالب نظام. وهناك أيضًا اختبارات لقياس مهاراتك الطلابية الأكاديمية.
           </p>
           <div className="mx-auto mt-4 grid max-w-md gap-2 sm:grid-cols-3">
             {[
