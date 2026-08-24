@@ -81,6 +81,7 @@ export interface Mission {
   candidateIds: string[];
   hasConflict?: boolean;
   nominationMode?: "scope" | "preference"; // آلية الترشيح: بالنطاق (الجميع) أو بالرغبة (من اختار المسمّى)
+  academicYear?: string;                    // السنة الدراسية (للتفريق بين المهمة نفسها عبر السنوات)
 }
 
 // ---- تصنيف الموثوقية وفق معادلة المستشار النفسي ----

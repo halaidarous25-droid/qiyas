@@ -270,22 +270,6 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
             </div>
           </div>
 
-          {/* القوة والتطوير */}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
-              <div className="mb-1 flex items-center gap-1.5 font-bold text-emerald-800"><Award className="h-4 w-4" /> نقاط القوة</div>
-              <ul className="list-disc pr-4 text-[12px] text-slate-700">
-                {strengths.map((a) => <li key={a.key}>{a.label} — <En>{student.axes[a.key]}</En>٪</li>)}
-              </ul>
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-              <div className="mb-1 flex items-center gap-1.5 font-bold text-amber-800"><AlertTriangle className="h-4 w-4" /> فرص التطوير</div>
-              <ul className="list-disc pr-4 text-[12px] text-slate-700">
-                {growth.map((a) => <li key={a.key}>{a.label} — <En>{student.axes[a.key]}</En>٪</li>)}
-              </ul>
-            </div>
-          </div>
-
           {/* ===== التوصيات التحليلية (نقاط مقسّمة لدعم القرار) ===== */}
           <div className="mt-5">
             <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-brand" /> التوصيات التحليلية لدعم القرار</div>
@@ -371,6 +355,48 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
               </div>
             </div>
           )}
+
+          {/* ===== دليل المصطلحات: شرح المفاهيم المستخدمة في التقرير ===== */}
+          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900">
+              <ClipboardList className="h-4 w-4 text-brand" /> دليل المصطلحات — شرح المفاهيم المستخدمة في التقرير
+            </div>
+            <p className="mb-2.5 text-[11.5px] text-slate-500">لتسهيل قراءة التقرير وفهمه من قِبل المقيّم أو الطالب، فيما يلي معاني المصطلحات الواردة أعلاه:</p>
+            <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
+              {[
+                ["المؤشر المركّب", "الدرجة الكلية التي تجمع بين الكفاية النظرية والسلوك الفعلي في رقم واحد يعبّر عن الأداء العام للطالب."],
+                ["الكفاية النظرية", "مدى معرفة الطالب بالمفاهيم والمبادئ القيادية (ماذا يعرف)، وتُقاس عبر الأسئلة المعرفية."],
+                ["السلوك الفعلي", "مدى تطبيق الطالب للمهارات القيادية في المواقف الواقعية (كيف يتصرّف)، ويُقاس عبر الأسئلة الموقفية."],
+                ["تصنيف الثقة", "تقدير مدى موثوقية نتائج الطالب: «موثوق» نتائج متّسقة، «يستوجب تحفّظًا» تأثّر بسيط بالمقبولية، «يُنصح بمقابلة» يحتاج تحقّقًا إضافيًا."],
+                ["النمط القيادي", "الوصف العام لأسلوب الطالب القيادي، ويُستنتج من أعلى محورين لديه (مثل: منظِّم، مبادر…)."],
+                ["نسبة التطابق مع الوصف الوظيفي", "مدى ملاءمة نتائج الطالب لمتطلّبات مسمّى قيادي محدّد، بمطابقة محاوره مع أوزان أهمية كل محور في ذلك المسمّى."],
+                ["تطابق المحاور", "الجزء من نسبة التطابق الناتج عن أداء الطالب في المحاور الأعلى وزنًا للمسمّى، قبل احتساب أثر الخبرة السابقة."],
+                ["درجة التناقض", "مؤشّر (من ١٠) على مدى تعارض إجابات الطالب فيما بينها؛ ارتفاعها يستدعي مراجعة اتساق الإجابات."],
+                ["المثالية الاجتماعية", "مؤشّر (من ٥) على ميل الطالب لتقديم صورة مثالية عن نفسه؛ ارتفاعها يستدعي التحقّق بمواقف واقعية."],
+                ["المواءمة", "نسبة تطابق الطالب مع مهمة قيادية مفتوحة محدّدة، وتُستخدم في ترتيب المرشّحين للمهمة."],
+              ].map(([term, def]) => (
+                <div key={term}>
+                  <dt className="text-[12px] font-bold text-slate-800">{term}</dt>
+                  <dd className="text-[11.5px] leading-6 text-slate-600">{def}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-3 border-t border-slate-200 pt-2">
+              <div className="mb-1 text-[12px] font-bold text-slate-800">المحاور الخمسة للقياس</div>
+              <ul className="grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                {AXES.map((a) => (
+                  <li key={a.key} className="text-[11.5px] leading-6 text-slate-600">
+                    <b className="text-slate-800">{a.label}:</b>{" "}
+                    {a.key === "org" ? "الالتزام بالمهام والمواعيد وترتيب الأولويات وتنظيم العمل."
+                      : a.key === "lead" ? "الاستعداد لقيادة الآخرين وتحمّل المسؤولية واتخاذ القرار."
+                      : a.key === "comm" ? "التعبير الواضح والتنسيق والعمل بروح الفريق مع الآخرين."
+                      : a.key === "firm" ? "اتخاذ المواقف الواضحة والالتزام بالقيم والنزاهة تحت الضغط."
+                      : "اقتراح الأفكار الجديدة والتعامل مع المتغيّرات المفاجئة بمرونة."}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
 
           <div className="mt-5 border-t border-slate-200 pt-2 text-[10px] text-slate-400">
             تقرير آليّ من نظام مؤشر — للاستخدام الإداري الداخلي في دعم قرار الترشيح.

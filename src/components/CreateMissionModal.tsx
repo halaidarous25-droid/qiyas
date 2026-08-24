@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSlis } from "@/store";
+import { useSlis, currentHijriAcademicYear } from "@/store";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { AXES, type ScopeLevel, type AxisScores, type AxisKey, type Mission } from "@/data/mock";
@@ -19,6 +19,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
   const [scopeRef, setScopeRef] = useState(edit?.scopeRef ?? "");
   const [seats, setSeats] = useState(edit?.seats ?? 1);
   const [nominationMode, setNominationMode] = useState<"scope" | "preference">(edit?.nominationMode ?? "preference");
+  const [academicYear, setAcademicYear] = useState(edit?.academicYear || currentHijriAcademicYear());
   const [showPriorities, setShowPriorities] = useState(false);
   const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
 
@@ -72,6 +73,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
       title: title.trim(), scopeType,
       scopeRef: scopeType === "grade" || scopeType === "class" ? scopeRef : "",
       seats, mode, weights: normalize(weights), nominationMode,
+      academicYear: academicYear.trim(),
     };
     if (isEdit) updateMission(edit!.id, base);
     else addMission({ ...base, autoNominate: true }); // الوضع التلقائي: ترشيح وتقييم تلقائي بعد الإنشاء
@@ -127,6 +129,16 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
               onChange={(e) => setSeats(Math.max(1, parseInt(e.target.value) || 1))}
               className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand" dir="ltr" />
           </div>
+        </div>
+
+        {/* السنة الدراسية — تُعرض دائمًا بجانب اسم المهمة للتفريق بين المهام عبر السنوات */}
+        <div className="mt-4">
+          <label className="block text-sm font-semibold">السنة الدراسية</label>
+          <input type="text" value={academicYear}
+            onChange={(e) => setAcademicYear(e.target.value)}
+            placeholder="مثال: 1447/1448 هـ"
+            className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand" />
+          <p className="mt-1 text-[11px] text-muted-foreground">تظهر بجانب اسم المهمة في كل الشاشات والتقارير للتفريق بينها عبر السنوات.</p>
         </div>
 
         {/* الصف الدراسي عند نطاق «الصف الدراسي» */}

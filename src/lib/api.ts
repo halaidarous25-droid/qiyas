@@ -138,7 +138,7 @@ export async function dbDeleteClass(classId: string) {
 
 export async function dbAddMission(schoolId: string, m: {
   title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode;
-  weights?: AxisScores; scopeRef?: string; nominationMode?: "scope" | "preference";
+  weights?: AxisScores; scopeRef?: string; nominationMode?: "scope" | "preference"; academicYear?: string;
 }) {
   const scopeLabel = m.scopeType === "school" ? "كامل المدرسة"
     : m.scopeType === "grade" ? (m.scopeRef ? `صف: ${m.scopeRef}` : "صف دراسي")
@@ -149,6 +149,7 @@ export async function dbAddMission(schoolId: string, m: {
     scope_ref: m.scopeRef || null,
     operating_mode: m.mode, seats: m.seats, status: "open",
     nomination_mode: m.nominationMode || "scope",
+    academic_year: m.academicYear || null,
     weights: m.weights ?? { org: 20, lead: 20, comm: 20, firm: 20, init: 20 },
   }).select().single();
   if (error) throw error;
@@ -158,7 +159,7 @@ export async function dbAddMission(schoolId: string, m: {
 // تعديل مهمة قائمة
 export async function dbUpdateMission(missionId: string, patch: {
   title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode;
-  weights?: AxisScores; status?: string; scopeRef?: string; nominationMode?: "scope" | "preference";
+  weights?: AxisScores; status?: string; scopeRef?: string; nominationMode?: "scope" | "preference"; academicYear?: string;
 }) {
   const upd: Record<string, unknown> = {};
   if (patch.title !== undefined) upd.title = patch.title;
@@ -168,6 +169,7 @@ export async function dbUpdateMission(missionId: string, patch: {
   if (patch.status !== undefined) upd.status = patch.status;
   if (patch.scopeRef !== undefined) upd.scope_ref = patch.scopeRef || null;
   if (patch.nominationMode !== undefined) upd.nomination_mode = patch.nominationMode;
+  if (patch.academicYear !== undefined) upd.academic_year = patch.academicYear || null;
   if (patch.scopeType !== undefined) {
     upd.scope_type = patch.scopeType;
     upd.scope_label = patch.scopeType === "school" ? "كامل المدرسة"
@@ -367,16 +369,16 @@ export async function publicSubmitAssessment(payload: {
   return data as { ok: boolean; attempts?: number };
 }
 
-// فحص أهلية الطالب للاختبار (قبل الدخول) عبر رقم الهوية + الجوال
-export async function publicCheckEligibility(payload: { code: string; nationalId: string; name: string; grade: string; phone?: string }) {
+// فحص أهلية الطالب لاختبار محدّد (examType) عبر رقم الهوية + الجوال
+export async function publicCheckEligibility(payload: { code: string; nationalId: string; name: string; grade: string; phone?: string; examType?: string }) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "check", ...payload } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
-  return data as { ok: boolean; eligible: boolean; firstTime?: boolean; lastDate?: string; pending?: boolean };
+  return data as { ok: boolean; eligible: boolean; firstTime?: boolean; lastDate?: string; nextDate?: string; pending?: boolean; mismatch?: boolean };
 }
 
 // طلب إعادة الاختبار من المدرسة (رابط عام)
-export async function publicRequestRetake(payload: { code: string; nationalId: string; name: string; grade: string; className: string }) {
+export async function publicRequestRetake(payload: { code: string; nationalId: string; name: string; grade: string; className: string; examType?: string }) {
   const { data, error } = await supabase.functions.invoke("public-assess", { body: { action: "request_retest", ...payload } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);

@@ -22,6 +22,20 @@ const DEFAULT_SETTINGS: AppSettings = {
   scope: "school", lang: "ar", maxTasks: 3, autoApprove: true, alertPct: 25,
 };
 
+// السنة الدراسية الهجرية الحالية بصيغة «1446/1447 هـ» للتفريق بين المهام عبر السنوات
+export function currentHijriAcademicYear(): string {
+  try {
+    const y = parseInt(
+      new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura", { year: "numeric" })
+        .format(new Date())
+        .replace(/[^0-9]/g, ""),
+      10,
+    );
+    if (y && !Number.isNaN(y)) return `${y}/${y + 1} هـ`;
+  } catch { /* تجاهل */ }
+  return "";
+}
+
 export interface WeightPreset { name: string; weights: AxisScores }
 // مسمّى قيادي في «قائمة المهام القيادية» — يغذّي إنشاء المهمة والمواءمة الذكية
 export interface MissionRole {
@@ -55,7 +69,7 @@ interface Store {
   toast: (text: string, tone?: Toast["tone"]) => void;
   dismissToast: (id: number) => void;
   addMission: (m: {
-    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores; scopeRef?: string; autoNominate?: boolean; nominationMode?: "scope" | "preference";
+    title: string; scopeType: ScopeLevel; seats: number; mode: OperatingMode; weights?: AxisScores; scopeRef?: string; autoNominate?: boolean; nominationMode?: "scope" | "preference"; academicYear?: string;
   }) => void;
   autoNominate: (missionId: string) => void;
   assignCandidate: (missionId: string, candId: string, name: string) => void;
@@ -63,7 +77,7 @@ interface Store {
   nominateStudent: (missionId: string, candId: string, name: string) => void;
   removeCandidate: (missionId: string, candId: string, name: string) => void;
   setCandidateStatus: (missionId: string, candId: string, status: string) => void;
-  updateMission: (missionId: string, patch: { title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode; weights?: AxisScores; status?: string; scopeRef?: string }) => void;
+  updateMission: (missionId: string, patch: { title?: string; scopeType?: ScopeLevel; seats?: number; mode?: OperatingMode; weights?: AxisScores; status?: string; scopeRef?: string; academicYear?: string }) => void;
   requestRetake: () => void;
   devPlans: Record<string, DevPlan>;
   saveDevPlan: (missionId: string, studentId: string, plan: DevPlan) => void;
@@ -256,6 +270,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       applicants: elig.length, eligible: 214, createdAt: "1446/03/01",
       weights: m.weights ?? { ...EVEN }, candidateIds: elig.map((s) => s.id),
       nominationMode: m.nominationMode || "scope",
+      academicYear: m.academicYear || currentHijriAcademicYear(),
     };
     setMissions((list) => [nm, ...list]);
     toast(elig.length > 0 ? `أُنشئت المهمة ورُشِّح ${elig.length} طالبًا تلقائيًا` : `أُنشئت المهمة «${m.title}» بنجاح`);
@@ -277,7 +292,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
         let created = 0;
         try {
           for (const c of targets) {
-            const cm: any = await api.dbAddMission(schoolId, { title: HOMEROOM_TITLE, scopeType: "class", scopeRef: c.name, seats: 1, mode, weights, nominationMode: "preference" });
+            const cm: any = await api.dbAddMission(schoolId, { title: HOMEROOM_TITLE, scopeType: "class", scopeRef: c.name, seats: 1, mode, weights, nominationMode: "preference", academicYear: currentHijriAcademicYear() });
             const elig = eligibleForMission(HOMEROOM_TITLE, "class", c.name, "preference");
             for (const s of elig) await api.dbApply(schoolId, { id: cm.id, weights: cm.weights } as Mission, s, true);
             created++;
@@ -295,6 +310,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
         id: `mh${mid++}_${i}`, title: HOMEROOM_TITLE, scopeType: "class", scopeLabel: `فصل: ${c.name}`, scopeRef: c.name,
         mode, seats: 1, supervisor: "أ. سعد المالكي", status: "open", applicants: elig.length, eligible: 214,
         createdAt: "1446/03/01", weights, candidateIds: elig.map((s) => s.id), nominationMode: "preference",
+        academicYear: currentHijriAcademicYear(),
       } as Mission;
     });
     setMissions((list) => [...nm, ...list]);

@@ -180,6 +180,7 @@ export async function fetchSchoolSeed(schoolId: string): Promise<Seed> {
       createdAt: (m.created_at || "").slice(0, 10),
       weights: m.weights, candidateIds: apps.map((a) => a.student_id),
       nominationMode: (m.nomination_mode === "preference" ? "preference" : "scope"),
+      academicYear: m.academic_year || "",
       hasConflict: false,
     };
   });

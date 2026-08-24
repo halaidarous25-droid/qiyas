@@ -170,7 +170,7 @@ export function StudentReport({ student, missions, schoolName, today, onClose }:
         <div className="mb-1 font-bold text-slate-900">الترشيحات ({missions.length})</div>
         {missions.length === 0 ? <div className="text-slate-500">لا ترشيحات حالية.</div> :
           missions.map((m) => (
-            <Row key={m.mission.id} label={m.mission.title}>
+            <Row key={m.mission.id} label={`${m.mission.title}${m.mission.academicYear ? ` (${m.mission.academicYear})` : ""}`}>
               مطابقة <En>{m.match}%</En> · ترتيب <En>{m.rank}</En> · {m.seat ? "ضمن المقاعد" : "خارج المقاعد"}
             </Row>
           ))}
@@ -203,7 +203,7 @@ export function MissionReport({ mission, ranked, assignedStudents = [], schoolNa
   const seg = (n: number) => (ranked.length ? (n / ranked.length) * 100 : 0);
 
   return (
-    <ReportShell title="تقرير المهمة القيادية" subtitle={`${mission.title} — ${mission.scopeLabel}`}
+    <ReportShell title="تقرير المهمة القيادية" subtitle={`${mission.title}${mission.academicYear ? ` (${mission.academicYear})` : ""} — ${mission.scopeLabel}`}
       schoolName={schoolName} today={today} onClose={onClose}>
 
       {/* شارة النطاق البارزة للتفريق بين المهام */}
@@ -211,6 +211,11 @@ export function MissionReport({ mission, ranked, assignedStudents = [], schoolNa
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-3 py-1.5 text-[13px] font-bold text-brand">
           {mission.title}
         </span>
+        {mission.academicYear && (
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/5 px-3 py-1.5 text-[12px] font-semibold text-brand">
+            السنة الدراسية: {mission.academicYear}
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-semibold text-amber-800">
           النطاق: {mission.scopeLabel}
         </span>

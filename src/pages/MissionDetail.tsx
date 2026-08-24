@@ -274,7 +274,7 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, rankMission, students, deleteMission } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, rankMission, students, deleteMission, updateMission, toast } = useSlis();
   // جميع الـ hooks تُستدعى أولًا قبل أي return (التزامًا بقواعد hooks)
   const [editing, setEditing] = useState(false);
   const [confirmDelM, setConfirmDelM] = useState(false);
@@ -316,7 +316,10 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
               <Target className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="font-display text-xl font-extrabold">{m.title}</h1>
+              <h1 className="font-display text-xl font-extrabold">
+                {m.title}
+                {m.academicYear && <span className="mr-2 align-middle rounded-md bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">{m.academicYear}</span>}
+              </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{m.scopeLabel}</span>
                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{m.supervisor}</span>
@@ -329,6 +332,10 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
             <Pill tone={m.nominationMode === "preference" ? "gold" : "muted"}>
               {m.nominationMode === "preference" ? "ترشيح بالرغبة" : "ترشيح بالنطاق"}
             </Pill>
+            <button onClick={() => { updateMission(m.id, { seats: m.seats + 1 }); toast(`أُضيف مقعد جديد (تغيير العريف) — أصبح عدد المقاعد ${m.seats + 1} لنفس السنة الدراسية`); }}
+              className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent" title="عند تغيير العريف في منتصف السنة: يُضاف مقعد آخر وفترة جديدة في نفس السنة">
+              <UserPlus className="h-3.5 w-3.5" /> إضافة مقعد (تغيير العريف)
+            </button>
             <button onClick={() => setEditing(true)}
               className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent">
               <Pencil className="h-3.5 w-3.5" /> تعديل المهمة

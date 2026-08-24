@@ -28,6 +28,11 @@ export function PublicAssessment({ code }: { code: string }) {
   const [checking, setChecking] = useState(false);
   const [block, setBlock] = useState<{ lastDate?: string; pending?: boolean }>({});
   const [reqSent, setReqSent] = useState(false);
+  // أهلية كل اختبار على حدة (تُفحص عند اختيار الاختبار)
+  type Elig = { eligible: boolean; lastDate?: string; nextDate?: string; pending?: boolean };
+  const [examElig, setExamElig] = useState<Record<string, Elig>>({});
+  const [eligLoading, setEligLoading] = useState(false);
+  const [reqExam, setReqExam] = useState<Record<string, boolean>>({});
   // تعدّد الاختبارات ورغبات المسمّيات
   const [examTypes, setExamTypes] = useState<{ key: string; name: string; description?: string; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
@@ -54,19 +59,33 @@ export function PublicAssessment({ code }: { code: string }) {
       .catch((e) => { setErr(e.message || "رمز غير صحيح"); setStep("invalid"); });
   }, [code]);
 
-  // بعد بيانات الطالب: فحص الأهلية ثم اختيار نوع الاختبار
+  // بعد بيانات الطالب: ننتقل لاختيار الاختبار ونفحص أهلية كل اختبار على حدة
   const startTest = async () => {
     setChecking(true); setErr(null);
+    setStep("exam");
+    setEligLoading(true);
     try {
-      const el = await publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade, phone: phone.trim() });
-      if (el.eligible) { setStep(examTypes.length > 1 ? "exam" : "exam"); }
-      else { setBlock({ lastDate: el.lastDate, pending: el.pending }); setReqSent(!!el.pending); setStep("blocked"); }
+      const list = examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية" }];
+      const results = await Promise.all(list.map((e) =>
+        publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade, phone: phone.trim(), examType: e.key })
+          .then((r) => [e.key, { eligible: r.eligible, lastDate: r.lastDate, nextDate: r.nextDate, pending: r.pending }] as [string, Elig])
+          .catch(() => [e.key, { eligible: true }] as [string, Elig])));
+      const map: Record<string, Elig> = {}; results.forEach(([k, v]) => (map[k] = v));
+      setExamElig(map);
     } catch (e: any) { setErr(e.message || "تعذّر التحقق"); }
-    finally { setChecking(false); }
+    finally { setEligLoading(false); setChecking(false); }
   };
 
-  // اختيار نوع الاختبار → القيادات تعرض المسمّيات، غيرها يذهب للأسئلة مباشرة
+  const requestRetakeFor = async (key: string) => {
+    try {
+      await publicRequestRetake({ code, nationalId: nationalId.trim(), name: name.trim(), grade, className, examType: key });
+      setReqExam((m) => ({ ...m, [key]: true }));
+    } catch (e: any) { setErr(e.message || "تعذّر إرسال الطلب"); }
+  };
+
+  // اختيار نوع الاختبار → القيادات تعرض المسمّيات، غيرها يذهب للأسئلة مباشرة (بشرط الأهلية)
   const chooseExam = (key: string) => {
+    if (examElig[key] && !examElig[key].eligible) return; // غير مؤهّل الآن
     setSelectedExam(key);
     if (key === "leadership" && roles.length > 0) setStep("roles");
     else setStep("test");
@@ -140,24 +159,41 @@ export function PublicAssessment({ code }: { code: string }) {
       <div className="w-full max-w-md">
         <Header />
         <h2 className="font-display text-xl font-extrabold">اختر نوع الاختبار</h2>
-        <p className="mt-1 text-sm text-muted-foreground">حدّد الاختبار الذي تريد الدخول إليه.</p>
+        <p className="mt-1 text-sm text-muted-foreground">حدّد الاختبار الذي تريد الدخول إليه. الاختبارات التي سبق أداؤها مؤخّرًا تظهر مدّة إعادتها.</p>
+        {eligLoading && <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> جارٍ التحقق من سجلّك…</div>}
         <div className="mt-4 space-y-2.5">
-          {examTypes.length === 0 && (
-            <button onClick={() => chooseExam("leadership")} className="w-full rounded-xl border p-4 text-right hover:border-brand hover:bg-accent">
-              <div className="flex items-center gap-2 font-semibold"><Target className="h-4 w-4 text-brand" /> اختبار القيادات الطلابية</div>
-            </button>
-          )}
-          {examTypes.map((e) => (
-            <button key={e.key} onClick={() => chooseExam(e.key)}
-              className="flex w-full items-center gap-3 rounded-xl border p-4 text-right hover:border-brand hover:bg-accent">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/8 text-brand"><Target className="h-5 w-5" /></div>
-              <div className="flex-1">
-                <div className="font-semibold">{e.name}</div>
-                {e.description && <div className="text-[11px] text-muted-foreground">{e.description}</div>}
+          {(examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية", description: "" }]).map((e) => {
+            const el = examElig[e.key];
+            const blocked = !!el && !el.eligible;
+            const sentReq = reqExam[e.key] || el?.pending;
+            return (
+              <div key={e.key} className={`rounded-xl border p-4 ${blocked ? "opacity-90" : ""}`}>
+                <button onClick={() => chooseExam(e.key)} disabled={blocked}
+                  className={`flex w-full items-center gap-3 text-right ${blocked ? "cursor-not-allowed" : "hover:opacity-90"}`}>
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/8 text-brand"><Target className="h-5 w-5" /></div>
+                  <div className="flex-1">
+                    <div className="font-semibold">{e.name}</div>
+                    {e.description && <div className="text-[11px] text-muted-foreground">{e.description}</div>}
+                  </div>
+                  {!blocked && <ArrowLeft className="h-4 w-4 text-brand" />}
+                </button>
+                {blocked && (
+                  <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                    <div className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4" /> سبق أداؤك لهذا الاختبار{el?.lastDate ? ` بتاريخ ${el.lastDate}` : ""}.</div>
+                    <div className="mt-0.5">يمكنك إعادته بعد <b>{el?.nextDate || "٣ أشهر"}</b>، أو رفع طلب لإعادته الآن بموافقة المدرسة.</div>
+                    {sentReq ? (
+                      <div className="mt-2 inline-flex items-center gap-1.5 font-semibold text-success"><CheckCircle2 className="h-4 w-4" /> تم إرسال طلب الإعادة — بانتظار الموافقة.</div>
+                    ) : (
+                      <button onClick={() => requestRetakeFor(e.key)}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 h-8 text-xs font-semibold text-white hover:bg-brand/90">
+                        <BellRing className="h-3.5 w-3.5" /> طلب إعادة الاختبار
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              <ArrowLeft className="h-4 w-4 text-brand" />
-            </button>
-          ))}
+            );
+          })}
         </div>
         <button onClick={() => setStep("form")} className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
           <ArrowRight className="h-4 w-4" /> رجوع للبيانات

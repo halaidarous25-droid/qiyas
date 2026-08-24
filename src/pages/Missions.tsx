@@ -28,7 +28,10 @@ function MissionCard({ m, onOpen, applied, qualified }: { m: Mission; onOpen: (i
           <Pill tone={st.tone as Tone}>{st.label}</Pill>
         </div>
       </div>
-      <h3 className="mt-3 font-display text-[16px] font-bold group-hover:text-brand">{m.title}</h3>
+      <h3 className="mt-3 font-display text-[16px] font-bold group-hover:text-brand">
+        {m.title}
+        {m.academicYear && <span className="mr-1.5 align-middle rounded-md bg-brand/10 px-1.5 py-0.5 text-[11px] font-semibold text-brand">{m.academicYear}</span>}
+      </h3>
       <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
         <MapPin className="h-3.5 w-3.5" /> {m.scopeLabel}
         <span className="mx-1">·</span> {SCOPE_META[m.scopeType]}

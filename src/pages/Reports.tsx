@@ -151,6 +151,7 @@ export function Reports() {
                 return (
                   <tr key={m.id} className="hover:bg-accent/30">
                     <td className="border-b p-2.5 font-medium">{m.title}
+                      {m.academicYear && <span className="mr-1.5 rounded bg-brand/10 px-1 py-0.5 text-[10px] font-semibold text-brand">{m.academicYear}</span>}
                       <span className="block text-[11px] font-normal text-muted-foreground">{m.scopeLabel}</span></td>
                     <td className="border-b p-2.5 text-center"><Pill tone={st.tone as Tone}>{st.label}</Pill></td>
                     <td className="border-b p-2.5 text-center tabular-nums"><En>{r.count}</En></td>
@@ -196,7 +197,7 @@ export function Reports() {
             <select value={pickMission} onChange={(e) => setPickMission(e.target.value)}
               className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
               <option value="">اختر مهمة…</option>
-              {missions.map((m) => <option key={m.id} value={m.id}>{m.title} — {m.scopeLabel}</option>)}
+              {missions.map((m) => <option key={m.id} value={m.id}>{m.title}{m.academicYear ? ` (${m.academicYear})` : ""} — {m.scopeLabel}</option>)}
             </select>
             <button disabled={!pickMission} onClick={() => setOpen({ kind: "mission", id: pickMission })}
               className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
