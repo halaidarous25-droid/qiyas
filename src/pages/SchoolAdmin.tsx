@@ -12,7 +12,7 @@ import {
 import { AXES, type AxisScores } from "@/data/mock";
 import { type MissionRole } from "@/store";
 import { useEffect } from "react";
-import { createStudentAccount, inviteMember, fetchCredentials, changePassword, provisionTeacher, type AccountCred, fetchExamTypesBasic, fetchSchoolExamAccess, setSchoolExamActive } from "@/lib/api";
+import { createStudentAccount, inviteMember, fetchCredentials, changePassword, provisionTeacher, type AccountCred, fetchExamTypesBasic, fetchSchoolExamAccess, setSchoolExamState, type SchoolExamState } from "@/lib/api";
 
 type Tab = "info" | "classes" | "teachers" | "students" | "roles" | "exams" | "accounts";
 const TABS: { k: Tab; l: string; icon: any }[] = [
@@ -79,7 +79,7 @@ export function SchoolAdmin() {
 function ExamsTab({ live, schoolId }: { live: boolean; schoolId: string | null }) {
   const { toast } = useSlis();
   const [exams, setExams] = useState<{ key: string; name: string; active: boolean }[]>([]);
-  const [access, setAccess] = useState<Record<string, { enabled: boolean; school_active: boolean }>>({});
+  const [access, setAccess] = useState<Record<string, { enabled: boolean; school_state: SchoolExamState }>>({});
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -87,20 +87,20 @@ function ExamsTab({ live, schoolId }: { live: boolean; schoolId: string | null }
     try {
       const [ex, acc] = await Promise.all([fetchExamTypesBasic(), fetchSchoolExamAccess(schoolId)]);
       setExams(ex);
-      const map: Record<string, { enabled: boolean; school_active: boolean }> = {};
-      acc.forEach((a) => (map[a.exam_key] = { enabled: a.enabled, school_active: a.school_active }));
+      const map: Record<string, { enabled: boolean; school_state: SchoolExamState }> = {};
+      acc.forEach((a) => (map[a.exam_key] = { enabled: a.enabled, school_state: (a.school_state || (a.school_active ? "active" : "off")) as SchoolExamState }));
       setAccess(map);
     } catch (e: any) { toast(`تعذّر تحميل الاختبارات: ${e.message || e}`, "danger"); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [live, schoolId]);
 
-  const toggle = async (key: string, next: boolean) => {
+  const setState = async (key: string, next: SchoolExamState) => {
     if (!schoolId) return;
     try {
-      await setSchoolExamActive(schoolId, key, next);
-      setAccess((m) => ({ ...m, [key]: { ...(m[key] || { enabled: true }), school_active: next } }));
-      toast(next ? "فُعّل الاختبار لطلاب مدرستك" : "أُوقف الاختبار مؤقتًا");
+      await setSchoolExamState(schoolId, key, next);
+      setAccess((m) => ({ ...m, [key]: { ...(m[key] || { enabled: true }), school_state: next } }));
+      toast(next === "active" ? "فُعّل الاختبار لطلاب مدرستك" : next === "later" ? "سيظهر «لاحقًا» في رابط الطالب دون إمكانية الدخول" : "أُوقف الاختبار — لن يظهر للطلاب");
     } catch (e: any) { toast(`تعذّر التحديث: ${e.message || e}`, "danger"); }
   };
 
@@ -121,17 +121,29 @@ function ExamsTab({ live, schoolId }: { live: boolean; schoolId: string | null }
           <Pill tone="success">مُفعّل دائمًا</Pill>
         </div>
         {centralEnabled.map((e) => {
-          const on = access[e.key]?.school_active !== false;
+          const state = access[e.key]?.school_state || "active";
+          const stateMeta = state === "active"
+            ? { tone: "success" as const, label: "نشط — ظاهر للطلاب" }
+            : state === "later"
+              ? { tone: "warning" as const, label: "لاحقًا — يظهر دون دخول" }
+              : { tone: "muted" as const, label: "غير نشط — لا يظهر" };
+          const OPTS: { k: SchoolExamState; l: string }[] = [
+            { k: "active", l: "نشط" }, { k: "later", l: "لاحقًا" }, { k: "off", l: "غير نشط" },
+          ];
           return (
-            <div key={e.key} className="flex items-center gap-3 px-5 py-3">
+            <div key={e.key} className="flex flex-wrap items-center gap-3 px-5 py-3">
               <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand/8 text-brand"><ClipboardList className="h-4 w-4" /></div>
-              <div className="flex-1"><div className="font-semibold text-sm">{e.name}</div>
-                <div className="text-[11px] text-muted-foreground">فعّله الحساب المركزي لمدرستك — يمكنك تنشيطه أو إيقافه مؤقتًا.</div></div>
-              <Pill tone={on ? "success" : "muted"}>{on ? "ظاهر للطلاب" : "موقوف مؤقتًا"}</Pill>
-              <button onClick={() => toggle(e.key, !on)}
-                className={cn("rounded-lg border px-3 h-9 text-sm font-semibold", on ? "text-danger hover:bg-danger/10" : "text-success hover:bg-success/10")}>
-                {on ? "إيقاف مؤقت" : "تنشيط"}
-              </button>
+              <div className="min-w-0 flex-1"><div className="font-semibold text-sm">{e.name}</div>
+                <div className="text-[11px] text-muted-foreground">فعّله الحساب المركزي لمدرستك — اختر حالته في رابط الطالب.</div></div>
+              <Pill tone={stateMeta.tone}>{stateMeta.label}</Pill>
+              <div className="flex rounded-lg border p-0.5">
+                {OPTS.map((o) => (
+                  <button key={o.k} onClick={() => setState(e.key, o.k)}
+                    className={cn("rounded-md px-3 h-8 text-xs font-semibold", state === o.k ? "bg-brand text-white" : "text-muted-foreground hover:bg-accent")}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
             </div>
           );
         })}
@@ -139,8 +151,11 @@ function ExamsTab({ live, schoolId }: { live: boolean; schoolId: string | null }
           <div className="px-5 py-6 text-center text-sm text-muted-foreground">لا اختبارات إضافية مفعّلة لمدرستك من الحساب المركزي بعد.</div>
         )}
       </div>
-      <div className="border-t bg-muted/20 px-5 py-3 text-[11px] text-muted-foreground">
-        تُضاف الاختبارات وتُفعّل لمدرستك من الحساب المركزي، وأنت تتحكم بإظهارها أو إيقافها مؤقتًا في رابط الطالب.
+      <div className="border-t bg-muted/20 px-5 py-3 text-[11px] leading-6 text-muted-foreground">
+        تُضاف الاختبارات وتُفعّل لمدرستك من الحساب المركزي، وأنت تختار حالتها في رابط الطالب:
+        <b className="text-success"> نشط</b> (يظهر ويُمكن أداؤه)،
+        <b className="text-warning"> لاحقًا</b> (يظهر باسمه دون السماح بالدخول للأسئلة)،
+        <b> غير نشط</b> (لا يظهر للطالب إطلاقًا).
       </div>
     </div>
   );

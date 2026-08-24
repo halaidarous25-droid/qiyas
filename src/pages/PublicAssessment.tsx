@@ -34,7 +34,7 @@ export function PublicAssessment({ code }: { code: string }) {
   const [eligLoading, setEligLoading] = useState(false);
   const [reqExam, setReqExam] = useState<Record<string, boolean>>({});
   // تعدّد الاختبارات ورغبات المسمّيات
-  const [examTypes, setExamTypes] = useState<{ key: string; name: string; description?: string; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[]>([]);
+  const [examTypes, setExamTypes] = useState<{ key: string; name: string; description?: string; state?: "active" | "later" | "off"; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [selectedExam, setSelectedExam] = useState<string>("leadership");
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
@@ -53,7 +53,8 @@ export function PublicAssessment({ code }: { code: string }) {
       .then((r) => {
         setSchoolName(r.schoolName); setClasses(r.classes);
         setExamTypes(r.examTypes || []); setRoles(r.roles || []);
-        if (r.examTypes && r.examTypes.length) setSelectedExam(r.examTypes[0].key);
+        const firstActive = (r.examTypes || []).find((e) => (e.state ?? "active") === "active");
+        if (firstActive) setSelectedExam(firstActive.key);
         setStep("intro");
       })
       .catch((e) => { setErr(e.message || "رمز غير صحيح"); setStep("invalid"); });
@@ -65,7 +66,8 @@ export function PublicAssessment({ code }: { code: string }) {
     setStep("exam");
     setEligLoading(true);
     try {
-      const list = examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية" }];
+      const list = (examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية", state: "active" as const }])
+        .filter((e) => (e.state ?? "active") === "active"); // «لاحقًا» لا يحتاج فحص أهلية
       const results = await Promise.all(list.map((e) =>
         publicCheckEligibility({ code, nationalId: nationalId.trim(), name: name.trim(), grade, phone: phone.trim(), examType: e.key })
           .then((r) => [e.key, { eligible: r.eligible, lastDate: r.lastDate, nextDate: r.nextDate, pending: r.pending }] as [string, Elig])
@@ -85,6 +87,8 @@ export function PublicAssessment({ code }: { code: string }) {
 
   // اختيار نوع الاختبار → القيادات تعرض المسمّيات، غيرها يذهب للأسئلة مباشرة (بشرط الأهلية)
   const chooseExam = (key: string) => {
+    const exObj = examTypes.find((e) => e.key === key);
+    if (exObj && (exObj.state ?? "active") !== "active") return; // «لاحقًا/غير نشط» — ممنوع الدخول للأسئلة
     if (examElig[key] && !examElig[key].eligible) return; // غير مؤهّل الآن
     setSelectedExam(key);
     if (key === "leadership" && roles.length > 0) setStep("roles");
@@ -162,21 +166,31 @@ export function PublicAssessment({ code }: { code: string }) {
         <p className="mt-1 text-sm text-muted-foreground">حدّد الاختبار الذي تريد الدخول إليه. الاختبارات التي سبق أداؤها مؤخّرًا تظهر مدّة إعادتها.</p>
         {eligLoading && <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> جارٍ التحقق من سجلّك…</div>}
         <div className="mt-4 space-y-2.5">
-          {(examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية", description: "" }]).map((e) => {
+          {(examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية", description: "", state: "active" as const }]).map((e) => {
             const el = examElig[e.key];
-            const blocked = !!el && !el.eligible;
+            const later = (e.state ?? "active") !== "active"; // «لاحقًا» — يظهر دون السماح بالدخول
+            const blocked = !later && !!el && !el.eligible;
+            const disabled = later || blocked;
             const sentReq = reqExam[e.key] || el?.pending;
             return (
-              <div key={e.key} className={`rounded-xl border p-4 ${blocked ? "opacity-90" : ""}`}>
-                <button onClick={() => chooseExam(e.key)} disabled={blocked}
-                  className={`flex w-full items-center gap-3 text-right ${blocked ? "cursor-not-allowed" : "hover:opacity-90"}`}>
+              <div key={e.key} className={`rounded-xl border p-4 ${disabled ? "opacity-90" : ""}`}>
+                <button onClick={() => chooseExam(e.key)} disabled={disabled}
+                  className={`flex w-full items-center gap-3 text-right ${disabled ? "cursor-not-allowed" : "hover:opacity-90"}`}>
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/8 text-brand"><Target className="h-5 w-5" /></div>
                   <div className="flex-1">
-                    <div className="font-semibold">{e.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{e.name}</span>
+                      {later && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">لاحقًا</span>}
+                    </div>
                     {e.description && <div className="text-[11px] text-muted-foreground">{e.description}</div>}
                   </div>
-                  {!blocked && <ArrowLeft className="h-4 w-4 text-brand" />}
+                  {!disabled && <ArrowLeft className="h-4 w-4 text-brand" />}
                 </button>
+                {later && (
+                  <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                    <div className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4" /> هذا الاختبار سيكون متاحًا لاحقًا — لم تُفعّله مدرستك بعد.</div>
+                  </div>
+                )}
                 {blocked && (
                   <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
                     <div className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4" /> سبق أداؤك لهذا الاختبار{el?.lastDate ? ` بتاريخ ${el.lastDate}` : ""}.</div>

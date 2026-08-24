@@ -327,16 +327,18 @@ export async function setSchoolExamEnabled(schoolId: string, examKey: string, en
     .upsert({ school_id: schoolId, exam_key: examKey, enabled }, { onConflict: "school_id,exam_key" });
   if (error) throw error;
 }
+// حالة الاختبار لدى المدرسة: active (نشط) / later (لاحقًا) / off (غير نشط)
+export type SchoolExamState = "active" | "later" | "off";
 // المدرسة: قراءة الاختبارات المتاحة لها + حالتها
-export async function fetchSchoolExamAccess(schoolId: string): Promise<{ exam_key: string; enabled: boolean; school_active: boolean }[]> {
-  const { data, error } = await supabase.from("school_exam_access").select("exam_key,enabled,school_active").eq("school_id", schoolId);
+export async function fetchSchoolExamAccess(schoolId: string): Promise<{ exam_key: string; enabled: boolean; school_active: boolean; school_state: SchoolExamState }[]> {
+  const { data, error } = await supabase.from("school_exam_access").select("exam_key,enabled,school_active,school_state").eq("school_id", schoolId);
   if (error) throw error;
   return (data || []) as any[];
 }
-// المدرسة: تنشيط/إيقاف الاختبار داخليًا (الحارس يمنع تغيير enabled)
-export async function setSchoolExamActive(schoolId: string, examKey: string, active: boolean) {
+// المدرسة: ضبط حالة الاختبار (نشط/لاحقًا/غير نشط) — الحارس يمنع تغيير enabled
+export async function setSchoolExamState(schoolId: string, examKey: string, state: SchoolExamState) {
   const { error } = await supabase.from("school_exam_access")
-    .update({ school_active: active }).eq("school_id", schoolId).eq("exam_key", examKey);
+    .update({ school_state: state, school_active: state === "active" }).eq("school_id", schoolId).eq("exam_key", examKey);
   if (error) throw error;
 }
 // قائمة الاختبارات للشاشات الداخلية (اسم/مفتاح فقط)
@@ -354,7 +356,7 @@ export async function publicGetSchool(code: string) {
   return data as {
     ok: boolean; schoolName: string;
     classes: { id: string; name: string; grade: string }[];
-    examTypes: { key: string; name: string; description?: string; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[];
+    examTypes: { key: string; name: string; description?: string; state?: SchoolExamState; questions?: { id: string; text: string; options: { text: string; score: number }[] }[] }[];
     roles: string[];
   };
 }
