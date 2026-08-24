@@ -166,7 +166,10 @@ export function PublicAssessment({ code }: { code: string }) {
         <p className="mt-1 text-sm text-muted-foreground">حدّد الاختبار الذي تريد الدخول إليه. الاختبارات التي سبق أداؤها مؤخّرًا تظهر مدّة إعادتها.</p>
         {eligLoading && <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> جارٍ التحقق من سجلّك…</div>}
         <div className="mt-4 space-y-2.5">
-          {(examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية", description: "", state: "active" as const }]).map((e) => {
+          {(examTypes.length ? examTypes : [{ key: "leadership", name: "اختبار القيادات الطلابية", description: "", state: "active" as const }])
+            .slice()
+            .sort((a, b) => (a.key === "leadership" ? -1 : b.key === "leadership" ? 1 : 0)) // القيادات دائمًا في الأعلى
+            .map((e) => {
             const el = examElig[e.key];
             const later = (e.state ?? "active") !== "active"; // «لاحقًا» — يظهر دون السماح بالدخول
             const blocked = !later && !!el && !el.eligible;
@@ -186,11 +189,6 @@ export function PublicAssessment({ code }: { code: string }) {
                   </div>
                   {!disabled && <ArrowLeft className="h-4 w-4 text-brand" />}
                 </button>
-                {later && (
-                  <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-                    <div className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4" /> هذا الاختبار سيكون متاحًا لاحقًا — لم تُفعّله مدرستك بعد.</div>
-                  </div>
-                )}
                 {blocked && (
                   <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
                     <div className="flex items-center gap-1.5"><CalendarClock className="h-4 w-4" /> سبق أداؤك لهذا الاختبار{el?.lastDate ? ` بتاريخ ${el.lastDate}` : ""}.</div>
