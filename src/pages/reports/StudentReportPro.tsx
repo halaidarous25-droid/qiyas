@@ -11,6 +11,9 @@ const PRINT_CSS = `
   .slis-print-area, .slis-print-area * { visibility: visible !important; }
   .slis-print-area { position: absolute; inset: 0; margin: 0; padding: 20px; box-shadow: none !important; border: 0 !important; }
   .slis-no-print { display: none !important; }
+  /* دليل المصطلحات: يظهر كاملًا عند الطباعة حتى لو كان مطويًا على الشاشة */
+  details.slis-glossary > *:not(summary) { display: block !important; }
+  details.slis-glossary summary > span { display: none !important; }
   @page { size: A4; margin: 12mm; }
 }
 `;
@@ -356,12 +359,13 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
             </div>
           )}
 
-          {/* ===== دليل المصطلحات: شرح المفاهيم المستخدمة في التقرير ===== */}
-          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-            <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900">
+          {/* ===== دليل المصطلحات: مطوي تلقائيًا حتى لا يطول التقرير ===== */}
+          <details className="slis-glossary mt-6 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 font-bold text-slate-900 [&::-webkit-details-marker]:hidden">
               <ClipboardList className="h-4 w-4 text-brand" /> دليل المصطلحات — شرح المفاهيم المستخدمة في التقرير
-            </div>
-            <p className="mb-2.5 text-[11.5px] text-slate-500">لتسهيل قراءة التقرير وفهمه من قِبل المقيّم أو الطالب، فيما يلي معاني المصطلحات الواردة أعلاه:</p>
+              <span className="mr-auto text-[11px] font-normal text-slate-400">(اضغط للعرض)</span>
+            </summary>
+            <p className="mb-2.5 mt-2 text-[11.5px] text-slate-500">لتسهيل قراءة التقرير وفهمه من قِبل المقيّم أو الطالب، فيما يلي معاني المصطلحات الواردة أعلاه:</p>
             <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
               {[
                 ["المؤشر المركّب", "الدرجة الكلية التي تجمع بين الكفاية النظرية والسلوك الفعلي في رقم واحد يعبّر عن الأداء العام للطالب."],
@@ -396,7 +400,7 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                 ))}
               </ul>
             </div>
-          </div>
+          </details>
 
           <div className="mt-5 border-t border-slate-200 pt-2 text-[10px] text-slate-400">
             تقرير آليّ من نظام مؤشر — للاستخدام الإداري الداخلي في دعم قرار الترشيح.

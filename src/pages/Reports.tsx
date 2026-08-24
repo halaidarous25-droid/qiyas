@@ -6,7 +6,7 @@ import { useSlis } from "@/store";
 import { matchTone, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 import { PieChart, Target, FileText, Layers, TrendingUp, User, Printer } from "lucide-react";
-import { MissionReport, SchoolReport } from "./reports/ReportView";
+import { MissionReport, MissionScopeReport, SchoolReport, type ScopeUnit } from "./reports/ReportView";
 import { StudentReportPro } from "./reports/StudentReportPro";
 
 const STYLE_COLORS = ["hsl(191 72% 30%)", "hsl(36 55% 47%)", "hsl(152 46% 40%)", "hsl(205 70% 45%)", "hsl(280 40% 55%)", "hsl(15 65% 55%)"];
@@ -19,17 +19,50 @@ function candidateStyle(c: Candidate) {
 type OpenReport =
   | { kind: "student"; id: string }
   | { kind: "mission"; id: string }
+  | { kind: "missionScope"; title: string; academicYear: string; scope: "class" | "grade" | "school"; ref: string }
   | { kind: "school" }
   | null;
 
 export function Reports() {
-  const { missions, students, rankMission, assigned, schoolInfo, roles } = useSlis();
+  const { missions, students, rankMission, assigned, schoolInfo, roles, classes } = useSlis();
   const assessed = students.filter((c) => c.assessed);
   const [open, setOpen] = useState<OpenReport>(null);
   const [pickStudent, setPickStudent] = useState("");
-  const [pickMission, setPickMission] = useState("");
+  const [pickGroup, setPickGroup] = useState("");
+  const [pickScope, setPickScope] = useState<"class" | "grade" | "school">("school");
+  const [pickScopeRef, setPickScopeRef] = useState("");
   const today = new Date().toISOString().slice(0, 10);
   const schoolName = schoolInfo.name || "مدرستك";
+
+  // مجموعات المهام حسب (الاسم + السنة الدراسية) — كل مجموعة يمكن توليد تقرير لها بثلاثة نطاقات
+  const classGrade = (name: string) => classes.find((c) => c.name === name)?.grade || "";
+  const missionGroups = Array.from(
+    new Map(missions.map((m) => {
+      const key = `${m.title}|||${m.academicYear || ""}`;
+      return [key, { key, title: m.title, academicYear: m.academicYear || "" }];
+    })).values()
+  );
+  const [gTitle, gYear] = pickGroup.split("|||");
+  const groupMissions = pickGroup ? missions.filter((m) => m.title === gTitle && (m.academicYear || "") === gYear) : [];
+  const groupClasses = Array.from(new Set(groupMissions.filter((m) => m.scopeType === "class" && m.scopeRef).map((m) => m.scopeRef!)));
+  const groupGrades = Array.from(new Set([
+    ...groupClasses.map((cn) => classGrade(cn)).filter(Boolean),
+    ...groupMissions.filter((m) => m.scopeType === "grade" && m.scopeRef).map((m) => m.scopeRef!),
+  ]));
+
+  // بناء وحدات النطاق للتقرير المطلوب
+  const buildScopeUnits = (title: string, year: string, scope: "class" | "grade" | "school", ref: string): ScopeUnit[] => {
+    const grp = missions.filter((m) => m.title === title && (m.academicYear || "") === year);
+    let chosen: Mission[] = [];
+    if (scope === "school") chosen = grp;
+    else if (scope === "grade") chosen = grp.filter((m) => (m.scopeType === "class" && classGrade(m.scopeRef || "") === ref) || (m.scopeType === "grade" && m.scopeRef === ref));
+    else chosen = grp.filter((m) => m.scopeType === "class" && m.scopeRef === ref);
+    return chosen.map((m) => {
+      const ranked = rankMission(m);
+      const asg = ranked.filter((c) => (assigned[m.id] || []).includes(c.id));
+      return { label: m.scopeRef || m.scopeLabel, mission: m, ranked, assigned: asg };
+    });
+  };
 
   const missionReadiness = (m: Mission) => {
     const r = rankMission(m);
@@ -190,16 +223,49 @@ export function Reports() {
             </button>
           </div>
 
-          {/* تقرير المهمة */}
+          {/* تقرير المهمة — بثلاثة نطاقات: فصل / صف / مدرسة مع مقارنات وتحليلات */}
           <div className="rounded-xl border p-4">
             <div className="flex items-center gap-2"><Target className="h-4 w-4 text-brand" /><span className="font-semibold">تقرير مهمة</span></div>
-            <p className="mt-1 text-[11px] text-muted-foreground">ترتيب المرشّحين ومتوسط المواءمة وتغطية المقاعد.</p>
-            <select value={pickMission} onChange={(e) => setPickMission(e.target.value)}
+            <p className="mt-1 text-[11px] text-muted-foreground">اختر المهمة والسنة، ثم النطاق: فصل، أو صف كامل، أو المدرسة — مع مقارنة وتحليل.</p>
+            <select value={pickGroup} onChange={(e) => { setPickGroup(e.target.value); setPickScope("school"); setPickScopeRef(""); }}
               className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
-              <option value="">اختر مهمة…</option>
-              {missions.map((m) => <option key={m.id} value={m.id}>{m.title}{m.academicYear ? ` (${m.academicYear})` : ""} — {m.scopeLabel}</option>)}
+              <option value="">اختر المهمة والسنة…</option>
+              {missionGroups.map((g) => <option key={g.key} value={g.key}>{g.title}{g.academicYear ? ` (${g.academicYear})` : ""}</option>)}
             </select>
-            <button disabled={!pickMission} onClick={() => setOpen({ kind: "mission", id: pickMission })}
+
+            {pickGroup && (
+              <>
+                {/* اختيار النطاق */}
+                <div className="mt-2 flex rounded-lg border p-0.5">
+                  {[{ k: "class", l: "فصل" }, { k: "grade", l: "صف" }, { k: "school", l: "المدرسة" }].map((s) => (
+                    <button key={s.k} onClick={() => { setPickScope(s.k as any); setPickScopeRef(""); }}
+                      className={cn("flex-1 rounded-md py-1 text-[11px] font-semibold", pickScope === s.k ? "bg-brand text-white" : "text-muted-foreground")}>
+                      {s.l}
+                    </button>
+                  ))}
+                </div>
+
+                {/* اختيار الفصل/الصف عند الحاجة */}
+                {pickScope === "class" && (
+                  <select value={pickScopeRef} onChange={(e) => setPickScopeRef(e.target.value)}
+                    className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
+                    <option value="">اختر الفصل…</option>
+                    {groupClasses.map((cn) => <option key={cn} value={cn}>{cn}</option>)}
+                  </select>
+                )}
+                {pickScope === "grade" && (
+                  <select value={pickScopeRef} onChange={(e) => setPickScopeRef(e.target.value)}
+                    className="mt-2 w-full rounded-lg border bg-background px-2 h-9 text-sm">
+                    <option value="">اختر الصف الدراسي…</option>
+                    {groupGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                )}
+              </>
+            )}
+
+            <button
+              disabled={!pickGroup || (pickScope !== "school" && !pickScopeRef)}
+              onClick={() => setOpen({ kind: "missionScope", title: gTitle, academicYear: gYear, scope: pickScope, ref: pickScopeRef })}
               className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand px-3 h-9 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50">
               <Printer className="h-4 w-4" /> توليد
             </button>
@@ -234,6 +300,11 @@ export function Reports() {
         const ranked = rankMission(m);
         const assignedStudents = ranked.filter((c) => (assigned[m.id] || []).includes(c.id));
         return <MissionReport mission={m} ranked={ranked} assignedStudents={assignedStudents} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
+      })()}
+      {open?.kind === "missionScope" && (() => {
+        const units = buildScopeUnits(open.title, open.academicYear, open.scope, open.ref);
+        return <MissionScopeReport title={open.title} academicYear={open.academicYear} scope={open.scope} scopeRef={open.ref}
+          units={units} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
       })()}
       {open?.kind === "school" && (
         <SchoolReport schoolName={schoolName} today={today} onClose={() => setOpen(null)}

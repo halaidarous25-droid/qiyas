@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSlis, currentHijriAcademicYear } from "@/store";
+import { useSlis, currentHijriAcademicYear, academicYearOptions } from "@/store";
 import { En } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { AXES, type ScopeLevel, type AxisScores, type AxisKey, type Mission } from "@/data/mock";
@@ -20,6 +20,7 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
   const [seats, setSeats] = useState(edit?.seats ?? 1);
   const [nominationMode, setNominationMode] = useState<"scope" | "preference">(edit?.nominationMode ?? "preference");
   const [academicYear, setAcademicYear] = useState(edit?.academicYear || currentHijriAcademicYear());
+  const yearOptions = academicYearOptions(missions.map((m) => m.academicYear));
   const [showPriorities, setShowPriorities] = useState(false);
   const [weights, setWeights] = useState<AxisScores>(edit?.weights ? { ...edit.weights } : { ...EVEN_W });
 
@@ -131,14 +132,15 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           </div>
         </div>
 
-        {/* السنة الدراسية — تُعرض دائمًا بجانب اسم المهمة للتفريق بين المهام عبر السنوات */}
+        {/* السنة الدراسية — قائمة منسدلة تضاف إليها السنة التالية تلقائيًا وتبقى السابقة للبحث */}
         <div className="mt-4">
           <label className="block text-sm font-semibold">السنة الدراسية</label>
-          <input type="text" value={academicYear}
-            onChange={(e) => setAcademicYear(e.target.value)}
-            placeholder="مثال: 1447/1448 هـ"
-            className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand" />
-          <p className="mt-1 text-[11px] text-muted-foreground">تظهر بجانب اسم المهمة في كل الشاشات والتقارير للتفريق بينها عبر السنوات.</p>
+          <select value={academicYear} onChange={(e) => setAcademicYear(e.target.value)}
+            className="mt-1 w-full rounded-lg border bg-background px-3 h-11 text-sm outline-none focus:border-brand">
+            {!yearOptions.includes(academicYear) && academicYear && <option value={academicYear}>{academicYear}</option>}
+            {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <p className="mt-1 text-[11px] text-muted-foreground">تظهر بجانب اسم المهمة في كل الشاشات والتقارير. تُضاف السنة التالية تلقائيًا وتبقى السنوات السابقة للبحث والتصفية.</p>
         </div>
 
         {/* الصف الدراسي عند نطاق «الصف الدراسي» */}

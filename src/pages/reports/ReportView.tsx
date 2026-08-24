@@ -311,6 +311,179 @@ export function MissionReport({ mission, ranked, assignedStudents = [], schoolNa
   );
 }
 
+// ===== تقرير المهمة حسب النطاق (فصل / صف / مدرسة) مع مقارنات وتحليلات =====
+export type ScopeUnit = { label: string; mission: Mission; ranked: Candidate[]; assigned: Candidate[] };
+
+export function MissionScopeReport({ title, academicYear, scope, scopeRef, units, schoolName, today, onClose }: {
+  title: string; academicYear?: string; scope: "class" | "grade" | "school"; scopeRef?: string;
+  units: ScopeUnit[]; schoolName: string; today: string; onClose: () => void;
+}) {
+  const scopeName = scope === "class" ? "على مستوى الفصل" : scope === "grade" ? "على مستوى الصف الدراسي" : "على مستوى المدرسة";
+  const scopeTarget = scope === "class" ? (scopeRef || "") : scope === "grade" ? (scopeRef || "") : "كامل المدرسة";
+
+  // تجميع كل المرشّحين والمكلّفين عبر الوحدات (بدون تكرار الطالب)
+  const allRankedMap = new Map<string, Candidate>();
+  units.forEach((u) => u.ranked.forEach((c) => { const p = allRankedMap.get(c.id); if (!p || c.match > p.match) allRankedMap.set(c.id, c); }));
+  const allRanked = Array.from(allRankedMap.values()).sort((a, b) => b.match - a.match);
+  const assignedIds = new Set(units.flatMap((u) => u.assigned.map((c) => c.id)));
+
+  const totalSeats = units.reduce((s, u) => s + (u.mission.seats || 0), 0);
+  const totalAssigned = assignedIds.size;
+  const avg = allRanked.length ? Math.round(allRanked.reduce((s, c) => s + c.match, 0) / allRanked.length) : 0;
+  const seatCov = totalSeats ? Math.round((Math.min(totalSeats, totalAssigned) / totalSeats) * 100) : 0;
+
+  // متوسط المحاور عبر النطاق
+  const axisAvg = AXES.map((a) => ({ key: a.key, label: a.label,
+    v: allRanked.length ? Math.round(allRanked.reduce((s, c) => s + c.axes[a.key], 0) / allRanked.length) : 0 }));
+  const axesObj: Record<string, number> = {}; axisAvg.forEach((a) => (axesObj[a.key] = a.v));
+  const topAxis = [...axisAvg].sort((a, b) => b.v - a.v)[0];
+  const lowAxis = [...axisAvg].sort((a, b) => a.v - b.v)[0];
+
+  // توزيع جودة المواءمة
+  const excellent = allRanked.filter((c) => c.match >= 85).length;
+  const good = allRanked.filter((c) => c.match >= 70 && c.match < 85).length;
+  const low = allRanked.filter((c) => c.match < 70).length;
+  const seg = (n: number) => (allRanked.length ? (n / allRanked.length) * 100 : 0);
+
+  // ملخّص لكل وحدة (للمقارنة)
+  const unitRows = units.map((u) => {
+    const uavg = u.ranked.length ? Math.round(u.ranked.reduce((s, c) => s + c.match, 0) / u.ranked.length) : 0;
+    const top = [...u.ranked].sort((a, b) => b.match - a.match)[0];
+    return { label: u.label, count: u.ranked.length, seats: u.mission.seats || 0, filled: u.assigned.length, avg: uavg, top };
+  }).sort((a, b) => b.avg - a.avg);
+  const bestUnit = unitRows[0];
+  const weakUnit = unitRows[unitRows.length - 1];
+  const multi = units.length > 1;
+
+  return (
+    <ReportShell title={`تقرير المهمة ${scopeName}`}
+      subtitle={`${title}${academicYear ? ` (${academicYear})` : ""} — ${scopeTarget}`}
+      schoolName={schoolName} today={today} onClose={onClose}>
+
+      {/* شارات */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-3 py-1.5 text-[13px] font-bold text-brand">{title}</span>
+        {academicYear && <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/5 px-3 py-1.5 text-[12px] font-semibold text-brand">السنة الدراسية: {academicYear}</span>}
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] font-semibold text-amber-800">النطاق: {scopeName} — {scopeTarget}</span>
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-700">عدد الوحدات: <En>{units.length}</En></span>
+      </div>
+
+      {units.length === 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center text-[13px] text-amber-800">
+          لا توجد مهام «{title}»{academicYear ? ` للسنة ${academicYear}` : ""} ضمن هذا النطاق.
+        </div>
+      ) : (
+        <>
+          {/* بطاقات علوية مجمّعة */}
+          <div className="grid gap-2.5 sm:grid-cols-5">
+            <Stat label={multi ? "الوحدات" : "المهمة"} value={<En>{units.length}</En>} />
+            <Stat label="إجمالي المرشّحين" value={<En>{allRanked.length}</En>} />
+            <Stat label="إجمالي المقاعد" value={<En>{totalSeats}</En>} tone="gold" />
+            <Stat label="المكلّفون" value={<><En>{totalAssigned}</En>/<En>{totalSeats}</En></>} sub={`تغطية ${seatCov}%`} tone="emerald" />
+            <Stat label="متوسط المواءمة" value={<><En>{avg}</En>%</>} tone="brand" />
+          </div>
+
+          {/* راداري + توزيع الجودة */}
+          <div className="mt-4 grid items-center gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 p-2">
+              <div className="mb-1 text-center text-[12px] font-bold text-slate-700">متوسط المحاور {scopeName}</div>
+              <div className="flex justify-center"><MiniRadar axes={axesObj} /></div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1 text-[12px] font-bold text-slate-700">توزيع جودة المواءمة</div>
+                <div className="flex h-5 overflow-hidden rounded-md border border-slate-200">
+                  <div className="bg-emerald-500" style={{ width: `${seg(excellent)}%` }} />
+                  <div className="bg-brand" style={{ width: `${seg(good)}%` }} />
+                  <div className="bg-amber-400" style={{ width: `${seg(low)}%` }} />
+                </div>
+                <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-600">
+                  <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> ممتاز (≥85): <En>{excellent}</En></span>
+                  <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-brand" /> جيد (70–84): <En>{good}</En></span>
+                  <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-amber-400" /> متوسط (&lt;70): <En>{low}</En></span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-2.5 text-[12px] leading-6 text-slate-700">
+                <div className="font-bold text-slate-900">تحليل موجز</div>
+                أقوى محور {scopeName}: <b>{topAxis?.label}</b> (<En>{topAxis?.v}</En>٪)، وأضعفها: <b>{lowAxis?.label}</b> (<En>{lowAxis?.v}</En>٪).
+                {multi && bestUnit && weakUnit && bestUnit.label !== weakUnit.label && (
+                  <> أعلى وحدة مواءمةً: <b>{bestUnit.label}</b> (<En>{bestUnit.avg}</En>٪)، وأدناها: <b>{weakUnit.label}</b> (<En>{weakUnit.avg}</En>٪).</>
+                )}
+                {totalAssigned >= totalSeats ? " اكتمل تكليف جميع المقاعد ضمن النطاق." : ` تبقّى ${totalSeats - totalAssigned} مقعد بحاجة إلى تكليف.`}
+              </div>
+            </div>
+          </div>
+
+          {/* جدول المقارنة بين الوحدات — يظهر عند وجود أكثر من وحدة */}
+          {multi && (
+            <div className="mt-4">
+              <div className="mb-1 font-bold text-slate-900">مقارنة الوحدات ضمن النطاق</div>
+              <table className="w-full border-collapse text-[12px]">
+                <thead>
+                  <tr className="text-slate-500">
+                    <th className="border-b border-slate-200 p-2 text-right">الوحدة</th>
+                    <th className="border-b border-slate-200 p-2 text-center">المرشّحون</th>
+                    <th className="border-b border-slate-200 p-2 text-center">المقاعد</th>
+                    <th className="border-b border-slate-200 p-2 text-center">المكلّفون</th>
+                    <th className="border-b border-slate-200 p-2 text-center">متوسط المواءمة</th>
+                    <th className="border-b border-slate-200 p-2 text-right">أعلى مرشّح</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unitRows.map((u) => (
+                    <tr key={u.label}>
+                      <td className="border-b border-slate-100 p-2 font-medium">{u.label}</td>
+                      <td className="border-b border-slate-100 p-2 text-center"><En>{u.count}</En></td>
+                      <td className="border-b border-slate-100 p-2 text-center"><En>{u.seats}</En></td>
+                      <td className="border-b border-slate-100 p-2 text-center"><En>{u.filled}/{u.seats}</En></td>
+                      <td className="border-b border-slate-100 p-2">
+                        <div className="flex items-center justify-center gap-1.5"><Bar v={u.avg} /> <span className="font-bold"><En>{u.avg}%</En></span></div>
+                      </td>
+                      <td className="border-b border-slate-100 p-2">{u.top ? <>{u.top.name} <span className="text-slate-400">(<En>{u.top.match}%</En>)</span></> : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* أفضل المرشّحين على مستوى النطاق */}
+          <div className="mt-4">
+            <div className="mb-1 font-bold text-slate-900">{multi ? "أفضل المرشّحين على مستوى النطاق" : "ترتيب المرشّحين حسب المواءمة"}</div>
+            <table className="w-full border-collapse text-[12px]">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="border-b border-slate-200 p-2 text-right">#</th>
+                  <th className="border-b border-slate-200 p-2 text-right">الطالب</th>
+                  <th className="border-b border-slate-200 p-2 text-right">الصف/الفصل</th>
+                  <th className="border-b border-slate-200 p-2 text-center">المواءمة</th>
+                  <th className="border-b border-slate-200 p-2 text-center">الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(multi ? allRanked.slice(0, 15) : allRanked).map((c, i) => (
+                  <tr key={c.id} className={assignedIds.has(c.id) ? "bg-emerald-50/60" : ""}>
+                    <td className="border-b border-slate-100 p-2"><En>{i + 1}</En></td>
+                    <td className="border-b border-slate-100 p-2 font-medium">{c.name}</td>
+                    <td className="border-b border-slate-100 p-2">{c.className || "—"}</td>
+                    <td className="border-b border-slate-100 p-2">
+                      <div className="flex items-center justify-center gap-1.5"><Bar v={c.match} /> <span className="font-bold"><En>{c.match}%</En></span></div>
+                    </td>
+                    <td className="border-b border-slate-100 p-2 text-center">
+                      {assignedIds.has(c.id) ? <span className="font-semibold text-emerald-700">مكلّف</span> : <span className="text-brand">مرشّح</span>}
+                    </td>
+                  </tr>
+                ))}
+                {allRanked.length === 0 && <tr><td colSpan={5} className="p-3 text-center text-slate-500">لا مرشّحون بعد.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </ReportShell>
+  );
+}
+
 // ===== تقرير المدرسة =====
 export function SchoolReport({ schoolName, today, onClose, stats }: {
   schoolName: string; today: string; onClose: () => void;

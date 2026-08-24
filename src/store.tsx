@@ -36,6 +36,32 @@ export function currentHijriAcademicYear(): string {
   return "";
 }
 
+// تنسيق سنة دراسية من سنة البداية الهجرية
+export function fmtAcademicYear(startYear: number): string {
+  return `${startYear}/${startYear + 1} هـ`;
+}
+// استخراج سنة البداية من نص سنة دراسية («1446/1447 هـ» → 1446)
+function parseYearStart(s?: string): number | null {
+  if (!s) return null;
+  const m = s.match(/\d{4}/);
+  const n = m ? parseInt(m[0], 10) : NaN;
+  return Number.isNaN(n) ? null : n;
+}
+// قائمة خيارات السنوات الدراسية: تشمل كل السنوات السابقة الموجودة + الحالية + السنة التالية
+// (كل سنة تُضاف تظهر معها التي بعدها، وتبقى السنوات السابقة للبحث والتصفية)
+export function academicYearOptions(existing: (string | undefined)[] = []): string[] {
+  const starts = new Set<number>();
+  existing.forEach((e) => { const y = parseYearStart(e); if (y) starts.add(y); });
+  const cur = parseYearStart(currentHijriAcademicYear());
+  if (cur) starts.add(cur);
+  if (starts.size === 0) return [];
+  const min = Math.min(...starts);
+  const max = Math.max(...starts) + 1; // السنة التالية دائمًا متاحة
+  const out: string[] = [];
+  for (let y = min; y <= max; y++) out.push(fmtAcademicYear(y));
+  return out.sort((a, b) => (parseYearStart(b)! - parseYearStart(a)!)); // الأحدث أولًا
+}
+
 export interface WeightPreset { name: string; weights: AxisScores }
 // مسمّى قيادي في «قائمة المهام القيادية» — يغذّي إنشاء المهمة والمواءمة الذكية
 export interface MissionRole {
