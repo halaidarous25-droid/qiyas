@@ -101,6 +101,7 @@ interface Store {
   addTeacher: (t: { name: string; role: string; nationalId?: string; email?: string; phone?: string }) => void;
   reload: () => void;   // إعادة تحميل بيانات المدرسة من قاعدة البيانات
   addClass: (c: { name: string; grade: string; homeroom: string }) => void;
+  bulkCreateHomeroomMissions: () => void;   // إنشاء «عريف فصل» لكل فصل (مقعد واحد، بالرغبة، بأوزان المسمّى)
   updateClass: (id: string, patch: { name?: string; grade?: string; homeroom?: string }) => void;
   removeClass: (id: string) => void;
   rankMission: (m: Mission) => Candidate[];
@@ -258,6 +259,46 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
     };
     setMissions((list) => [nm, ...list]);
     toast(elig.length > 0 ? `أُنشئت المهمة ورُشِّح ${elig.length} طالبًا تلقائيًا` : `أُنشئت المهمة «${m.title}» بنجاح`);
+  };
+
+  const HOMEROOM_TITLE = "عريف فصل";
+  const bulkCreateHomeroomMissions: Store["bulkCreateHomeroomMissions"] = () => {
+    const role = roles.find((r) => r.title === HOMEROOM_TITLE && r.active !== false)
+      || roles.find((r) => r.title === HOMEROOM_TITLE);
+    if (!role) { toast("أضِف مسمّى «عريف فصل» في «المهام القيادية» أولًا لضبط أوزانه", "danger"); return; }
+    if (classes.length === 0) { toast("لا توجد فصول مسجّلة لإنشاء المهام لها", "info"); return; }
+    const weights = role.weights;
+    const targets = classes.filter((c) => !missions.some((m) => m.title === HOMEROOM_TITLE && m.scopeType === "class" && m.scopeRef === c.name));
+    const skipped = classes.length - targets.length;
+    if (targets.length === 0) { toast(`جميع الفصول لديها مهمة «عريف فصل» مسبقًا (${skipped}) — لم يُنشأ شيء`, "info"); return; }
+
+    if (isLive && schoolId) {
+      (async () => {
+        let created = 0;
+        try {
+          for (const c of targets) {
+            const cm: any = await api.dbAddMission(schoolId, { title: HOMEROOM_TITLE, scopeType: "class", scopeRef: c.name, seats: 1, mode, weights, nominationMode: "preference" });
+            const elig = eligibleForMission(HOMEROOM_TITLE, "class", c.name, "preference");
+            for (const s of elig) await api.dbApply(schoolId, { id: cm.id, weights: cm.weights } as Mission, s, true);
+            created++;
+          }
+          await resync();
+          toast(`أُنشئت ${created} مهمة «عريف فصل»${skipped ? ` وتُخطّي ${skipped} موجودة مسبقًا` : ""}`);
+        } catch (e: any) { toast(`تعذّر الإنشاء: ${e.message || e}`, "danger"); }
+      })();
+      return;
+    }
+    // وضع تجريبي
+    const nm: Mission[] = targets.map((c, i) => {
+      const elig = eligibleForMission(HOMEROOM_TITLE, "class", c.name, "preference");
+      return {
+        id: `mh${mid++}_${i}`, title: HOMEROOM_TITLE, scopeType: "class", scopeLabel: `فصل: ${c.name}`, scopeRef: c.name,
+        mode, seats: 1, supervisor: "أ. سعد المالكي", status: "open", applicants: elig.length, eligible: 214,
+        createdAt: "1446/03/01", weights, candidateIds: elig.map((s) => s.id), nominationMode: "preference",
+      } as Mission;
+    });
+    setMissions((list) => [...nm, ...list]);
+    toast(`أُنشئت ${nm.length} مهمة «عريف فصل»${skipped ? ` وتُخطّي ${skipped} موجودة مسبقًا` : ""}`);
   };
 
   const assignCandidate: Store["assignCandidate"] = (missionId, candId, name) => {
@@ -765,7 +806,7 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
       devPlans, saveDevPlan, resolveIndReq, saveSettings, schoolInfo, updateSchoolInfo, presets, savePreset, deletePreset, roles, saveRole, deleteRole,
       me: students.find((s) => s.id === meId) ?? null,
       meAssessed, applyToMission, completeAssessment, isMeIn, isMeAssigned,
-      students, teachers, classes, addStudent, updateStudent, removeStudent, saveStudentNotes, seenStudents, markStudentSeen, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, rankMission, studentMissionsFor, studentMissionStats,
+      students, teachers, classes, addStudent, updateStudent, removeStudent, saveStudentNotes, seenStudents, markStudentSeen, bulkAddStudents, addTeacher, updateTeacher, removeTeacher, deleteMission, reload: resync, addClass, updateClass, removeClass, bulkCreateHomeroomMissions, rankMission, studentMissionsFor, studentMissionStats,
     }}>
       {children}
     </Ctx.Provider>

@@ -5,7 +5,7 @@ import { useSlis } from "@/store";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
-import { Target, Users, MapPin, ArrowLeft, Plus, SlidersHorizontal, Search } from "lucide-react";
+import { Target, Users, MapPin, ArrowLeft, Plus, SlidersHorizontal, Search, Sparkles } from "lucide-react";
 
 const FILTERS: { key: MissionStatus | "all"; label: string }[] = [
   { key: "all", label: "الكل" },
@@ -67,7 +67,7 @@ function MissionCard({ m, onOpen, applied, qualified }: { m: Mission; onOpen: (i
 }
 
 export function Missions({ onOpenMission }: { onOpenMission: (id: string) => void }) {
-  const { missions, assigned, can, classes, students } = useSlis();
+  const { missions, assigned, can, classes, students, bulkCreateHomeroomMissions } = useSlis();
   // متقدّم = عدد المتقدمين/المرشّحين، مؤهّل = من بينهم من أدّى المقياس
   const appliedOf = (m: typeof missions[number]) => m.candidateIds.length;
   const qualifiedOf = (m: typeof missions[number]) =>
@@ -115,10 +115,18 @@ export function Missions({ onOpenMission }: { onOpenMission: (id: string) => voi
           </p>
         </div>
         {can("missions") && (
-          <button onClick={() => setCreating(true)}
-            className="flex items-center gap-2 rounded-lg bg-brand px-4 h-10 text-sm font-semibold text-white shadow-sm hover:bg-brand/90">
-            <Plus className="h-4 w-4" /> إنشاء مهمة
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => {
+              if (confirm("سيتم إنشاء مهمة «عريف فصل» (مقعد واحد، بالرغبة، بأوزان المسمّى) لكل فصل ليس لديه مهمة عريف فصل. متابعة؟")) bulkCreateHomeroomMissions();
+            }}
+              className="flex items-center gap-2 rounded-lg border border-brand/40 text-brand px-4 h-10 text-sm font-semibold hover:bg-brand/10">
+              <Sparkles className="h-4 w-4" /> عريف فصل لكل فصل
+            </button>
+            <button onClick={() => setCreating(true)}
+              className="flex items-center gap-2 rounded-lg bg-brand px-4 h-10 text-sm font-semibold text-white shadow-sm hover:bg-brand/90">
+              <Plus className="h-4 w-4" /> إنشاء مهمة
+            </button>
+          </div>
         )}
       </div>
 

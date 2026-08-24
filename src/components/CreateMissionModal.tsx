@@ -25,16 +25,27 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
   // الصفوف الدراسية المتاحة (من الفصول) وأسماء الفصول
   const gradeLevels = Array.from(new Set(classes.map((c) => c.grade).filter(Boolean)));
 
-  const valid = title.trim().length >= 2 &&
-    (scopeType === "school" || (scopeType === "grade" && !!scopeRef) || (scopeType === "class" && !!scopeRef));
+  // «عريف فصل» يجب أن يكون على مستوى فصل محدّد دائمًا
+  const isHomeroom = title.trim() === "عريف فصل";
 
-  // منع تكرار نفس المهمة (نفس العنوان) في نفس النطاق (نفس الصف أو نفس الفصل أو المدرسة)
+  const valid = title.trim().length >= 2 &&
+    (isHomeroom ? (scopeType === "class" && !!scopeRef)
+      : (scopeType === "school" || (scopeType === "grade" && !!scopeRef) || (scopeType === "class" && !!scopeRef)));
+
+  // منع تكرار نفس المهمة في نفس النطاق — مع قاعدة السماح بإنشاء جديدة بعد ٣ أشهر
   const effRef = scopeType === "grade" || scopeType === "class" ? scopeRef : "";
-  const duplicate = title.trim().length >= 2 && missions.some((m) =>
+  const matches = missions.filter((m) =>
     m.id !== edit?.id &&
     m.title.trim() === title.trim() &&
     m.scopeType === scopeType &&
     (m.scopeRef || "") === (effRef || ""));
+  const THREE_MONTHS = 90 * 86400000;
+  const recentMatch = matches.find((m) => {
+    const t = Date.parse(m.createdAt);
+    return isNaN(t) ? true : (Date.now() - t) < THREE_MONTHS; // تعذّر قراءة التاريخ = نمنع احتياطًا
+  });
+  const duplicate = title.trim().length >= 2 && !!recentMatch;          // يمنع الإنشاء
+  const oldMatchOnly = title.trim().length >= 2 && !recentMatch && matches.length > 0; // مسموح مع تنبيه
 
   const wSum = AXES.reduce((s, a) => s + weights[a.key], 0);
   const normalize = (w: AxisScores): AxisScores => {
@@ -51,6 +62,8 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
     if (!r) { setTitle(""); return; }
     setTitle(r.title);
     setWeights({ ...r.weights });
+    // عريف فصل: ألزم النطاق بفصل محدّد
+    if (r.title === "عريف فصل") { setScopeType("class"); setScopeRef(""); }
   };
 
   const submit = () => {
@@ -96,13 +109,17 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
           <div>
             <label className="block text-sm font-semibold">النطاق</label>
             <div className="mt-1 flex rounded-lg border p-0.5">
-              {SCOPES.map((s) => (
-                <button key={s.k} onClick={() => { setScopeType(s.k); setScopeRef(""); }}
-                  className={cn("flex-1 rounded-md py-1.5 text-[11px] font-semibold", scopeType === s.k ? "bg-brand text-white" : "text-muted-foreground")}>
-                  {s.l}
-                </button>
-              ))}
+              {SCOPES.map((s) => {
+                const locked = isHomeroom && s.k !== "class"; // عريف فصل: فصل محدّد فقط
+                return (
+                  <button key={s.k} disabled={locked} onClick={() => { if (locked) return; setScopeType(s.k); setScopeRef(""); }}
+                    className={cn("flex-1 rounded-md py-1.5 text-[11px] font-semibold", scopeType === s.k ? "bg-brand text-white" : "text-muted-foreground", locked && "opacity-40 cursor-not-allowed")}>
+                    {s.l}
+                  </button>
+                );
+              })}
             </div>
+            {isHomeroom && <p className="mt-1 text-[10px] text-muted-foreground">«عريف فصل» يكون على مستوى فصل محدّد فقط.</p>}
           </div>
           <div>
             <label className="block text-sm font-semibold">عدد المقاعد</label>
@@ -184,11 +201,15 @@ export function CreateMissionModal({ onClose, edit }: { onClose: () => void; edi
 
         {duplicate ? (
           <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-[12px] text-danger">
-            ⚠ توجد مهمة بنفس الاسم في هذا النطاق ({scopeType === "school" ? "كامل المدرسة" : scopeRef}). لا يمكن تكرار نفس المهمة في نفس الصف أو الفصل.
+            ⚠ توجد مهمة «{title.trim()}» في هذا النطاق ({scopeType === "school" ? "كامل المدرسة" : scopeRef}) أُنشئت بتاريخ <span className="font-mono" dir="ltr">{recentMatch?.createdAt}</span>. لا يمكن إنشاء مهمة جديدة إلا بعد ٣ أشهر من إنشائها — يُكتفى بالمهمة الحالية.
+          </div>
+        ) : oldMatchOnly ? (
+          <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+            ℹ توجد مهمة سابقة بنفس الاسم في هذا النطاق مضى على إنشائها أكثر من ٣ أشهر — يمكنك إنشاء مهمة جديدة الآن.
           </div>
         ) : (
           <div className="mt-3 rounded-lg border border-brand/25 bg-brand/5 px-3 py-2 text-[11px] text-brand">
-            يعمل النظام تلقائيًا: يُرشّح ويُقيّم الطلاب المؤهّلين ضمن النطاق فور إنشاء المهمة.
+            يعمل النظام تلقائيًا: يُرشّح الطلاب ضمن النطاق فور إنشاء المهمة حسب آلية الترشيح المختارة.
           </div>
         )}
 
