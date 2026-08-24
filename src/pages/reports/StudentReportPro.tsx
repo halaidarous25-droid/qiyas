@@ -1,4 +1,5 @@
 import { AXES, TRUST_META, computeMatch, type Candidate, type Mission } from "@/data/mock";
+import type { MissionRole } from "@/store";
 import { EXPERIENCE_LABELS } from "@/data/questions";
 import { leadershipStyle } from "@/lib/scoring";
 import { En } from "@/components/common";
@@ -99,8 +100,8 @@ function RecoCard({ icon: Icon, title, tone, items }: {
   );
 }
 
-export function StudentReportPro({ student, missions, assignedMissions = [], schoolName, today, onClose }: {
-  student: Candidate; missions: Mission[]; assignedMissions?: Mission[]; schoolName: string; today: string; onClose: () => void;
+export function StudentReportPro({ student, missions, assignedMissions = [], roles = [], schoolName, today, onClose }: {
+  student: Candidate; missions: Mission[]; assignedMissions?: Mission[]; roles?: MissionRole[]; schoolName: string; today: string; onClose: () => void;
 }) {
   const style = leadershipStyle(
     [...AXES].sort((a, b) => student.axes[b.key] - student.axes[a.key]).slice(0, 2).map((a) => a.key)
@@ -116,6 +117,28 @@ export function StudentReportPro({ student, missions, assignedMissions = [], sch
     .map((m) => ({ m, match: computeMatch(student, m) }))
     .sort((a, b) => b.match - a.match);
   const suitable = ranked.filter((r) => r.match >= 70);
+
+  // ===== مطابقة ذكية مع الوصف الوظيفي للمسمّيات + الخبرات السابقة =====
+  const sPrefs = (student as any).rolePrefs as { role_title: string; prior_assigned: boolean }[] | undefined;
+  const priorTitles = new Set((sPrefs || []).filter((p) => p.prior_assigned).map((p) => p.role_title));
+  const chosenTitles = new Set((sPrefs || []).map((p) => p.role_title));
+  const assignedTitles = new Set(assignedMissions.map((m) => m.title));
+  const experienceTitles = Array.from(new Set([...priorTitles, ...assignedTitles]));
+
+  const roleFits = roles.filter((r) => r.active !== false).map((r) => {
+    // نسبة التطابق = نتائج محاور الطالب موزونة بأولويات الوصف الوظيفي للمسمّى
+    const fit = Math.round(AXES.reduce((s, a) => s + student.axes[a.key] * (r.weights[a.key] || 0), 0) / 100);
+    const hasPrior = priorTitles.has(r.title) || assignedTitles.has(r.title);
+    const chosen = chosenTitles.has(r.title);
+    // ملاءمة نهائية محدودة: التطابق + أثر بسيط للخبرة السابقة (حتى +٥)
+    const suitability = Math.min(100, fit + (hasPrior ? 5 : 0));
+    const keyAxes = AXES.filter((a) => (r.weights[a.key] || 0) >= 20); // محاور المسمّى الأعلى وزنًا
+    const strengths = keyAxes.filter((a) => student.axes[a.key] >= 75);
+    const gaps = keyAxes.filter((a) => student.axes[a.key] < 70);
+    const verdict = suitability >= 85 ? "عالي التطابق" : suitability >= 70 ? "مناسب" : "أقل تطابقًا";
+    return { r, fit, suitability, hasPrior, chosen, strengths, gaps, verdict };
+  }).sort((a, b) => b.suitability - a.suitability);
+  const bestFit = roleFits[0];
 
   // المحاولات (الأحدث أولًا)
   const attempts = student.attempts || [];
@@ -136,6 +159,8 @@ export function StudentReportPro({ student, missions, assignedMissions = [], sch
   const gap = student.competency - student.behavior;
   if (gap >= 20) decisionItems.push(`فجوة بين الكفاية النظرية (${student.competency}٪) والسلوك الفعلي (${student.behavior}٪): قوي معرفيًا ويحتاج فرص تطبيق عملي.`);
   else if (gap <= -20) decisionItems.push(`السلوك الفعلي (${student.behavior}٪) أعلى من الكفاية النظرية (${student.competency}٪): عملي وميداني، ويُدعَم جانبه المعرفي.`);
+  if (experienceTitles.length > 0) decisionItems.push(`لدى الطالب خبرة سابقة في: ${experienceTitles.join("، ")} — تُرجّح جاهزيته لأدوار مماثلة.`);
+  if (bestFit) decisionItems.push(`أعلى تطابق مع الوصف الوظيفي: «${bestFit.r.title}» بنسبة ${bestFit.suitability}٪ (${bestFit.verdict}).`);
 
   // 2) نقاط الاستثمار الفوري (نقاط القوة)
   const leverageItems = strengths.map((a) => `${a.label} (${student.axes[a.key]}٪): ${AXIS_LEVERAGE[a.key]}`);
@@ -274,6 +299,39 @@ export function StudentReportPro({ student, missions, assignedMissions = [], sch
               <div className="mt-3"><RecoCard icon={AlertTriangle} tone="rose" title="تنبيهات المصداقية والملاحظات" items={alertItems} /></div>
             )}
           </div>
+
+          {/* ===== مطابقة الطالب مع الوصف الوظيفي للمسمّيات (تحليل ذكي) ===== */}
+          {roleFits.length > 0 && (
+            <div className="mt-5">
+              <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900"><Target className="h-4 w-4 text-brand" /> مطابقة الطالب مع الوصف الوظيفي للمسمّيات القيادية</div>
+              <div className="space-y-2.5">
+                {roleFits.slice(0, 5).map(({ r, fit, suitability, hasPrior, chosen, strengths, gaps, verdict }) => {
+                  const vTone = suitability >= 85 ? "text-emerald-700" : suitability >= 70 ? "text-brand" : "text-amber-700";
+                  return (
+                    <div key={r.id} className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-slate-900">{r.title}</span>
+                        <span className={`text-[11px] font-bold ${vTone}`}>{verdict}</span>
+                        {hasPrior && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">خبرة سابقة</span>}
+                        {chosen && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">من اختيار الطالب</span>}
+                        <span className="mr-auto flex items-center gap-2">
+                          <Bar v={suitability} />
+                          <span className="font-display text-sm font-extrabold text-brand"><En>{suitability}</En>٪</span>
+                        </span>
+                      </div>
+                      {r.description && <div className="mt-1 text-[11.5px] text-slate-500">{r.description}</div>}
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                        <span className="text-slate-600">تطابق المحاور: <b className="text-slate-800"><En>{fit}</En>٪</b></span>
+                        {strengths.length > 0 && <span className="text-emerald-700">نقاط تطابق: {strengths.map((a) => a.label).join("، ")}</span>}
+                        {gaps.length > 0 && <span className="text-amber-700">فجوات على محاور المسمّى: {gaps.map((a) => a.label).join("، ")}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-1.5 text-[11px] text-slate-500">تُحسب نسبة التطابق من مطابقة نتائج محاور الطالب مع أوزان الوصف الوظيفي لكل مسمّى، وتُراعى الخبرة السابقة بأثر محدود.</div>
+            </div>
+          )}
 
           {/* ===== سجل المحاولات (التاريخ والفروقات) ===== */}
           {attemptCount > 1 && (

@@ -23,7 +23,7 @@ type OpenReport =
   | null;
 
 export function Reports() {
-  const { missions, students, rankMission, assigned, schoolInfo } = useSlis();
+  const { missions, students, rankMission, assigned, schoolInfo, roles } = useSlis();
   const assessed = students.filter((c) => c.assessed);
   const [open, setOpen] = useState<OpenReport>(null);
   const [pickStudent, setPickStudent] = useState("");
@@ -225,7 +225,7 @@ export function Reports() {
         const s = students.find((c) => c.id === open.id);
         if (!s) return null;
         const assignedMissions = missions.filter((m) => (assigned[m.id] || []).includes(s.id));
-        return <StudentReportPro student={s} missions={missions} assignedMissions={assignedMissions} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
+        return <StudentReportPro student={s} missions={missions} assignedMissions={assignedMissions} roles={roles} schoolName={schoolName} today={today} onClose={() => setOpen(null)} />;
       })()}
       {open?.kind === "mission" && (() => {
         const m = missions.find((x) => x.id === open.id);
