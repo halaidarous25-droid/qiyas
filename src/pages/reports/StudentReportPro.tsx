@@ -1,43 +1,62 @@
-import { AXES, TRUST_META, computeMatch, type Candidate, type Mission } from "@/data/mock";
+import { createPortal } from "react-dom";
+import { AXES, computeMatch, type Candidate, type Mission } from "@/data/mock";
 import type { MissionRole } from "@/store";
 import { EXPERIENCE_LABELS } from "@/data/questions";
 import { leadershipStyle } from "@/lib/scoring";
 import { En } from "@/components/common";
-import { Printer, X, Award, Target, TrendingUp, AlertTriangle, CheckCircle2, History, ClipboardList, Lightbulb, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { Printer, X, Award, Target, TrendingUp, AlertTriangle, CheckCircle2, ClipboardList, Lightbulb, ShieldCheck, ArrowUpRight, Gauge } from "lucide-react";
 
+// طبقة الطباعة: يُنقل التقرير إلى جسم الصفحة (portal) ويُخفى ما عداه بالكامل حتى تُطبع نسخة واحدة فقط
 const PRINT_CSS = `
 @media print {
-  body * { visibility: hidden !important; }
-  .slis-print-area, .slis-print-area * { visibility: visible !important; }
-  .slis-print-area { position: absolute; inset: 0; margin: 0; padding: 20px; box-shadow: none !important; border: 0 !important; }
+  /* إخفاء كل ما هو خارج ورقة التقرير (يمنع تكرار النسخ والصفحات الفارغة) */
+  body > *:not(.slis-report-portal) { display: none !important; }
+  .slis-report-portal { position: static !important; background: #fff !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+  .slis-report-portal .slis-report-inner { max-width: none !important; margin: 0 !important; }
+  .slis-print-area { position: static !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
   .slis-no-print { display: none !important; }
-  /* دليل المصطلحات: يظهر كاملًا عند الطباعة حتى لو كان مطويًا على الشاشة */
+  /* دليل المصطلحات يظهر كاملًا عند الطباعة حتى لو كان مطويًا */
   details.slis-glossary > *:not(summary) { display: block !important; }
-  details.slis-glossary summary > span { display: none !important; }
+  details.slis-glossary summary > span.slis-hint { display: none !important; }
   @page { size: A4; margin: 12mm; }
 }
 `;
 
 const AX_KEYS = AXES.map((a) => a.key);
 
-// توصيات استثمار نقاط القوة (لكل محور)
+// توصيات استثمار نقاط القوة (لكل محور) — نصوص وصفية بلا أرقام
 const AXIS_LEVERAGE: Record<string, string> = {
-  org: "كلّفه بتنظيم الفعاليات والجداول ومتابعة الالتزام — يبرع في الأدوار التنظيمية والإدارية.",
-  lead: "امنحه قيادة فريق صغير أو مسؤولية مباشرة؛ لديه استعداد قيادي واضح يستحق التوظيف.",
-  comm: "استثمر مهاراته في التنسيق بين الفرق والعرض والتمثيل والتواصل مع الجهات.",
-  firm: "أوكِل إليه مهام تتطلب حزمًا ونزاهة كالمتابعة والرقابة والتحكيم وحفظ النظام.",
-  init: "ضعه في مهام تحتاج مبادرة ومرونة وابتكارًا ومواجهة المتغيّرات المفاجئة.",
+  org: "يبرع في الأدوار التنظيمية والإدارية؛ كلّفه بتنظيم الفعاليات والجداول ومتابعة الالتزام.",
+  lead: "لديه استعداد قيادي واضح؛ امنحه قيادة فريق صغير أو مسؤولية مباشرة.",
+  comm: "قوي في التواصل؛ استثمره في التنسيق بين الفرق والعرض والتمثيل.",
+  firm: "يتميّز بالحزم والنزاهة؛ أوكِل إليه المتابعة والرقابة وحفظ النظام.",
+  init: "صاحب مبادرة ومرونة؛ ضعه في المهام التي تحتاج ابتكارًا ومواجهة المتغيّرات.",
 };
-// توصيات تطوير فرص النمو (لكل محور)
+// توصيات تطوير فرص النمو (لكل محور) — نصوص وصفية بلا أرقام
 const AXIS_DEVELOP: Record<string, string> = {
-  org: "درّبه على إدارة الوقت وترتيب الأولويات وإنهاء المهام في مواعيدها المحدّدة.",
+  org: "درّبه على إدارة الوقت وترتيب الأولويات وإنهاء المهام في مواعيدها.",
   lead: "امنحه مسؤوليات صغيرة متدرّجة لبناء الثقة القيادية خطوةً بخطوة.",
   comm: "أشركه في أنشطة جماعية وعروض قصيرة لتطوير التواصل والثقة أمام الآخرين.",
   firm: "درّبه على اتخاذ المواقف الواضحة والالتزام بالقيم حتى تحت الضغط.",
-  init: "شجّعه على اقتراح أفكار جديدة والتعامل مع التغيير بمرونة ودون قلق.",
+  init: "شجّعه على اقتراح أفكار جديدة والتعامل مع التغيير بمرونة.",
 };
 
-// رسم راداري (مخمّس) لمحاور القيادة الخمسة
+// وصف مستوى المحور بالكلمات (بدل النسبة)
+function axisLevel(v: number): { label: string; tone: string } {
+  if (v >= 78) return { label: "مرتفع", tone: "text-emerald-700" };
+  if (v >= 62) return { label: "متوسط", tone: "text-brand" };
+  return { label: "يحتاج تطوير", tone: "text-amber-700" };
+}
+// وصف المؤشر العام بالكلمات
+function overallLabel(v: number): string {
+  if (v >= 85) return "ممتاز";
+  if (v >= 75) return "جيد جدًا";
+  if (v >= 65) return "جيد";
+  if (v >= 50) return "متوسط";
+  return "يحتاج تطوير";
+}
+
+// رسم راداري (مخمّس) لمحاور القيادة الخمسة — تمثيل بصري بلا أرقام
 function Radar({ axes }: { axes: Record<string, number> }) {
   const cx = 130, cy = 120, R = 95;
   const n = AX_KEYS.length;
@@ -77,8 +96,8 @@ function Bar({ v }: { v: number }) {
   );
 }
 
-// بطاقة توصيات على شكل نقاط واضحة
-function RecoCard({ icon: Icon, title, tone, items }: {
+// بطاقة نقاط بالكلمات (بلا نسب)
+function WordCard({ icon: Icon, title, tone, items }: {
   icon: any; title: string; tone: "brand" | "emerald" | "amber" | "rose"; items: string[];
 }) {
   const tones: Record<string, string> = {
@@ -109,84 +128,84 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
   const style = leadershipStyle(
     [...AXES].sort((a, b) => student.axes[b.key] - student.axes[a.key]).slice(0, 2).map((a) => a.key)
   );
-  const trust = TRUST_META[student.trust];
   const sorted = [...AXES].sort((a, b) => student.axes[b.key] - student.axes[a.key]);
   const strengths = sorted.slice(0, 2);
   const growth = sorted.slice(-2);
 
-  // المهام المناسبة: تحسب المواءمة لكل مهمة مفتوحة وترتّبها
-  const openMissions = missions.filter((m) => ["open", "screening"].includes(m.status));
-  const ranked = openMissions
-    .map((m) => ({ m, match: computeMatch(student, m) }))
-    .sort((a, b) => b.match - a.match);
-  const suitable = ranked.filter((r) => r.match >= 70);
+  // ===== المؤشر العام الموحّد (نسبة واحدة تلخّص أداء الطالب) =====
+  const attempts = student.attempts || [];
+  const attemptCount = attempts.length;
+  const best = attempts.find((a) => a.best) || attempts[0];
+  const first = attempts[attempts.length - 1];
+  const delta = best && first ? best.composite - first.composite : 0;
+  const overall = Math.round(best?.composite ?? (student.competency + student.behavior) / 2);
+  const overallTxt = overallLabel(overall);
 
-  // ===== مطابقة ذكية مع الوصف الوظيفي للمسمّيات + الخبرات السابقة =====
+  // ===== الموثوقية (تحديد واضح) =====
+  const reliability = student.trust === "trusted"
+    ? { label: "موثوق", tone: "text-emerald-700", ring: "border-emerald-200 bg-emerald-50", note: "النتائج متّسقة ويمكن الاعتماد عليها مباشرةً." }
+    : student.trust === "reserved"
+      ? { label: "متحفَّظ", tone: "text-amber-700", ring: "border-amber-200 bg-amber-50", note: "النتائج جيدة مع تحفّظ بسيط — يُنصح بمقابلة تأكيدية قصيرة." }
+      : { label: "يحتاج تحقّقًا", tone: "text-rose-700", ring: "border-rose-200 bg-rose-50", note: "يُنصح بمقابلة معمّقة قبل اعتماد النتائج في القرار." };
+
+  // ===== المسمّيات التي تقدّم لها الطالب + الخبرات السابقة =====
   const sPrefs = (student as any).rolePrefs as { role_title: string; prior_assigned: boolean }[] | undefined;
   const priorTitles = new Set((sPrefs || []).filter((p) => p.prior_assigned).map((p) => p.role_title));
   const chosenTitles = new Set((sPrefs || []).map((p) => p.role_title));
   const assignedTitles = new Set(assignedMissions.map((m) => m.title));
   const experienceTitles = Array.from(new Set([...priorTitles, ...assignedTitles]));
 
+  // مطابقة الطالب مع الوصف الوظيفي لكل مسمّى
   const roleFits = roles.filter((r) => r.active !== false).map((r) => {
-    // نسبة التطابق = نتائج محاور الطالب موزونة بأولويات الوصف الوظيفي للمسمّى
     const fit = Math.round(AXES.reduce((s, a) => s + student.axes[a.key] * (r.weights[a.key] || 0), 0) / 100);
     const hasPrior = priorTitles.has(r.title) || assignedTitles.has(r.title);
     const chosen = chosenTitles.has(r.title);
-    // ملاءمة نهائية محدودة: التطابق + أثر بسيط للخبرة السابقة (حتى +٥)
     const suitability = Math.min(100, fit + (hasPrior ? 5 : 0));
-    const keyAxes = AXES.filter((a) => (r.weights[a.key] || 0) >= 20); // محاور المسمّى الأعلى وزنًا
-    const strengths = keyAxes.filter((a) => student.axes[a.key] >= 75);
+    const keyAxes = AXES.filter((a) => (r.weights[a.key] || 0) >= 20);
+    const sStrengths = keyAxes.filter((a) => student.axes[a.key] >= 75);
     const gaps = keyAxes.filter((a) => student.axes[a.key] < 70);
-    const verdict = suitability >= 85 ? "عالي التطابق" : suitability >= 70 ? "مناسب" : "أقل تطابقًا";
-    return { r, fit, suitability, hasPrior, chosen, strengths, gaps, verdict };
+    const verdict = suitability >= 85 ? "مطابقة عالية" : suitability >= 70 ? "مناسب" : "أقل مناسبة";
+    return { r, suitability, hasPrior, chosen, strengths: sStrengths, gaps, verdict };
   }).sort((a, b) => b.suitability - a.suitability);
+
+  // المهام التي تقدّم لها الطالب فعلًا (نُظهر لها نسبة المطابقة). وإن لم يتقدّم لأيٍّ نقترح الأنسب له.
+  const appliedFits = roleFits.filter((rf) => rf.chosen);
+  const applied = appliedFits.length > 0;
+  const shownFits = applied ? appliedFits : roleFits.slice(0, 3);
   const bestFit = roleFits[0];
 
-  // المحاولات (الأحدث أولًا)
-  const attempts = student.attempts || [];
-  const attemptCount = attempts.length;
-  const best = attempts.find((a) => a.best) || attempts[0];
-  const first = attempts[attempts.length - 1];
-  const delta = best && first ? best.composite - first.composite : 0;
+  // مهمة مفتوحة أعلى مواءمةً (لدعم القرار)
+  const openMissions = missions.filter((m) => ["open", "screening"].includes(m.status));
+  const rankedOpen = openMissions.map((m) => ({ m, match: computeMatch(student, m) })).sort((a, b) => b.match - a.match);
 
-  // ===== توليد التوصيات التحليلية (نقاط مقسّمة) =====
-  // 1) قرار الاعتماد
+  // ===== القرار والتوصية (بالكلمات، دون نسب) =====
   const decisionItems: string[] = [
     student.trust === "trusted"
-      ? "المؤشرات موثوقة ومتّسقة — يمكن اعتماده مباشرةً للأدوار المناسبة لملفه دون حاجة لمقابلة."
+      ? "يمكن اعتماده مباشرةً للأدوار المناسبة لملفه دون حاجة لمقابلة."
       : student.trust === "reserved"
-        ? "المؤشرات جيدة مع تحفّظ بسيط — يُنصح بمقابلة قصيرة (١٠–١٥ دقيقة) للتأكيد قبل الاعتماد النهائي."
-        : "توجد مؤشرات تحتاج تحقّقًا — يُنصح بمقابلة معمّقة قبل أي قرار اعتماد.",
+        ? "يُنصح بمقابلة قصيرة للتأكيد قبل الاعتماد النهائي."
+        : "يُنصح بمقابلة معمّقة قبل أي قرار اعتماد.",
   ];
   const gap = student.competency - student.behavior;
-  if (gap >= 20) decisionItems.push(`فجوة بين الكفاية النظرية (${student.competency}٪) والسلوك الفعلي (${student.behavior}٪): قوي معرفيًا ويحتاج فرص تطبيق عملي.`);
-  else if (gap <= -20) decisionItems.push(`السلوك الفعلي (${student.behavior}٪) أعلى من الكفاية النظرية (${student.competency}٪): عملي وميداني، ويُدعَم جانبه المعرفي.`);
-  if (experienceTitles.length > 0) decisionItems.push(`لدى الطالب خبرة سابقة في: ${experienceTitles.join("، ")} — تُرجّح جاهزيته لأدوار مماثلة.`);
-  if (bestFit) decisionItems.push(`أعلى تطابق مع الوصف الوظيفي: «${bestFit.r.title}» بنسبة ${bestFit.suitability}٪ (${bestFit.verdict}).`);
+  if (gap >= 20) decisionItems.push("قوي معرفيًا أكثر من الجانب العملي — يحتاج فرص تطبيق ميداني ليترجم معرفته إلى سلوك.");
+  else if (gap <= -20) decisionItems.push("عملي وميداني أكثر من الجانب المعرفي — يُدعَم جانبه النظري بالتدريب.");
+  if (experienceTitles.length > 0) decisionItems.push(`لديه خبرة سابقة في: ${experienceTitles.join("، ")} — تُرجّح جاهزيته لأدوار مماثلة.`);
+  if (bestFit) decisionItems.push(`أنسب مسمّى قيادي له: «${bestFit.r.title}» (${bestFit.verdict}).`);
 
-  // 2) نقاط الاستثمار الفوري (نقاط القوة)
-  const leverageItems = strengths.map((a) => `${a.label} (${student.axes[a.key]}٪): ${AXIS_LEVERAGE[a.key]}`);
+  const leverageItems = strengths.map((a) => AXIS_LEVERAGE[a.key]);
+  const developItems = growth.map((a) => AXIS_DEVELOP[a.key]);
 
-  // 3) خطة التطوير (فرص النمو)
-  const developItems = growth.map((a) => `${a.label} (${student.axes[a.key]}٪): ${AXIS_DEVELOP[a.key]}`);
-
-  // 4) التوصية بالأدوار
-  const roleItems: string[] = suitable.slice(0, 4).map(({ m, match }) =>
-    `${m.title} — مواءمة ${match}٪: ${match >= 85 ? "مرشّح قوي، يُنصح بالاعتماد." : "مناسب، يُنظر فيه."}`);
-  if (roleItems.length === 0) roleItems.push("لا توجد مهام مفتوحة عالية المواءمة حاليًا — أعد التقييم عند فتح مهام جديدة.");
-
-  // 5) تنبيهات المصداقية
+  // التنبيهات — بالكلمات دون أرقام
   const alertItems: string[] = [];
-  if (student.contradiction >= 6) alertItems.push(`ارتفاع درجة التناقض (${student.contradiction}/١٠): راجع اتساق إجاباته عبر أسئلة موقفية في المقابلة.`);
-  if (student.socialDesirability >= 4) alertItems.push(`ميل للمثالية الاجتماعية (${student.socialDesirability}/٥): قد يقدّم صورة مثالية؛ تحقّق بمواقف واقعية.`);
-  if (attemptCount > 1 && delta >= 8) alertItems.push(`تحسّن أداؤه عبر المحاولات (+${delta} نقطة): مؤشر على التعلّم والتطوّر — إيجابي.`);
-  if (attemptCount > 1 && delta <= -8) alertItems.push(`تراجع أداؤه عبر المحاولات (${delta} نقطة): يُستحسن معرفة سبب التذبذب.`);
+  if (student.contradiction >= 6) alertItems.push("لوحظ تفاوت في اتساق بعض الإجابات — يُستحسن مراجعتها بأسئلة موقفية في المقابلة.");
+  if (student.socialDesirability >= 4) alertItems.push("ميل لتقديم صورة مثالية — يُنصح بالتحقّق بمواقف واقعية.");
+  if (attemptCount > 1 && delta >= 8) alertItems.push("تحسّن أداؤه عبر المحاولات — مؤشر إيجابي على التعلّم والتطوّر.");
+  if (attemptCount > 1 && delta <= -8) alertItems.push("تذبذب أداؤه عبر المحاولات — يُستحسن معرفة السبب.");
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-black/40 p-3 md:p-6" onClick={onClose}>
+  const report = (
+    <div className="slis-report-portal fixed inset-0 z-50 overflow-auto bg-black/40 p-3 md:p-6" onClick={onClose}>
       <style>{PRINT_CSS}</style>
-      <div className="mx-auto max-w-3xl" onClick={(e) => e.stopPropagation()}>
+      <div className="slis-report-inner mx-auto max-w-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="slis-no-print mb-3 flex items-center justify-between">
           <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 h-9 text-sm font-semibold hover:bg-accent">
             <X className="h-4 w-4" /> إغلاق
@@ -202,47 +221,47 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
             <div>
               <div className="text-lg font-extrabold text-brand">نظام مؤشر لقياس المهارات الطلابية</div>
               <div className="font-semibold text-slate-700">{schoolName}</div>
-              <div className="text-[11px] text-slate-500">مركز التدريب والتطوير · تقرير الطالب القيادي التفصيلي</div>
+              <div className="text-[11px] text-slate-500">مركز التدريب والتطوير · تقرير الطالب القيادي</div>
             </div>
             <div className="text-left text-[11px] text-slate-500">
               <div className="font-bold text-slate-700">{student.name}</div>
               <div>{student.grade}{student.className ? " · " + student.className : ""}</div>
               <div>تاريخ التقرير: <En>{today}</En></div>
               {student.assessedAt && <div>تاريخ الاختبار: <En>{student.assessedAt}</En></div>}
-              <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                <Award className="h-3 w-3" /> خبرة قيادية: {EXPERIENCE_LABELS[student.experience ?? 0]}
+            </div>
+          </div>
+
+          {/* ===== الملخّص التنفيذي: نسبة عامة موحّدة + النمط + الموثوقية ===== */}
+          <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr]">
+            {/* المؤشر العام — نسبة واحدة فقط */}
+            <div className="flex flex-col items-center justify-center rounded-xl border border-brand/25 bg-brand/5 p-4 text-center sm:w-44">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-brand"><Gauge className="h-3.5 w-3.5" /> المؤشر العام</div>
+              <div className="mt-1 font-display text-4xl font-extrabold text-brand"><En>{overall}</En><span className="text-xl">٪</span></div>
+              <div className="mt-0.5 text-[12px] font-bold text-slate-700">{overallTxt}</div>
+              <div className="mt-1 text-[10px] text-slate-500">نتيجة موحّدة من اختبار القيادات</div>
+            </div>
+            {/* النمط + الموثوقية */}
+            <div className="grid gap-3">
+              <div className="rounded-xl border p-3">
+                <div className="text-[11px] text-slate-500">النمط القيادي للطالب</div>
+                <div className="mt-0.5 font-display text-lg font-extrabold text-brand">{style.name}</div>
+                <div className="mt-0.5 text-[12px] text-slate-600">أبرز ما يميّزه: {strengths.map((a) => a.label).join(" و")}.</div>
+              </div>
+              <div className={`rounded-xl border p-3 ${reliability.ring}`}>
+                <div className="flex items-center gap-1.5 text-[12px] font-bold">
+                  <ShieldCheck className={`h-4 w-4 ${reliability.tone}`} />
+                  <span className="text-slate-600">موثوقية النتائج:</span>
+                  <span className={reliability.tone}>{reliability.label}</span>
+                </div>
+                <div className="mt-0.5 text-[12px] text-slate-600">{reliability.note}</div>
               </div>
             </div>
           </div>
 
-          {/* بطاقات علوية */}
-          <div className="mt-4 grid gap-3 sm:grid-cols-5">
-            <div className="rounded-lg border p-3 text-center">
-              <div className="text-[11px] text-slate-500">النمط القيادي</div>
-              <div className="mt-0.5 font-extrabold text-brand">{style.name}</div>
-            </div>
-            <div className="rounded-lg border p-3 text-center">
-              <div className="text-[11px] text-slate-500">تصنيف الثقة</div>
-              <div className="mt-0.5 font-extrabold">{trust.label}</div>
-            </div>
-            <div className="rounded-lg border p-3 text-center">
-              <div className="text-[11px] text-slate-500">الكفايات / السلوك</div>
-              <div className="mt-0.5 font-extrabold"><En>{student.competency}</En>٪ / <En>{student.behavior}</En>٪</div>
-            </div>
-            <div className="rounded-lg border p-3 text-center">
-              <div className="text-[11px] text-slate-500">عدد المحاولات</div>
-              <div className="mt-0.5 font-extrabold"><En>{attemptCount || 1}</En>{attemptCount > 1 ? " (الأفضل)" : ""}</div>
-            </div>
-            <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 text-center">
-              <div className="text-[11px] text-slate-500">مهام سبق تكليفه بها</div>
-              <div className="mt-0.5 font-extrabold text-brand"><En>{assignedMissions.length}</En></div>
-            </div>
-          </div>
-
-          {/* سجل التكليفات السابقة (يؤخذ في الاعتبار عند القرار) */}
+          {/* سجل التكليفات السابقة (يُراعى عند القرار) */}
           {assignedMissions.length > 0 && (
             <div className="mt-4 rounded-lg border border-brand/25 bg-brand/5 p-3">
-              <div className="mb-1.5 flex items-center gap-1.5 font-bold text-brand"><ClipboardList className="h-4 w-4" /> المهام المعتمدة للطالب في الفترات السابقة (<En>{assignedMissions.length}</En>)</div>
+              <div className="mb-1.5 flex items-center gap-1.5 font-bold text-brand"><ClipboardList className="h-4 w-4" /> مهام سبق تكليفه بها</div>
               <ul className="grid gap-1 sm:grid-cols-2">
                 {assignedMissions.map((m) => (
                   <li key={m.id} className="flex items-center gap-1.5 text-[12.5px] text-slate-700">
@@ -252,47 +271,48 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 text-[11px] text-slate-500">يُراعى عدد التكليفات السابقة عند ترشيح الطالب لمهام جديدة لتوزيع الفرص القيادية بعدالة.</p>
+              <p className="mt-1.5 text-[11px] text-slate-500">يُراعى توزيع الفرص القيادية بعدالة عند الترشيح لمهام جديدة.</p>
             </div>
           )}
 
-          {/* الرسوم: راداري + أشرطة المحاور */}
-          <div className="mt-4 grid items-center gap-4 sm:grid-cols-2">
-            <div className="flex justify-center rounded-lg border p-2">
-              <Radar axes={student.axes} />
-            </div>
-            <div>
-              <div className="mb-1 flex items-center gap-1.5 font-bold text-slate-900"><TrendingUp className="h-4 w-4 text-brand" /> المحاور الخمسة</div>
-              {AXES.map((a) => (
-                <div key={a.key} className="grid grid-cols-[110px_1fr_34px] items-center gap-2 py-1">
-                  <span className="text-[12px] text-slate-600">{a.label}</span>
-                  <Bar v={student.axes[a.key]} />
-                  <span className="text-left text-[11px] font-bold"><En>{student.axes[a.key]}</En></span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ===== التوصيات التحليلية (نقاط مقسّمة لدعم القرار) ===== */}
+          {/* ===== الشخصية القيادية: رسم راداري + مستويات المحاور بالكلمات ===== */}
           <div className="mt-5">
-            <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-brand" /> التوصيات التحليلية لدعم القرار</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <RecoCard icon={ShieldCheck} tone="brand" title="قرار الاعتماد" items={decisionItems} />
-              <RecoCard icon={Target} tone="emerald" title="التوصية بالأدوار والمهام" items={roleItems} />
-              <RecoCard icon={ArrowUpRight} tone="emerald" title="استثمار فوري لنقاط القوة" items={leverageItems} />
-              <RecoCard icon={Lightbulb} tone="amber" title="خطة التطوير المقترحة" items={developItems} />
+            <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900"><TrendingUp className="h-4 w-4 text-brand" /> الشخصية القيادية للطالب</div>
+            <div className="grid items-center gap-4 sm:grid-cols-2">
+              <div className="flex justify-center rounded-lg border p-2"><Radar axes={student.axes} /></div>
+              <div className="space-y-1.5">
+                {sorted.map((a) => {
+                  const lvl = axisLevel(student.axes[a.key]);
+                  return (
+                    <div key={a.key} className="grid grid-cols-[110px_1fr_74px] items-center gap-2 py-0.5">
+                      <span className="text-[12px] text-slate-600">{a.label}</span>
+                      <Bar v={student.axes[a.key]} />
+                      <span className={`text-left text-[11px] font-bold ${lvl.tone}`}>{lvl.label}</span>
+                    </div>
+                  );
+                })}
+                <p className="pt-1 text-[11px] text-slate-500">
+                  نقاط القوة: <b className="text-emerald-700">{strengths.map((a) => a.label).join(" و")}</b> ·
+                  فرص التطوير: <b className="text-amber-700">{growth.map((a) => a.label).join(" و")}</b>.
+                </p>
+              </div>
             </div>
-            {alertItems.length > 0 && (
-              <div className="mt-3"><RecoCard icon={AlertTriangle} tone="rose" title="تنبيهات المصداقية والملاحظات" items={alertItems} /></div>
-            )}
           </div>
 
-          {/* ===== مطابقة الطالب مع الوصف الوظيفي للمسمّيات (تحليل ذكي) ===== */}
-          {roleFits.length > 0 && (
+          {/* ===== مطابقة الطالب مع المهام (نسبة واحدة لكل مهمة) ===== */}
+          {shownFits.length > 0 && (
             <div className="mt-5">
-              <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900"><Target className="h-4 w-4 text-brand" /> مطابقة الطالب مع الوصف الوظيفي للمسمّيات القيادية</div>
-              <div className="space-y-2.5">
-                {roleFits.slice(0, 5).map(({ r, fit, suitability, hasPrior, chosen, strengths, gaps, verdict }) => {
+              <div className="mb-1 flex items-center gap-1.5 font-bold text-slate-900">
+                <Target className="h-4 w-4 text-brand" />
+                {applied ? "مطابقة الطالب مع المهام التي تقدّم لها" : "أنسب المهام للطالب (لم يتقدّم لمهمة محددة)"}
+              </div>
+              <p className="mb-2 text-[11px] text-slate-500">
+                {applied
+                  ? "لكل مهمة تقدّم لها الطالب: نسبة مطابقة واحدة تلخّص مدى ملاءمته لها."
+                  : "لم يختر الطالب مسمّى معيّنًا في الرابط — نعرض أعلى المهام مواءمةً لملفه."}
+              </p>
+              <div className="space-y-2">
+                {shownFits.map(({ r, suitability, hasPrior, verdict, strengths: st, gaps }) => {
                   const vTone = suitability >= 85 ? "text-emerald-700" : suitability >= 70 ? "text-brand" : "text-amber-700";
                   return (
                     <div key={r.id} className="rounded-lg border border-slate-200 p-3">
@@ -300,39 +320,47 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                         <span className="font-bold text-slate-900">{r.title}</span>
                         <span className={`text-[11px] font-bold ${vTone}`}>{verdict}</span>
                         {hasPrior && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">خبرة سابقة</span>}
-                        {chosen && <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">من اختيار الطالب</span>}
                         <span className="mr-auto flex items-center gap-2">
-                          <Bar v={suitability} />
-                          <span className="font-display text-sm font-extrabold text-brand"><En>{suitability}</En>٪</span>
+                          <span className="w-24"><Bar v={suitability} /></span>
+                          <span className="font-display text-base font-extrabold text-brand"><En>{suitability}</En>٪</span>
                         </span>
                       </div>
-                      {r.description && <div className="mt-1 text-[11.5px] text-slate-500">{r.description}</div>}
-                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
-                        <span className="text-slate-600">تطابق المحاور: <b className="text-slate-800"><En>{fit}</En>٪</b></span>
-                        {strengths.length > 0 && <span className="text-emerald-700">نقاط تطابق: {strengths.map((a) => a.label).join("، ")}</span>}
-                        {gaps.length > 0 && <span className="text-amber-700">فجوات على محاور المسمّى: {gaps.map((a) => a.label).join("، ")}</span>}
+                      <div className="mt-1 text-[12px] text-slate-600">
+                        {st.length > 0 && <>يتفوّق في: <b className="text-emerald-700">{st.map((a) => a.label).join("، ")}</b>. </>}
+                        {gaps.length > 0 && <>يحتاج تعزيزًا في: <b className="text-amber-700">{gaps.map((a) => a.label).join("، ")}</b>.</>}
+                        {st.length === 0 && gaps.length === 0 && <>ملاءمة متوازنة لمتطلّبات المهمة.</>}
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div className="mt-1.5 text-[11px] text-slate-500">تُحسب نسبة التطابق من مطابقة نتائج محاور الطالب مع أوزان الوصف الوظيفي لكل مسمّى، وتُراعى الخبرة السابقة بأثر محدود.</div>
+              {applied && rankedOpen[0] && (
+                <p className="mt-2 text-[11px] text-slate-500">أعلى مهمة مفتوحة مواءمةً لملفه حاليًا: «{rankedOpen[0].m.title}».</p>
+              )}
             </div>
           )}
 
-          {/* ===== سجل المحاولات (التاريخ والفروقات) ===== */}
+          {/* ===== الخلاصة والتوصية للمشرف / متّخذ القرار (بالكلمات) ===== */}
+          <div className="mt-5">
+            <div className="mb-2 flex items-center gap-1.5 font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-brand" /> الخلاصة والتوصية لمتّخذ القرار</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <WordCard icon={ShieldCheck} tone="brand" title="القرار المقترح" items={decisionItems} />
+              <WordCard icon={ArrowUpRight} tone="emerald" title="ما يُستثمر فيه" items={leverageItems} />
+              <WordCard icon={Lightbulb} tone="amber" title="ما يحتاج تطويرًا" items={developItems} />
+              <WordCard icon={AlertTriangle} tone="rose" title="ملاحظات للانتباه" items={alertItems} />
+            </div>
+          </div>
+
+          {/* ===== سجل المحاولات (مختصر: مؤشر واحد لكل محاولة) ===== */}
           {attemptCount > 1 && (
             <div className="mt-5">
-              <div className="mb-1 flex items-center gap-1.5 font-bold text-slate-900"><History className="h-4 w-4 text-brand" /> سجل المحاولات ({<En>{attemptCount}</En>}) — نُعتمد الأفضل مع إتاحة المقارنة</div>
+              <div className="mb-1 flex items-center gap-1.5 font-bold text-slate-900"><TrendingUp className="h-4 w-4 text-brand" /> سجل المحاولات — يُعتمد الأفضل</div>
               <table className="w-full border-collapse text-[12px]">
                 <thead>
                   <tr className="text-slate-500">
                     <th className="border-b border-slate-200 p-1.5 text-right">#</th>
                     <th className="border-b border-slate-200 p-1.5 text-right">التاريخ</th>
-                    <th className="border-b border-slate-200 p-1.5 text-center">الكفاية</th>
-                    <th className="border-b border-slate-200 p-1.5 text-center">السلوك</th>
-                    <th className="border-b border-slate-200 p-1.5 text-center">المؤشر المركّب</th>
-                    <th className="border-b border-slate-200 p-1.5 text-center">الثقة</th>
+                    <th className="border-b border-slate-200 p-1.5 text-center">المؤشر العام</th>
                     <th className="border-b border-slate-200 p-1.5 text-center">الحالة</th>
                   </tr>
                 </thead>
@@ -341,12 +369,9 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                     <tr key={a.id} className={a.best ? "bg-emerald-50/60" : ""}>
                       <td className="border-b border-slate-100 p-1.5"><En>{attemptCount - i}</En></td>
                       <td className="border-b border-slate-100 p-1.5"><En>{a.date}</En></td>
-                      <td className="border-b border-slate-100 p-1.5 text-center"><En>{a.competency}</En>٪</td>
-                      <td className="border-b border-slate-100 p-1.5 text-center"><En>{a.behavior}</En>٪</td>
                       <td className="border-b border-slate-100 p-1.5 text-center font-bold"><En>{a.composite}</En>٪</td>
-                      <td className="border-b border-slate-100 p-1.5 text-center">{TRUST_META[a.trust]?.label || a.trust}</td>
                       <td className="border-b border-slate-100 p-1.5 text-center">
-                        {a.best ? <span className="font-semibold text-emerald-700">★ الأفضل (معتمد)</span> : <span className="text-slate-400">محاولة</span>}
+                        {a.best ? <span className="font-semibold text-emerald-700">★ المعتمد</span> : <span className="text-slate-400">محاولة</span>}
                       </td>
                     </tr>
                   ))}
@@ -354,30 +379,29 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
               </table>
               <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                جميع المحاولات محفوظة. المعتمَد في التقرير هو الأفضل (الأعلى مؤشرًا مركّبًا){delta !== 0 ? ` — الفارق عن أول محاولة ${delta > 0 ? "+" : ""}${delta} نقطة` : ""}.
+                المعتمَد هو الأفضل{delta !== 0 ? ` — ${delta > 0 ? "تحسّن" : "تراجع"} عن أول محاولة` : ""}.
               </div>
             </div>
           )}
 
-          {/* ===== دليل المصطلحات: مطوي تلقائيًا حتى لا يطول التقرير ===== */}
+          {/* خبرة قيادية */}
+          <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-gold/15 px-3 py-1 text-[11px] font-bold text-amber-700">
+            <Award className="h-3.5 w-3.5" /> الخبرة القيادية: {EXPERIENCE_LABELS[student.experience ?? 0]}
+          </div>
+
+          {/* ===== دليل المصطلحات: مطوي تلقائيًا ===== */}
           <details className="slis-glossary mt-6 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 font-bold text-slate-900 [&::-webkit-details-marker]:hidden">
-              <ClipboardList className="h-4 w-4 text-brand" /> دليل المصطلحات — شرح المفاهيم المستخدمة في التقرير
-              <span className="mr-auto text-[11px] font-normal text-slate-400">(اضغط للعرض)</span>
+              <ClipboardList className="h-4 w-4 text-brand" /> دليل المصطلحات — شرح مبسّط للمفاهيم
+              <span className="slis-hint mr-auto text-[11px] font-normal text-slate-400">(اضغط للعرض)</span>
             </summary>
-            <p className="mb-2.5 mt-2 text-[11.5px] text-slate-500">لتسهيل قراءة التقرير وفهمه من قِبل المقيّم أو الطالب، فيما يلي معاني المصطلحات الواردة أعلاه:</p>
-            <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
+            <dl className="mt-2 grid gap-x-5 gap-y-2 sm:grid-cols-2">
               {[
-                ["المؤشر المركّب", "الدرجة الكلية التي تجمع بين الكفاية النظرية والسلوك الفعلي في رقم واحد يعبّر عن الأداء العام للطالب."],
-                ["الكفاية النظرية", "مدى معرفة الطالب بالمفاهيم والمبادئ القيادية (ماذا يعرف)، وتُقاس عبر الأسئلة المعرفية."],
-                ["السلوك الفعلي", "مدى تطبيق الطالب للمهارات القيادية في المواقف الواقعية (كيف يتصرّف)، ويُقاس عبر الأسئلة الموقفية."],
-                ["تصنيف الثقة", "تقدير مدى موثوقية نتائج الطالب: «موثوق» نتائج متّسقة، «يستوجب تحفّظًا» تأثّر بسيط بالمقبولية، «يُنصح بمقابلة» يحتاج تحقّقًا إضافيًا."],
-                ["النمط القيادي", "الوصف العام لأسلوب الطالب القيادي، ويُستنتج من أعلى محورين لديه (مثل: منظِّم، مبادر…)."],
-                ["نسبة التطابق مع الوصف الوظيفي", "مدى ملاءمة نتائج الطالب لمتطلّبات مسمّى قيادي محدّد، بمطابقة محاوره مع أوزان أهمية كل محور في ذلك المسمّى."],
-                ["تطابق المحاور", "الجزء من نسبة التطابق الناتج عن أداء الطالب في المحاور الأعلى وزنًا للمسمّى، قبل احتساب أثر الخبرة السابقة."],
-                ["درجة التناقض", "مؤشّر (من ١٠) على مدى تعارض إجابات الطالب فيما بينها؛ ارتفاعها يستدعي مراجعة اتساق الإجابات."],
-                ["المثالية الاجتماعية", "مؤشّر (من ٥) على ميل الطالب لتقديم صورة مثالية عن نفسه؛ ارتفاعها يستدعي التحقّق بمواقف واقعية."],
-                ["المواءمة", "نسبة تطابق الطالب مع مهمة قيادية مفتوحة محدّدة، وتُستخدم في ترتيب المرشّحين للمهمة."],
+                ["المؤشر العام", "نسبة واحدة تلخّص أداء الطالب في اختبار القيادات (تجمع معرفته وسلوكه)."],
+                ["النمط القيادي", "وصف عام لأسلوب الطالب القيادي، مستنتَج من أبرز محورين لديه."],
+                ["موثوقية النتائج", "مدى إمكانية الاعتماد على نتائج الطالب: موثوق / متحفَّظ / يحتاج تحقّقًا."],
+                ["نسبة المطابقة مع المهمة", "مدى ملاءمة الطالب لمتطلّبات مهمة قيادية محدّدة تقدّم لها."],
+                ["المحاور الخمسة", "الجوانب التي يقيسها الاختبار: التنظيم، القيادة، التواصل، الحزم، المبادرة."],
               ].map(([term, def]) => (
                 <div key={term}>
                   <dt className="text-[12px] font-bold text-slate-800">{term}</dt>
@@ -385,21 +409,6 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                 </div>
               ))}
             </dl>
-            <div className="mt-3 border-t border-slate-200 pt-2">
-              <div className="mb-1 text-[12px] font-bold text-slate-800">المحاور الخمسة للقياس</div>
-              <ul className="grid gap-x-5 gap-y-1 sm:grid-cols-2">
-                {AXES.map((a) => (
-                  <li key={a.key} className="text-[11.5px] leading-6 text-slate-600">
-                    <b className="text-slate-800">{a.label}:</b>{" "}
-                    {a.key === "org" ? "الالتزام بالمهام والمواعيد وترتيب الأولويات وتنظيم العمل."
-                      : a.key === "lead" ? "الاستعداد لقيادة الآخرين وتحمّل المسؤولية واتخاذ القرار."
-                      : a.key === "comm" ? "التعبير الواضح والتنسيق والعمل بروح الفريق مع الآخرين."
-                      : a.key === "firm" ? "اتخاذ المواقف الواضحة والالتزام بالقيم والنزاهة تحت الضغط."
-                      : "اقتراح الأفكار الجديدة والتعامل مع المتغيّرات المفاجئة بمرونة."}
-                  </li>
-                ))}
-              </ul>
-            </div>
           </details>
 
           <div className="mt-5 border-t border-slate-200 pt-2 text-[10px] text-slate-400">
@@ -409,4 +418,7 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
       </div>
     </div>
   );
+
+  // إخراج التقرير إلى جسم الصفحة مباشرةً حتى تُطبع نسخة واحدة فقط بلا تكرار
+  return createPortal(report, document.body);
 }
