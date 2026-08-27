@@ -15,6 +15,8 @@ import {
 import type { DevPlan } from "@/lib/live";
 import { CreateMissionModal } from "@/components/CreateMissionModal";
 import { StudentNotes } from "@/components/StudentNotes";
+import { MissionCandidatesReport } from "@/pages/reports/MissionCandidatesReport";
+import { FileText } from "lucide-react";
 
 function WeightBar({ m }: { m: Mission }) {
   return (
@@ -274,11 +276,12 @@ function DevPlanCard({ mission, student }: { mission: Mission; student: Candidat
 
 export function MissionDetail({ missionId, onBack, onOpenStudent }:
   { missionId: string; onBack: () => void; onOpenStudent: (id: string) => void }) {
-  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, rankMission, students, deleteMission, updateMission, toast } = useSlis();
+  const { missions, assigned, assignCandidate, unassignCandidate, nominateStudent, autoNominate, removeCandidate, rankMission, students, deleteMission, updateMission, toast, schoolInfo } = useSlis();
   // جميع الـ hooks تُستدعى أولًا قبل أي return (التزامًا بقواعد hooks)
   const [editing, setEditing] = useState(false);
   const [confirmDelM, setConfirmDelM] = useState(false);
   const [nomId, setNomId] = useState("");
+  const [showReport, setShowReport] = useState(false);
 
   const m = missions.find((x) => x.id === missionId);
   // حارس: قد تُحذف المهمة من جلسة أخرى أثناء العرض — نعرض حالة آمنة بدل الانهيار
@@ -332,6 +335,10 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
             <Pill tone={m.nominationMode === "preference" ? "gold" : "muted"}>
               {m.nominationMode === "preference" ? "ترشيح بالرغبة" : "ترشيح بالنطاق"}
             </Pill>
+            <button onClick={() => setShowReport(true)}
+              className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 h-8 text-xs font-semibold text-white hover:bg-brand/90" title="تقرير مقارن يجمع كل المرشّحين مرتّبين حسب المطابقة مع شرح لكل مرشّح">
+              <FileText className="h-3.5 w-3.5" /> تقرير المهمة
+            </button>
             <button onClick={() => { updateMission(m.id, { seats: m.seats + 1 }); toast(`أُضيف مقعد جديد (تغيير العريف) — أصبح عدد المقاعد ${m.seats + 1} لنفس السنة الدراسية`); }}
               className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent" title="عند تغيير العريف في منتصف السنة: يُضاف مقعد آخر وفترة جديدة في نفس السنة">
               <UserPlus className="h-3.5 w-3.5" /> إضافة مقعد (تغيير العريف)
@@ -436,6 +443,12 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
       )}
 
       {editing && <CreateMissionModal edit={m} onClose={() => setEditing(false)} />}
+      {showReport && (
+        <MissionCandidatesReport
+          mission={m} ranked={ranked} assignedIds={assignedIds}
+          schoolName={schoolInfo.name || "مدرستك"} today={new Date().toISOString().slice(0, 10)}
+          onClose={() => setShowReport(false)} />
+      )}
     </div>
   );
 }
