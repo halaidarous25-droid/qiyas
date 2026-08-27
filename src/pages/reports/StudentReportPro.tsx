@@ -1,7 +1,8 @@
 import { createPortal } from "react-dom";
 import { AXES, computeMatch, type Candidate, type Mission } from "@/data/mock";
 import type { MissionRole } from "@/store";
-import { EXPERIENCE_LABELS } from "@/data/questions";
+import { EXPERIENCE_LABELS, QUESTIONS, type Item } from "@/data/questions";
+import { BANK_B } from "@/data/questionBankB";
 import { leadershipStyle } from "@/lib/scoring";
 import { En } from "@/components/common";
 import { Printer, X, Award, Target, TrendingUp, AlertTriangle, CheckCircle2, ClipboardList, Lightbulb, ShieldCheck, ArrowUpRight, Gauge } from "lucide-react";
@@ -54,6 +55,27 @@ function overallLabel(v: number): string {
   if (v >= 65) return "جيد";
   if (v >= 50) return "متوسط";
   return "يحتاج تطوير";
+}
+
+// سجل موحّد لكل الأسئلة لاستخراج تفاصيل الإجابات
+const ALL_ITEMS: Item[] = [...QUESTIONS, ...BANK_B];
+const AXIS_LABEL: Record<string, string> = Object.fromEntries(AXES.map((a) => [a.key, a.label]));
+
+// تحليل مختصر لاختيار الطالب في سؤال موقفي بناءً على جودة الخيار ومحوره
+function interpretChoice(item: Item, chosenIdx: number): { level: string; tone: string; text: string } {
+  const opt = item.options[chosenIdx];
+  const score = opt ? opt.score : 0;
+  const axisTxt = item.axis ? AXIS_LABEL[item.axis] : "";
+  const maxScore = Math.max(...item.options.map((o) => o.score));
+  const isBest = opt && score === maxScore;
+  if (score >= 85) return { level: "اختيار ناضج", tone: "text-emerald-700",
+    text: `يعكس مستوى عاليًا في ${axisTxt}${isBest ? " — وهو أفضل خيار متاح" : ""}؛ يتصرّف بوعي ومسؤولية في هذا الموقف.` };
+  if (score >= 60) return { level: "اختيار جيد", tone: "text-brand",
+    text: `يدل على مستوى جيد في ${axisTxt}؛ استجابة إيجابية مع مساحة بسيطة للتحسين.` };
+  if (score >= 40) return { level: "اختيار متوسط", tone: "text-amber-700",
+    text: `استجابة متوسطة تُظهر حاجة لتعزيز ${axisTxt} في مواقف مشابهة.` };
+  return { level: "يحتاج تطويرًا", tone: "text-rose-700",
+    text: `خيار ضعيف في ${axisTxt}؛ يُنصح بالتدريب على التعامل مع هذا النوع من المواقف.` };
 }
 
 // رسم راداري (مخمّس) لمحاور القيادة الخمسة — تمثيل بصري بلا أرقام
@@ -155,18 +177,19 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
   const assignedTitles = new Set(assignedMissions.map((m) => m.title));
   const experienceTitles = Array.from(new Set([...priorTitles, ...assignedTitles]));
 
-  // مطابقة الطالب مع الوصف الوظيفي لكل مسمّى
+  // مطابقة الطالب مع الوصف الوظيفي لكل مسمّى — رقم واحد موحّد لكل مهمة:
+  // نسبة مطابقة نتائج محاور الطالب مع أوزان أهمية المحاور في وصف المهمة (بلا إضافات مربكة).
+  // الخبرة السابقة تظهر كشارة فقط ولا تُضاف إلى الرقم حتى يبقى متّسقًا وواضحًا.
   const roleFits = roles.filter((r) => r.active !== false).map((r) => {
-    const fit = Math.round(AXES.reduce((s, a) => s + student.axes[a.key] * (r.weights[a.key] || 0), 0) / 100);
+    const match = Math.round(AXES.reduce((s, a) => s + student.axes[a.key] * (r.weights[a.key] || 0), 0) / 100);
     const hasPrior = priorTitles.has(r.title) || assignedTitles.has(r.title);
     const chosen = chosenTitles.has(r.title);
-    const suitability = Math.min(100, fit + (hasPrior ? 5 : 0));
     const keyAxes = AXES.filter((a) => (r.weights[a.key] || 0) >= 20);
     const sStrengths = keyAxes.filter((a) => student.axes[a.key] >= 75);
     const gaps = keyAxes.filter((a) => student.axes[a.key] < 70);
-    const verdict = suitability >= 85 ? "مطابقة عالية" : suitability >= 70 ? "مناسب" : "أقل مناسبة";
-    return { r, suitability, hasPrior, chosen, strengths: sStrengths, gaps, verdict };
-  }).sort((a, b) => b.suitability - a.suitability);
+    const verdict = match >= 85 ? "مطابقة عالية" : match >= 70 ? "مناسب" : "أقل مناسبة";
+    return { r, match, hasPrior, chosen, strengths: sStrengths, gaps, verdict };
+  }).sort((a, b) => b.match - a.match);
 
   // المهام التي تقدّم لها الطالب فعلًا (نُظهر لها نسبة المطابقة). وإن لم يتقدّم لأيٍّ نقترح الأنسب له.
   const appliedFits = roleFits.filter((rf) => rf.chosen);
@@ -194,6 +217,14 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
 
   const leverageItems = strengths.map((a) => AXIS_LEVERAGE[a.key]);
   const developItems = growth.map((a) => AXIS_DEVELOP[a.key]);
+
+  // ===== تفصيل إجابات الطالب (المواقف ذات الخيارات) مع تحليل مختصر لكل إجابة =====
+  const answers = student.answers || {};
+  const answeredItems = ALL_ITEMS
+    .filter((it) => it.options && it.options.length > 0 && typeof answers[it.id] === "number")
+    .map((it) => ({ it, idx: answers[it.id] as number }))
+    .filter(({ it, idx }) => it.options[idx] !== undefined)
+    .sort((a, b) => a.it.n - b.it.n);
 
   // التنبيهات — بالكلمات دون أرقام
   const alertItems: string[] = [];
@@ -312,8 +343,8 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                   : "لم يختر الطالب مسمّى معيّنًا في الرابط — نعرض أعلى المهام مواءمةً لملفه."}
               </p>
               <div className="space-y-2">
-                {shownFits.map(({ r, suitability, hasPrior, verdict, strengths: st, gaps }) => {
-                  const vTone = suitability >= 85 ? "text-emerald-700" : suitability >= 70 ? "text-brand" : "text-amber-700";
+                {shownFits.map(({ r, match, hasPrior, verdict, strengths: st, gaps }) => {
+                  const vTone = match >= 85 ? "text-emerald-700" : match >= 70 ? "text-brand" : "text-amber-700";
                   return (
                     <div key={r.id} className="rounded-lg border border-slate-200 p-3">
                       <div className="flex flex-wrap items-center gap-2">
@@ -321,8 +352,8 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                         <span className={`text-[11px] font-bold ${vTone}`}>{verdict}</span>
                         {hasPrior && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">خبرة سابقة</span>}
                         <span className="mr-auto flex items-center gap-2">
-                          <span className="w-24"><Bar v={suitability} /></span>
-                          <span className="font-display text-base font-extrabold text-brand"><En>{suitability}</En>٪</span>
+                          <span className="w-24"><Bar v={match} /></span>
+                          <span className="font-display text-base font-extrabold text-brand"><En>{match}</En>٪</span>
                         </span>
                       </div>
                       <div className="mt-1 text-[12px] text-slate-600">
@@ -337,6 +368,9 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
               {applied && rankedOpen[0] && (
                 <p className="mt-2 text-[11px] text-slate-500">أعلى مهمة مفتوحة مواءمةً لملفه حاليًا: «{rankedOpen[0].m.title}».</p>
               )}
+              <p className="mt-1 text-[11px] text-slate-400">
+                نسبة المطابقة رقم موحّد يعبّر عن مدى ملاءمة نتائج الطالب لمتطلّبات كل مهمة، وتُعرض الخبرة السابقة كشارة دون التأثير على الرقم.
+              </p>
             </div>
           )}
 
@@ -388,6 +422,52 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
           <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-gold/15 px-3 py-1 text-[11px] font-bold text-amber-700">
             <Award className="h-3.5 w-3.5" /> الخبرة القيادية: {EXPERIENCE_LABELS[student.experience ?? 0]}
           </div>
+
+          {/* ===== تفصيل إجابات الطالب وتحليلها (مطوي تلقائيًا، يظهر كاملًا عند الطباعة) ===== */}
+          {answeredItems.length > 0 && (
+            <details className="slis-glossary mt-6 rounded-lg border border-slate-200 bg-white p-4">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 font-bold text-slate-900 [&::-webkit-details-marker]:hidden">
+                <ClipboardList className="h-4 w-4 text-brand" /> تفصيل إجابات الطالب وتحليلها (<En>{answeredItems.length}</En> موقفًا)
+                <span className="slis-hint mr-auto text-[11px] font-normal text-slate-400">(اضغط للعرض)</span>
+              </summary>
+              <p className="mt-2 mb-3 text-[11.5px] text-slate-500">
+                فيما يلي إجابة الطالب على كل موقف، مع تفسير وتحليل مختصر أسفل الخيارات يوضّح دلالة اختياره.
+              </p>
+              <div className="space-y-3">
+                {answeredItems.map(({ it, idx }) => {
+                  const analysis = interpretChoice(it, idx);
+                  return (
+                    <div key={it.id} className="break-inside-avoid rounded-lg border border-slate-200 p-3">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded bg-brand/10 text-[11px] font-bold text-brand"><En>{it.n}</En></span>
+                        <div className="flex-1">
+                          <div className="font-semibold text-slate-800">{it.text}</div>
+                          {it.axis && <div className="mt-0.5 text-[10px] text-slate-400">المحور المقيس: {AXIS_LABEL[it.axis]}</div>}
+                        </div>
+                      </div>
+                      <ul className="mt-2 space-y-1">
+                        {it.options.map((o, oi) => {
+                          const chosen = oi === idx;
+                          return (
+                            <li key={oi} className={`flex items-start gap-2 rounded-md px-2 py-1 text-[12px] ${chosen ? "border border-brand/40 bg-brand/5 font-semibold text-slate-800" : "text-slate-500"}`}>
+                              <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${chosen ? "border-brand bg-brand text-white" : "border-slate-300"}`}>
+                                {chosen && <CheckCircle2 className="h-3 w-3" />}
+                              </span>
+                              <span className="flex-1">{o.text}</span>
+                              {chosen && <span className="shrink-0 text-[10px] font-bold text-brand">إجابة الطالب</span>}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className={`mt-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-[11.5px] leading-6 ${analysis.tone}`}>
+                        <b>التحليل ({analysis.level}):</b> <span className="text-slate-600">{analysis.text}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          )}
 
           {/* ===== دليل المصطلحات: مطوي تلقائيًا ===== */}
           <details className="slis-glossary mt-6 rounded-lg border border-slate-200 bg-slate-50/70 p-4">

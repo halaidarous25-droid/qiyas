@@ -61,6 +61,7 @@ export interface Candidate {
   supervisorNotes?: string; // تقييم وملاحظات المشرف/المدرسة عن الطالب (مرجع دائم)
   rolePrefs?: { role_title: string; prior_assigned: boolean }[]; // المسمّيات التي رغبها الطالب + هل سبق تكليفه
   experience?: number;    // 0..3 مؤشر الخبرة القيادية (السؤال ٣٦)
+  answers?: Record<string, number | boolean>; // إجابات المحاولة الأفضل (معرّف السؤال ← الاختيار) لتقرير تفصيل الأجوبة
 }
 
 export interface Mission {
