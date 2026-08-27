@@ -330,7 +330,7 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Pill tone={st.tone as Tone}>{st.label}</Pill>
             <Pill tone={m.nominationMode === "preference" ? "gold" : "muted"}>
               {m.nominationMode === "preference" ? "ترشيح بالرغبة" : "ترشيح بالنطاق"}

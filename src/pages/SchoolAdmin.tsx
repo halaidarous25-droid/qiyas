@@ -54,10 +54,10 @@ export function SchoolAdmin() {
       </div>
 
       {/* التبويبات */}
-      <div className="flex flex-wrap gap-2 border-b">
+      <div className="flex gap-2 overflow-x-auto border-b [&>button]:shrink-0">
         {TABS.map((t) => (
           <button key={t.k} onClick={() => setTab(t.k)}
-            className={cn("flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors",
+            className={cn("flex items-center gap-2 whitespace-nowrap px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors",
               tab === t.k ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground")}>
             <t.icon className="h-4 w-4" /> {t.l}
           </button>
@@ -983,8 +983,8 @@ function AccountsTab({ students, live, schoolId }:
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالاسم أو البريد…"
             className="rounded-lg border bg-background px-3 h-9 text-sm min-w-[200px]" />
         </div>
-        <div className="max-h-[420px] overflow-y-auto">
-          <table className="w-full text-sm">
+        <div className="max-h-[420px] overflow-auto">
+          <table className="w-full min-w-[520px] text-sm">
             <thead className="sticky top-0 bg-card">
               <tr className="text-xs text-muted-foreground">
                 <th className="border-b p-2.5 text-right font-semibold">الاسم</th>

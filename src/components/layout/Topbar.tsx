@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Avatar } from "@/components/common";
 import { SCHOOL } from "@/data/mock";
 import { cn } from "@/lib/utils";
-import { Bell, Search, ChevronDown, LogOut } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, Menu } from "lucide-react";
 
 export type Role = "supervisor" | "principal" | "student" | "central";
 const ROLES: { key: Role; label: string }[] = [
@@ -12,10 +12,10 @@ const ROLES: { key: Role; label: string }[] = [
   { key: "central", label: "مدير النظام المركزي" },
 ];
 
-export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile, schoolName, notifCount = 0, onBell }:
+export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avatarUrl, onProfile, schoolName, notifCount = 0, onBell, onMenu }:
   { role: Role; onRole: (r: Role) => void; crumb: string;
     locked?: boolean; onSignOut?: () => void; userName?: string; avatarUrl?: string | null; onProfile?: () => void; schoolName?: string;
-    notifCount?: number; onBell?: () => void }) {
+    notifCount?: number; onBell?: () => void; onMenu?: () => void }) {
   const current = ROLES.find((r) => r.key === role)!;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -27,11 +27,15 @@ export function Topbar({ role, onRole, crumb, locked, onSignOut, userName, avata
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-card/85 px-4 backdrop-blur md:px-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">{schoolName || SCHOOL.name}</span>
-        <span className="text-border">/</span>
-        <span>{crumb}</span>
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b bg-card/85 px-3 backdrop-blur md:gap-3 md:px-6">
+      <button onClick={onMenu} aria-label="القائمة"
+        className="md:hidden grid h-9 w-9 shrink-0 place-items-center rounded-lg border bg-background hover:bg-accent">
+        <Menu className="h-[18px] w-[18px]" />
+      </button>
+      <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+        <span className="truncate font-semibold text-foreground">{schoolName || SCHOOL.name}</span>
+        <span className="hidden text-border sm:inline">/</span>
+        <span className="hidden truncate sm:inline">{crumb}</span>
       </div>
 
       <div className="mr-auto flex items-center gap-2">

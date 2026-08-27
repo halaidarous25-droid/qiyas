@@ -86,15 +86,15 @@ export function CentralApp({ data, userName, onResolveAppeal, onReviewAppeal, on
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-brand text-white">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 h-16">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15"><Server className="h-5 w-5" /></div>
-          <div className="leading-tight">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-2 md:h-16 md:flex-nowrap md:py-0">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/15"><Server className="h-5 w-5" /></div>
+          <div className="min-w-0 leading-tight">
             <div className="font-display font-extrabold text-[15px]">لوحة النظام المركزي — مؤشر</div>
-            <div className="text-[11px] text-white/75">
+            <div className="truncate text-[11px] text-white/75">
               {userName ? userName : "مزوّد الخدمة"} · حوكمة المنصة بالكامل{live ? " · بيانات حيّة" : ""}
             </div>
           </div>
-          <div className="mr-auto flex gap-1.5">
+          <div className="mr-auto flex w-full gap-1.5 overflow-x-auto pb-1 md:w-auto md:pb-0 [&>button]:shrink-0">
             <button onClick={() => setView("dashboard")}
               className={cn("rounded-lg px-3 h-9 text-xs font-semibold", view === "dashboard" ? "bg-white text-brand" : "bg-white/15 text-white hover:bg-white/25")}>
               لوحة المنصة

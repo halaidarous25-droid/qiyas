@@ -107,7 +107,8 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
 
   const openMission = (id: string) => { setMissionId(id); setPage("missions"); };
   const openStudent = (id: string) => { setStudentId(id); setMissionId(null); setPage("students"); };
-  const goto = (p: PageKey) => { setPage(p); setMissionId(null); setStudentId(null); };
+  const [navOpen, setNavOpen] = useState(false);
+  const goto = (p: PageKey) => { setPage(p); setMissionId(null); setStudentId(null); setNavOpen(false); };
   const crumb = missionId && page === "missions" ? "تفاصيل المهمة" : CRUMBS[page];
 
   if (role === "student" || role === "central") {
@@ -131,9 +132,9 @@ function Shell({ initialRole, locked, onSignOut, userName, avatarUrl }:
     <div className="min-h-screen bg-background text-foreground">
       <BrandBanner schoolName={schoolInfo.name || undefined} />
       <div className="flex">
-      <Sidebar page={page} onNavigate={goto} notifCount={notifCount} />
+      <Sidebar page={page} onNavigate={goto} notifCount={notifCount} mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} schoolName={schoolInfo.name} notifCount={notifCount} onBell={() => goto("updates")} />
+        <Topbar role={role} onRole={setRole} crumb={crumb} locked={locked} onSignOut={onSignOut} userName={userName} avatarUrl={avatarUrl} onProfile={() => goto("profile")} schoolName={schoolInfo.name} notifCount={notifCount} onBell={() => goto("updates")} onMenu={() => setNavOpen(true)} />
         <main className="flex-1 p-4 md:p-6 soft-grid">
           <div className="mx-auto max-w-6xl">
             {page === "dashboard" && <Dashboard onOpenMissions={() => setPage("missions")} />}
