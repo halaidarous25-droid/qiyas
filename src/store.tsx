@@ -40,6 +40,15 @@ export function currentHijriAcademicYear(): string {
 export function fmtAcademicYear(startYear: number): string {
   return `${startYear}/${startYear + 1} هـ`;
 }
+// تطبيع أوزان المحاور إلى مجموع 100 (نفس ما يفعله إنشاء المهمة) لضمان تطابق الأوزان
+const WKEYS: AxisKey[] = ["org", "lead", "comm", "firm", "init"];
+function normalizeWeights(w: AxisScores): AxisScores {
+  const sum = WKEYS.reduce((s, k) => s + (w[k] || 0), 0);
+  if (sum <= 0) return { org: 20, lead: 20, comm: 20, firm: 20, init: 20 };
+  const out = {} as AxisScores;
+  WKEYS.forEach((k) => (out[k] = Math.round(((w[k] || 0) / sum) * 100)));
+  return out;
+}
 // استخراج سنة البداية من نص سنة دراسية («1446/1447 هـ» → 1446)
 function parseYearStart(s?: string): number | null {
   if (!s) return null;
@@ -565,10 +574,27 @@ export function SlisProvider({ children, seed, live, meStudentId, role, capsOver
   };
 
   const saveRole: Store["saveRole"] = (r) => {
+    const old = roles.find((x) => x.id === r.id);
     const nr = [...roles.filter((x) => x.id !== r.id), r];
     setRoles(nr);
+    // إذا تغيّرت أوزان المسمّى: نُطبّقها على كل المهام الحالية بنفس الاسم حتى لا تختلف النسب بين الإعدادات والتقارير
+    const newW = normalizeWeights(r.weights);
+    const weightsChanged = !old || JSON.stringify(normalizeWeights(old.weights)) !== JSON.stringify(newW);
+    const affected = missions.filter((m) => m.title === r.title);
     persistExtras(presets, nr)
-      .then(() => toast(`حُفظ المسمّى القيادي «${r.title}»`))
+      .then(async () => {
+        if (weightsChanged && affected.length) {
+          if (isLive && schoolId) {
+            await Promise.all(affected.map((m) => api.dbUpdateMission(m.id, { weights: newW })));
+            await resync();
+          } else {
+            setMissions((list) => list.map((m) => m.title === r.title ? { ...m, weights: newW } : m));
+          }
+        }
+        toast(weightsChanged && affected.length
+          ? `حُفظ المسمّى «${r.title}» وحُدّثت أوزان ${affected.length} مهمة مرتبطة به`
+          : `حُفظ المسمّى القيادي «${r.title}»`);
+      })
       .catch((e) => toast(`تعذّر الحفظ: ${e.message || e}`, "danger"));
   };
 

@@ -112,8 +112,13 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
             </div>
           </div>
           <p className="mt-2 text-[12px] text-slate-500">
-            الغرض: مقارنة مواءمة المرشّحين لهذه المهمة وترتيبهم حسب نسبة المطابقة، مع شرح موجز لكل مرشّح ونتيجته.
+            الغرض: مقارنة المرشّحين لهذه المهمة وترتيبهم حسب نسبة المطابقة، مع شرح موجز لكل مرشّح ونتيجته.
             محاور المهمة الأهم: <b className="text-brand">{keyAxes.map((a) => a.label).join("، ")}</b>.
+          </p>
+          <p className="mt-1 rounded-md bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500">
+            <b className="text-slate-700">المطابقة = المواءمة:</b> مصطلح واحد يعني مدى ملاءمة نتائج محاور الطالب لأوزان معايير هذه المهمة،
+            وتُحسب بنفس الطريقة في كل الشاشات والتقارير — فالنسبة لنفس الطالب في هذه المهمة واحدة أينما ظهرت.
+            يظهر وزن كل معيار في رأس عموده بالجدول أدناه ليتّضح تأثيره في التقييم.
           </p>
 
           {/* بطاقات علوية */}
@@ -140,7 +145,14 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
                   <tr className="bg-slate-50 text-slate-600">
                     <th className="border border-slate-200 p-2 text-right">#</th>
                     <th className="border border-slate-200 p-2 text-right">المرشّح</th>
-                    {AXES.map((a) => <th key={a.key} className="border border-slate-200 p-2 text-center">{a.short}</th>)}
+                    {AXES.map((a) => (
+                      <th key={a.key} className="border border-slate-200 p-2 text-center align-top">
+                        <div>{a.short}</div>
+                        <div className="mt-0.5 text-[9px] font-normal text-brand" title="وزن هذا المعيار في تقييم هذه المهمة">
+                          الوزن <En>{mission.weights[a.key] || 0}</En>٪
+                        </div>
+                      </th>
+                    ))}
                     <th className="border border-slate-200 p-2 text-center">المطابقة</th>
                     <th className="border border-slate-200 p-2 text-center">الحالة</th>
                   </tr>
