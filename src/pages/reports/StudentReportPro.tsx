@@ -193,7 +193,10 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
     const sStrengths = keyAxes.filter((a) => student.axes[a.key] >= 75);
     const gaps = keyAxes.filter((a) => student.axes[a.key] < 70);
     const verdict = match >= 85 ? "مطابقة عالية" : match >= 70 ? "مناسب" : "أقل مناسبة";
-    return { r, match, hasPrior, chosen, strengths: sStrengths, gaps, verdict };
+    // أعلى ثلاثة معايير وزنًا لهذه المهمة (لعرض شفافية احتساب النسبة)
+    const topCriteria = [...AXES].sort((x, y) => (w[y.key] || 0) - (w[x.key] || 0)).slice(0, 3)
+      .map((a) => ({ key: a.key, label: a.label, weight: w[a.key] || 0, value: student.axes[a.key] }));
+    return { r, match, hasPrior, chosen, strengths: sStrengths, gaps, verdict, topCriteria };
   }).sort((a, b) => b.match - a.match);
 
   // المهام التي تقدّم لها الطالب فعلًا (نُظهر لها نسبة المطابقة). وإن لم يتقدّم لأيٍّ نقترح الأنسب له.
@@ -320,10 +323,11 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                 {sorted.map((a) => {
                   const lvl = axisLevel(student.axes[a.key]);
                   return (
-                    <div key={a.key} className="grid grid-cols-[110px_1fr_74px] items-center gap-2 py-0.5">
+                    <div key={a.key} className="grid grid-cols-[104px_1fr_34px_58px] items-center gap-2 py-0.5">
                       <span className="text-[12px] text-slate-600">{a.label}</span>
                       <Bar v={student.axes[a.key]} />
-                      <span className={`text-left text-[11px] font-bold ${lvl.tone}`}>{lvl.label}</span>
+                      <span className="text-left text-[12px] font-extrabold text-slate-800"><En>{student.axes[a.key]}</En>٪</span>
+                      <span className={`text-left text-[10px] font-bold ${lvl.tone}`}>{lvl.label}</span>
                     </div>
                   );
                 })}
@@ -348,7 +352,7 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                   : "لم يختر الطالب مسمّى معيّنًا في الرابط — نعرض أعلى المهام مواءمةً لملفه."}
               </p>
               <div className="space-y-2">
-                {shownFits.map(({ r, match, hasPrior, verdict, strengths: st, gaps }) => {
+                {shownFits.map(({ r, match, hasPrior, verdict, strengths: st, gaps, topCriteria }) => {
                   const vTone = match >= 85 ? "text-emerald-700" : match >= 70 ? "text-brand" : "text-amber-700";
                   return (
                     <div key={r.id} className="rounded-lg border border-slate-200 p-3">
@@ -361,7 +365,18 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
                           <span className="font-display text-base font-extrabold text-brand"><En>{match}</En>٪</span>
                         </span>
                       </div>
-                      <div className="mt-1 text-[12px] text-slate-600">
+                      {/* أهم معايير المهمة: درجة الطالب فيها ووزن كل معيار — لتوضيح كيف تكوّنت النسبة */}
+                      <div className="mt-2 space-y-1 rounded-md bg-slate-50 p-2">
+                        {topCriteria.map((c) => (
+                          <div key={c.key} className="grid grid-cols-[120px_1fr_44px_58px] items-center gap-2 text-[11px]">
+                            <span className="text-slate-600">{c.label}</span>
+                            <Bar v={c.value} />
+                            <span className="text-left font-bold text-slate-800"><En>{c.value}</En>٪</span>
+                            <span className="text-left text-slate-400">وزن <En>{c.weight}</En>٪</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-1.5 text-[12px] text-slate-600">
                         {st.length > 0 && <>يتفوّق في: <b className="text-emerald-700">{st.map((a) => a.label).join("، ")}</b>. </>}
                         {gaps.length > 0 && <>يحتاج تعزيزًا في: <b className="text-amber-700">{gaps.map((a) => a.label).join("، ")}</b>.</>}
                         {st.length === 0 && gaps.length === 0 && <>ملاءمة متوازنة لمتطلّبات المهمة.</>}
