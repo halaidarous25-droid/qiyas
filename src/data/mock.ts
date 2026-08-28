@@ -145,9 +145,10 @@ export const ME_ID = "me";
 
 const cand = (id: string) => CANDIDATES.find((c) => c.id === id)!;
 
-// نسبة المطابقة الموحّدة: مطابقة نتائج محاور الطالب مع أوزان أهمية المحاور في المهمة.
-// رقم واحد شفّاف يُستخدم في كل الشاشات والتقارير (تفاصيل المهمة، تقرير المهمة، تقرير الطالب)
-// حتى تتطابق النسبة لنفس الطالب ونفس المهمة أينما ظهرت. الأوزان مطبّعة إلى 100.
+// معادلة الترشيح الموحّدة (تُستخدم في كل الشاشات والتقارير فتتطابق النسبة أينما ظهرت):
+//   متوسط معايير التقييم الموزون بأوزان المهمة + مكافأة خبرة (حتى +٣)
+// حُذف مكوّنا «رغبة الطالب» و«إتمام المقابلة» لأنهما كانا قيمتين ثابتتين بلا أثر تمييزي
+// (لا مصدر بيانات لهما بعد). «المتوسط الموزون» = مطابقة محاور الطالب مع أوزان المهمة (مطبّعة إلى 100).
 export function computeMatch(c: Candidate, m: Mission): number {
   const weighted =
     (c.axes.org * m.weights.org +
@@ -155,7 +156,9 @@ export function computeMatch(c: Candidate, m: Mission): number {
       c.axes.comm * m.weights.comm +
       c.axes.firm * m.weights.firm +
       c.axes.init * m.weights.init) / 100;
-  return Math.round(Math.max(0, Math.min(100, weighted)));
+  // مكافأة الخبرة القيادية: أثر محدود (حتى +٣ نقاط)
+  const expBonus = Math.min(3, c.experience ?? 0);
+  return Math.min(100, Math.round(weighted) + expBonus);
 }
 
 export const MISSIONS: Mission[] = [

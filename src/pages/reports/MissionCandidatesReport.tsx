@@ -115,11 +115,20 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
             الغرض: مقارنة المرشّحين لهذه المهمة وترتيبهم حسب نسبة المطابقة، مع شرح موجز لكل مرشّح ونتيجته.
             محاور المهمة الأهم: <b className="text-brand">{keyAxes.map((a) => a.label).join("، ")}</b>.
           </p>
-          <p className="mt-1 rounded-md bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500">
-            <b className="text-slate-700">المطابقة = المواءمة:</b> مصطلح واحد يعني مدى ملاءمة نتائج محاور الطالب لأوزان معايير هذه المهمة،
-            وتُحسب بنفس الطريقة في كل الشاشات والتقارير — فالنسبة لنفس الطالب في هذه المهمة واحدة أينما ظهرت.
-            يظهر وزن كل معيار في رأس عموده بالجدول أدناه ليتّضح تأثيره في التقييم.
-          </p>
+          {/* صندوق توضيح المعادلة للقارئ */}
+          <div className="mt-2 rounded-lg border border-brand/25 bg-brand/5 p-3">
+            <div className="mb-1 flex items-center gap-1.5 text-[12px] font-bold text-brand">
+              <Target className="h-3.5 w-3.5" /> كيف تُحسب نسبة الترشيح (المطابقة = المواءمة)؟
+            </div>
+            <div className="rounded-md bg-white/70 px-3 py-2 text-center text-[12.5px] font-semibold text-slate-800">
+              نسبة الترشيح = المتوسط الموزون للمعايير + مكافأة الخبرة (حتى +٣)
+            </div>
+            <ul className="mt-1.5 space-y-0.5 text-[11px] leading-6 text-slate-600">
+              <li>• <b>المتوسط الموزون</b> = مجموع (درجة كل معيار × وزنه في هذه المهمة) ÷ ١٠٠ — أي أن المعيار الأعلى وزنًا يؤثّر أكثر في النتيجة.</li>
+              <li>• <b>مكافأة الخبرة</b> = حتى +٣ نقاط حسب خبرة الطالب القيادية السابقة.</li>
+              <li>• يظهر وزن كل معيار في رأس عموده بالجدول أدناه، وتُحسب بنفس الطريقة في كل الشاشات فالنسبة واحدة أينما ظهرت.</li>
+            </ul>
+          </div>
 
           {/* بطاقات علوية */}
           <div className="mt-4 grid gap-2.5 sm:grid-cols-4">
