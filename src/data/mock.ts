@@ -145,7 +145,9 @@ export const ME_ID = "me";
 
 const cand = (id: string) => CANDIDATES.find((c) => c.id === id)!;
 
-// حساب المواءمة لمهمة بأوزانها (كفايات×سلوك×أولويات المهمة) — مبسّط للعرض
+// نسبة المطابقة الموحّدة: مطابقة نتائج محاور الطالب مع أوزان أهمية المحاور في المهمة.
+// رقم واحد شفّاف يُستخدم في كل الشاشات والتقارير (تفاصيل المهمة، تقرير المهمة، تقرير الطالب)
+// حتى تتطابق النسبة لنفس الطالب ونفس المهمة أينما ظهرت. الأوزان مطبّعة إلى 100.
 export function computeMatch(c: Candidate, m: Mission): number {
   const weighted =
     (c.axes.org * m.weights.org +
@@ -153,12 +155,7 @@ export function computeMatch(c: Candidate, m: Mission): number {
       c.axes.comm * m.weights.comm +
       c.axes.firm * m.weights.firm +
       c.axes.init * m.weights.init) / 100;
-  // 85% نتيجة المحاور الموزونة + 10% رغبة الطالب + 5% إتمام المقابلة (نموذج مبسّط)
-  const wish = c.wishRank ? Math.max(0, 100 - (c.wishRank - 1) * 12) : 60;
-  const interview = c.interviewDone ? 100 : 70;
-  // مؤشر الخبرة القيادية: أثر محدود جدًّا (حتى +٣ نقاط) كعلامة تمييز لا تُرجّح بقوة
-  const expBonus = Math.min(3, (c.experience ?? 0));
-  return Math.min(100, Math.round(weighted * 0.85 + wish * 0.1 + interview * 0.05) + expBonus);
+  return Math.round(Math.max(0, Math.min(100, weighted)));
 }
 
 export const MISSIONS: Mission[] = [

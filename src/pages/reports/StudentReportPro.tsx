@@ -177,14 +177,19 @@ export function StudentReportPro({ student, missions, assignedMissions = [], rol
   const assignedTitles = new Set(assignedMissions.map((m) => m.title));
   const experienceTitles = Array.from(new Set([...priorTitles, ...assignedTitles]));
 
-  // مطابقة الطالب مع الوصف الوظيفي لكل مسمّى — رقم واحد موحّد لكل مهمة:
-  // نسبة مطابقة نتائج محاور الطالب مع أوزان أهمية المحاور في وصف المهمة (بلا إضافات مربكة).
-  // الخبرة السابقة تظهر كشارة فقط ولا تُضاف إلى الرقم حتى يبقى متّسقًا وواضحًا.
+  // مطابقة الطالب مع كل مسمّى — رقم واحد موحّد يطابق تمامًا ما يظهر في تقرير المهمة وتفاصيلها:
+  // عند وجود مهمة فعلية بنفس الاسم نحسب المطابقة بأوزان المهمة نفسها عبر computeMatch،
+  // وإلا فبأوزان المسمّى. الخبرة السابقة تظهر كشارة فقط ولا تُضاف إلى الرقم.
+  const missionByTitle = new Map<string, Mission>();
+  missions.forEach((mm) => { if (!missionByTitle.has(mm.title)) missionByTitle.set(mm.title, mm); });
   const roleFits = roles.filter((r) => r.active !== false).map((r) => {
-    const match = Math.round(AXES.reduce((s, a) => s + student.axes[a.key] * (r.weights[a.key] || 0), 0) / 100);
+    const mm = missionByTitle.get(r.title);
+    const w = (mm ? mm.weights : r.weights) as Record<string, number>;
+    const match = mm ? computeMatch(student, mm)
+      : Math.round(AXES.reduce((s, a) => s + student.axes[a.key] * (w[a.key] || 0), 0) / 100);
     const hasPrior = priorTitles.has(r.title) || assignedTitles.has(r.title);
     const chosen = chosenTitles.has(r.title);
-    const keyAxes = AXES.filter((a) => (r.weights[a.key] || 0) >= 20);
+    const keyAxes = AXES.filter((a) => (w[a.key] || 0) >= 20);
     const sStrengths = keyAxes.filter((a) => student.axes[a.key] >= 75);
     const gaps = keyAxes.filter((a) => student.axes[a.key] < 70);
     const verdict = match >= 85 ? "مطابقة عالية" : match >= 70 ? "مناسب" : "أقل مناسبة";
