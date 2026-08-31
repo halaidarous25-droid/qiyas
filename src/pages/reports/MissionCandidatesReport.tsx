@@ -61,10 +61,12 @@ function narrative(c: Candidate, m: Mission, keyAxes: { key: AxisKey; label: str
   return `${s1} ${s2} ${s3} (${v.label}).`;
 }
 
-export function MissionCandidatesReport({ mission, ranked, assignedIds = [], schoolName, today, onClose }: {
-  mission: Mission; ranked: Candidate[]; assignedIds?: string[]; schoolName: string; today: string; onClose: () => void;
+export function MissionCandidatesReport({ mission, ranked, assignedIds = [], schoolName, today, onClose, summaryOnly = false }: {
+  mission: Mission; ranked: Candidate[]; assignedIds?: string[]; schoolName: string; today: string; onClose: () => void; summaryOnly?: boolean;
 }) {
   const assignedSet = new Set(assignedIds);
+  // الصف/الفصل للمرشّح (يُعرض بجانب اسمه في الخلاصة)
+  const classLabel = (c: Candidate) => [c.grade, c.className].filter(Boolean).join(" · ");
   // محاور المهمة الأهم (الأعلى وزنًا) — تُبرز ما يهمّ في هذه المهمة تحديدًا
   const keyAxes = [...AXES].sort((a, b) => (mission.weights[b.key] || 0) - (mission.weights[a.key] || 0))
     .slice(0, 3).map((a) => ({ key: a.key as AxisKey, label: a.label }));
@@ -91,7 +93,7 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
             <div>
               <div className="text-lg font-extrabold text-brand">نظام مؤشر لقياس المهارات الطلابية</div>
               <div className="font-semibold text-slate-700">{schoolName}</div>
-              <div className="text-[11px] text-slate-500">مركز التدريب والتطوير · تقرير مقارن لمرشّحي المهمة</div>
+              <div className="text-[11px] text-slate-500">مركز التدريب والتطوير · {summaryOnly ? "ملخّص إداري لمرشّحي المهمة" : "تقرير مقارن لمرشّحي المهمة"}</div>
             </div>
             <div className="text-left text-[11px] text-slate-500">
               <div>تاريخ التقرير: <En>{today}</En></div>
@@ -111,6 +113,12 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
               </div>
             </div>
           </div>
+          {summaryOnly ? (
+            <p className="mt-2 rounded-md bg-brand/5 px-3 py-1.5 text-[12px] text-slate-600">
+              ملخّص إداري موجز لمرشّحي المهمة مرتّبين حسب المطابقة — للعرض على المدير الإداري لاتخاذ القرار.
+            </p>
+          ) : (
+          <>
           <p className="mt-2 text-[12px] text-slate-500">
             الغرض: مقارنة المرشّحين لهذه المهمة وترتيبهم حسب نسبة المطابقة، مع شرح موجز لكل مرشّح ونتيجته.
             محاور المهمة الأهم: <b className="text-brand">{keyAxes.map((a) => a.label).join("، ")}</b>.
@@ -129,6 +137,8 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
               <li>• يظهر وزن كل معيار في رأس عموده بالجدول أدناه، وتُحسب بنفس الطريقة في كل الشاشات فالنسبة واحدة أينما ظهرت.</li>
             </ul>
           </div>
+          </>
+          )}
 
           {/* بطاقات علوية */}
           <div className="mt-4 grid gap-2.5 sm:grid-cols-4">
@@ -145,7 +155,8 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
             ))}
           </div>
 
-          {/* جدول المقارنة (محاور كل مرشّح + المطابقة + الحالة) */}
+          {/* جدول المقارنة (محاور كل مرشّح + المطابقة + الحالة) — يُخفى في الملخّص الإداري */}
+          {!summaryOnly && (
           <div className="mt-5">
             <div className="mb-1.5 font-bold text-slate-900">جدول المقارنة</div>
             <div className="overflow-x-auto">
@@ -196,8 +207,10 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
               <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-rose-200" /> أقل من ٤٠٪</span>
             </div>
           </div>
+          )}
 
-          {/* بطاقات المرشّحين المرتّبة مع الشرح */}
+          {/* بطاقات المرشّحين المرتّبة مع الشرح — تُخفى في الملخّص الإداري */}
+          {!summaryOnly && (
           <div className="mt-5">
             <div className="mb-2 font-bold text-slate-900">ترتيب المرشّحين والتحليل</div>
             <div className="space-y-3">
@@ -253,23 +266,67 @@ export function MissionCandidatesReport({ mission, ranked, assignedIds = [], sch
               })}
             </div>
           </div>
+          )}
 
           {/* الخلاصة الإدارية */}
           {ranked.length > 0 && (
             <div className="mt-5 rounded-lg border border-brand/25 bg-brand/5 p-4">
-              <div className="mb-1.5 flex items-center gap-1.5 font-bold text-brand"><Award className="h-4 w-4" /> الخلاصة الإدارية</div>
-              <ul className="space-y-1">
-                {ranked.slice(0, Math.max(mission.seats, Math.min(5, ranked.length))).map((c, i) => {
-                  const v = verdictOf(c.match);
-                  const within = i < mission.seats;
-                  return (
-                    <li key={c.id} className="flex gap-1.5 text-[12.5px] leading-6 text-slate-700">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                      <span><b className="text-slate-900">{c.name}</b> — {v.label}{within ? "، ويقع ضمن المقاعد المتاحة" : ""}.</span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="mb-2 flex items-center gap-1.5 font-bold text-brand"><Award className="h-4 w-4" /> الخلاصة الإدارية</div>
+              {summaryOnly ? (
+                /* جدول مضغوط للمدير الإداري: الاسم + الصف/الفصل + المطابقة + التقدير + الموقع */
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="w-full border-collapse text-[12.5px]">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600">
+                        <th className="border-b border-slate-200 p-2 text-right">#</th>
+                        <th className="border-b border-slate-200 p-2 text-right">المرشّح</th>
+                        <th className="border-b border-slate-200 p-2 text-right">الصف / الفصل</th>
+                        <th className="border-b border-slate-200 p-2 text-center">المطابقة</th>
+                        <th className="border-b border-slate-200 p-2 text-right">التقدير</th>
+                        <th className="border-b border-slate-200 p-2 text-center">الموقع</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ranked.map((c, i) => {
+                        const v = verdictOf(c.match);
+                        const within = i < mission.seats;
+                        return (
+                          <tr key={c.id} className={within ? "bg-emerald-50/40" : ""}>
+                            <td className="border-b border-slate-100 p-2 text-center font-bold text-slate-500"><En>{i + 1}</En></td>
+                            <td className="border-b border-slate-100 p-2 font-semibold text-slate-900">{c.name}</td>
+                            <td className="border-b border-slate-100 p-2 text-slate-600">{classLabel(c) || "—"}</td>
+                            <td className={`border-b border-slate-100 p-2 text-center font-extrabold ${matchTone(c.match)}`}><En>{c.match}</En>٪</td>
+                            <td className={`border-b border-slate-100 p-2 ${v.tone}`}>{v.label}</td>
+                            <td className="border-b border-slate-100 p-2 text-center">
+                              {assignedSet.has(c.id) ? <span className="font-semibold text-emerald-700">مكلّف</span>
+                                : within ? <span className="text-brand">ضمن المقاعد</span>
+                                : <span className="text-slate-400">خارج المقاعد</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <ul className="space-y-1">
+                  {ranked.slice(0, Math.max(mission.seats, Math.min(5, ranked.length))).map((c, i) => {
+                    const v = verdictOf(c.match);
+                    const within = i < mission.seats;
+                    const cl = classLabel(c);
+                    return (
+                      <li key={c.id} className="flex gap-1.5 text-[12.5px] leading-6 text-slate-700">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                        <span>
+                          <b className="text-slate-900">{c.name}</b>
+                          {cl && <span className="text-slate-500"> ({cl})</span>} — {v.label} — مطابقة <b className="text-brand"><En>{c.match}</En>٪</b>
+                          {within ? "، ويقع ضمن المقاعد المتاحة" : ""}.
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               <p className="mt-2 text-[11px] text-slate-500">
                 ملاحظة: نتائج المؤشر أداة مساندة لاتخاذ القرار، ويُستحسن دمجها مع الملاحظة الميدانية والأداء الفعلي للطالب.
               </p>

@@ -282,6 +282,7 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
   const [confirmDelM, setConfirmDelM] = useState(false);
   const [nomId, setNomId] = useState("");
   const [showReport, setShowReport] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   const m = missions.find((x) => x.id === missionId);
   // حارس: قد تُحذف المهمة من جلسة أخرى أثناء العرض — نعرض حالة آمنة بدل الانهيار
@@ -338,6 +339,10 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
             <button onClick={() => setShowReport(true)}
               className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 h-8 text-xs font-semibold text-white hover:bg-brand/90" title="تقرير مقارن يجمع كل المرشّحين مرتّبين حسب المطابقة مع شرح لكل مرشّح">
               <FileText className="h-3.5 w-3.5" /> تقرير المهمة
+            </button>
+            <button onClick={() => setShowSummary(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-brand/40 text-brand px-3 h-8 text-xs font-semibold hover:bg-brand/10" title="ملخّص إداري مضغوط (الخلاصة فقط) للعرض على المدير الإداري">
+              <FileText className="h-3.5 w-3.5" /> ملخّص إداري
             </button>
             <button onClick={() => { updateMission(m.id, { seats: m.seats + 1 }); toast(`أُضيف مقعد جديد (تغيير العريف) — أصبح عدد المقاعد ${m.seats + 1} لنفس السنة الدراسية`); }}
               className="inline-flex items-center gap-1 rounded-lg border px-3 h-8 text-xs font-semibold hover:bg-accent" title="عند تغيير العريف في منتصف السنة: يُضاف مقعد آخر وفترة جديدة في نفس السنة">
@@ -448,6 +453,12 @@ export function MissionDetail({ missionId, onBack, onOpenStudent }:
           mission={m} ranked={ranked} assignedIds={assignedIds}
           schoolName={schoolInfo.name || "مدرستك"} today={new Date().toISOString().slice(0, 10)}
           onClose={() => setShowReport(false)} />
+      )}
+      {showSummary && (
+        <MissionCandidatesReport
+          mission={m} ranked={ranked} assignedIds={assignedIds} summaryOnly
+          schoolName={schoolInfo.name || "مدرستك"} today={new Date().toISOString().slice(0, 10)}
+          onClose={() => setShowSummary(false)} />
       )}
     </div>
   );
